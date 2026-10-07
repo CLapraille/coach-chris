@@ -208,10 +208,20 @@ Maquette : https://claude.ai/artifact/Be7xmuX9zrK782vmzbzCX1 (artefact privé).
 - ✅ **D95 BFF** : framework HTTP **Fastify** (+ zod).
 - ✅ **D96 Source de `campus-coach-mcp`** : reprise dans **`mcp/campus`** du monorepo (copie identique de `C:Userslapracampus-coach-mcp` faite le 2026-10-07 : `pyproject.toml`, `uv.lock`, `src/campus_coach_mcp/` ; `uv sync` OK, 9 outils exposés). Le dossier d'origine n'est pas un dépôt git ; Claude Desktop pointe encore vers son `.venv` (à rebasculer quand `mcp/campus` deviendra la référence). ⚠️ `campus-coach-auth` écoute sur le port **8765**, le même que le serveur local de prévisualisation des maquettes : ne pas lancer les deux en même temps.
 - ✅ **D97 Job de synchro** : cron à **heure UTC fixe** (≈ 6 h l'été, 5 h l'hiver, heure de Paris).
+- 🔎 **Azure vérifié** le 2026-10-07 : `Azure subscription 1`, état Enabled, `quotaId: PayAsYouGo_2014-09-01`, plafond de dépense désactivé. Aucun compte Cosmos existant (free tier disponible). Ressources préexistantes hors projet : 2 plans App Service **F1 (gratuits)** + un espace Log Analytics par défaut.
+- 🔎 **AVG et Azure CLI** : le CLI (Python) rejette le certificat d'AVG. Racine AVG exportée dans `C:Userslapra.certsavg-root.pem` et bundle combiné (certifi du CLI + AVG) dans `C:Userslapra.certsca-bundle.pem` → `REQUESTS_CA_BUNDLE` pointant dessus. Pour Node 24 : `NODE_OPTIONS=--use-system-ca` (vérifié avec npm). Résout la question ouverte n° 6 de l'architecture.
+- ✅ **D98 M0 livré** : branche `m0-socle` poussée sur GitHub (commit `19e47cf`). Node 24, TypeScript exécuté nativement par Node (pas de build serveur), `erasableSyntaxOnly`. Vérifié en local : lint, types, 6 tests, build web, `/api/health` répond.
+
+### Tour 18 — M1 domaine (2026-10-07)
+
+- ✅ **D99 Règle (2) « renforcement entre deux courses »** : traitée comme une **préférence** du placement proposé, pas comme un avertissement (comme dans la maquette Calendrier validée, qui ne vérifiait que les règles 1, 3, 4 et « deux séances le même jour »). Les avertissements ne portent que sur des situations qui touchent une séance encore modifiable : le passé n'est pas signalé.
+- ✅ **D100 Proposition de placement** : recherche exhaustive qui minimise, dans l'ordre, les avertissements, la préférence (2), l'écart à l'ordre Campus, puis place au plus tôt. Résultats sur la vraie semaine S2 : au 07/10 au soir (S2-1 course faite mardi, renfo S2-1 fait mercredi) → course S2-2 jeudi, renfo S2-2 vendredi, course S2-3 samedi. En début de semaine (mardi, rien de fait) → course, renfo, course, renfo, course de mardi à samedi : l'ordre Campus cède devant la préférence (2), ce qui diffère de la maquette (illustrative).
+- ✅ **D101 Jambes d'un renforcement** : déduites des noms d'exercices Campus (chaise, mollet, fente, squat…) ; sans le détail, on **suppose** un renforcement jambes (cas prudent pour la règle 3) et on l'indique (`legsFrom: assumed`).
+- 🔎 Le renforcement S2-1 a été validé dans Campus le 07/10 à 20:40 (heure de Paris) **sans activité Garmin** (`source: auto`) : le jour de validation fait foi pour le rapprochement.
 
 ## Actions en attente côté utilisateur
 
-- Installer Azure CLI (accepter l'UAC) : `winget install -e --id Microsoft.AzureCLI --source winget`.
-- Activer le paiement à l'usage (avant l'étape code).
+- ~~Installer Azure CLI~~ ✅ (2.91.0).
+- ~~Activer le paiement à l'usage~~ ✅ vérifié.
 - ~~Capturer la requête « valider une séance »~~ ✅ fait (tour 9).
-- S'authentifier sur GitHub pour le premier push vers `CLapraille/coach-chris`.
+- ~~S'authentifier sur GitHub~~ ✅ (premier push fait).

@@ -25,3 +25,18 @@ export function weekDays(day: string): string[] {
   const monday = mondayOf(day);
   return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
 }
+
+const DAY_LABELS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+
+/** Libellé court d'un jour, ex. « mer. 7 ». */
+export function dayLabel(day: string): string {
+  const d = parse(day);
+  return `${DAY_LABELS[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()}`;
+}
+
+/** Jour calendaire à Paris d'un instant UTC `AAAA-MM-JJ HH:mm` (format des dates Campus via le MCP). */
+export function parisDayOfUtc(utc: string): string {
+  const instant = new Date(`${utc.replace(' ', 'T')}:00Z`);
+  if (Number.isNaN(instant.getTime())) throw new Error(`Instant UTC invalide : ${utc}`);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(instant);
+}
