@@ -24,7 +24,17 @@ export interface CampusWeek {
 /** Sous-ensemble de la sortie de get_session_details. */
 export interface CampusSessionDetails {
   racingNote?: { externalId?: string; completionDate?: string };
-  exercisesBlocks?: { exercises: { name: string; exerciseType?: string }[] }[];
+  exercisesBlocks?: CampusBlock[];
+}
+
+export interface CampusBlock {
+  repeat?: number;
+  exercises: {
+    name: string;
+    exerciseType?: string;
+    durations?: { value: number; timeUnit: string }[];
+    pace?: { zoneKind?: string };
+  }[];
 }
 
 const SPORTS: Record<string, Sport> = { road: 'run', trail: 'run', trailV2: 'run', ppg: 'strength' };
