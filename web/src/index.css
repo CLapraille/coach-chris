@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+/* Jetons repris des maquettes validées (D57) : sombre par défaut, clair selon le système. */
+@theme {
+  --color-bg: #0d1117;
+  --color-surface: #141a22;
+  --color-surface-2: #1a212b;
+  --color-line: #252e3a;
+  --color-fg: #e5e9ef;
+  --color-muted: #8a95a5;
+  --color-faint: #5b6574;
+  --color-run: #5fb3a1;
+  --color-bike: #7f9cf0;
+  --color-strength: #d2a35c;
+  --color-mobility: #b18fdc;
+  --color-good: #6cc08b;
+  --color-warn: #e0b054;
+  --color-alert: #e2806f;
+  --font-display: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f3f5f8;
+    --color-surface: #ffffff;
+    --color-surface-2: #f0f3f7;
+    --color-line: #dde3ea;
+    --color-fg: #17202b;
+    --color-muted: #5d6877;
+    --color-faint: #8d97a5;
+    --color-run: #2f8a77;
+    --color-bike: #4a6fd6;
+    --color-strength: #a8752a;
+    --color-mobility: #8562b8;
+    --color-good: #2f8f55;
+    --color-warn: #a97810;
+    --color-alert: #c0503c;
+  }
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-body);
+}
