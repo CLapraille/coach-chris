@@ -1,0 +1,7 @@
+dist
+coverage
+mcp
+docs
+*.md
+requirements.txt
+package-lock.json

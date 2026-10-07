@@ -1,0 +1,1769 @@
+Je veux que tu conçoives et développes une application web front-end personnelle permettant de **suivre, monitorer, analyser et coordonner mon entraînement**.
+
+L'objectif n'est pas simplement de créer un dashboard de statistiques, mais un véritable **cockpit de pilotage de mon entraînement**, qui centralise mes données Garmin et mon programme d'entraînement provenant de Coach Campus afin de m'aider à comprendre ma charge, suivre ma progression et prendre de meilleures décisions au quotidien.
+
+## 1. Contexte
+
+J'ai déjà développé deux serveurs MCP que l'application pourra utiliser :
+
+1. Un MCP Garmin permettant d'accéder à mes données Garmin.
+2. Un MCP Coach Campus permettant d'accéder à mon programme / mes entraînements Coach Campus.
+
+Ces MCP existent déjà. **Ne recrée pas leur logique métier et ne simule pas leurs données.**
+
+Commence par inspecter les outils, ressources et schémas exposés par ces MCP afin de comprendre précisément :
+
+* quelles données sont disponibles ;
+* quelles opérations sont possibles ;
+* quels identifiants sont utilisés ;
+* quelles données sont historiques ;
+* quelles données sont prévisionnelles ;
+* quelles données peuvent être récupérées à la demande ;
+* quelles actions peuvent éventuellement être déclenchées.
+
+Si certaines informations nécessaires à l'application ne sont pas disponibles via les MCP, identifie clairement les limitations plutôt que d'inventer des données.
+
+---
+
+# 2. Vision produit
+
+Je veux une application qui réponde essentiellement à cette question :
+
+> **"Où en suis-je dans mon entraînement, comment ai-je réagi à la charge récente, et que dois-je faire aujourd'hui et dans les prochains jours ?"**
+
+L'application doit donc mettre en relation :
+
+**Planifié → Réalisé → Réaction du corps → Charge → Progression → Prochaines séances**
+
+Elle doit permettre de comparer ce qui était prévu avec ce qui a réellement été réalisé.
+
+L'interface doit être pensée comme celle d'un **coach / athlete performance dashboard**, pas comme une simple application de tracking sportif.
+
+---
+
+# 3. Informations à centraliser
+
+## Garmin
+
+Utilise toutes les données pertinentes disponibles via le MCP Garmin, notamment si elles existent :
+
+* activités ;
+* type de sport ;
+* durée ;
+* distance ;
+* allure / vitesse ;
+* fréquence cardiaque ;
+* zones FC ;
+* puissance ;
+* cadence ;
+* dénivelé ;
+* calories ;
+* Training Effect ;
+* récupération ;
+* HRV ;
+* sommeil ;
+* Body Battery ;
+* stress ;
+* resting heart rate ;
+* VO2max ;
+* charge d'entraînement ;
+* performances ;
+* records ;
+* données quotidiennes ;
+* autres métriques pertinentes disponibles.
+
+Ne suppose pas que toutes ces données existent : adapte l'application aux données réellement exposées par le MCP.
+
+## Coach Campus
+
+Utilise les données disponibles via le MCP Coach Campus, notamment :
+
+* calendrier d'entraînement ;
+* séances prévues ;
+* type de séance ;
+* description ;
+* objectifs ;
+* durée ;
+* distance ;
+* intensité ;
+* intervalles ;
+* zones ;
+* consignes ;
+* séances passées ;
+* séances futures ;
+* éventuelles informations de planification ;
+* toute autre donnée pertinente.
+
+---
+
+# 4. Fonction principale : vue "Aujourd'hui"
+
+La page d'accueil doit être une vue extrêmement claire de ma situation actuelle.
+
+Elle doit afficher :
+
+### État actuel
+
+* date ;
+* séance prévue aujourd'hui ;
+* statut de la séance ;
+* dernières séances réalisées ;
+* charge récente ;
+* récupération ;
+* sommeil ;
+* HRV si disponible ;
+* Body Battery si disponible ;
+* tendance de fatigue ;
+* éventuels signaux d'alerte.
+
+### Séance du jour
+
+Afficher de manière très lisible :
+
+* ce qui était prévu ;
+* objectif de la séance ;
+* durée ;
+* distance ;
+* intensité ;
+* structure des intervalles ;
+* zones cibles ;
+* consignes.
+
+Si la séance a déjà été réalisée :
+
+* activité Garmin correspondante ;
+* comparaison prévu / réalisé ;
+* durée prévue vs réelle ;
+* distance prévue vs réelle ;
+* intensité prévue vs réelle ;
+* FC prévue vs réelle si possible ;
+* puissance prévue vs réelle si possible ;
+* respect des intervalles ;
+* écarts importants.
+
+Je veux pouvoir comprendre en quelques secondes :
+
+**"Qu'est-ce que je devais faire ? Qu'est-ce que j'ai réellement fait ? Est-ce que c'était bien exécuté ?"**
+
+---
+
+# 5. Calendrier d'entraînement
+
+Créer une vue calendrier permettant de voir :
+
+* passé ;
+* aujourd'hui ;
+* prochaines semaines.
+
+Chaque journée doit permettre d'identifier rapidement :
+
+* repos ;
+* course ;
+* vélo ;
+* natation ;
+* musculation ;
+* autre activité.
+
+Utiliser une représentation visuelle claire de la charge/intensité.
+
+Prévoir notamment :
+
+* vue semaine ;
+* vue mois ;
+* navigation temporelle ;
+* clic sur une séance ;
+* détail de la séance ;
+* distinction entre planifié et réalisé.
+
+Le calendrier doit permettre de voir immédiatement les éventuels écarts entre planification et réalité.
+
+---
+
+# 6. Analyse de charge
+
+Créer une section dédiée à la charge d'entraînement.
+
+Je veux notamment pouvoir visualiser, si les données disponibles le permettent :
+
+* charge quotidienne ;
+* charge hebdomadaire ;
+* charge sur plusieurs semaines ;
+* tendance ;
+* évolution de la charge ;
+* répartition par sport ;
+* intensité ;
+* volume ;
+* comparaison avec les semaines précédentes.
+
+Si les données disponibles permettent de calculer des indicateurs comme :
+
+* Acute Load ;
+* Chronic Load ;
+* ACWR ;
+* monotony ;
+* strain ;
+
+tu peux les proposer, **mais ne présente jamais un indicateur comme scientifiquement fiable si les données ou la méthode ne le permettent pas**.
+
+Chaque métrique calculée doit indiquer clairement :
+
+* sa définition ;
+* ses données sources ;
+* sa méthode de calcul.
+
+---
+
+# 7. Analyse de récupération
+
+Créer une vue permettant de comprendre ma capacité actuelle à absorber l'entraînement.
+
+Croiser lorsque disponible :
+
+* sommeil ;
+* HRV ;
+* resting HR ;
+* Body Battery ;
+* stress ;
+* charge récente ;
+* jours d'entraînement consécutifs ;
+* intensité récente ;
+* récupération Garmin.
+
+L'objectif est de faire apparaître des tendances plutôt que de simplement afficher des chiffres.
+
+Par exemple :
+
+> récupération en baisse depuis 3 jours
+> charge élevée cette semaine
+> sommeil inférieur à la moyenne
+> prochaine séance intense demain
+
+L'application peut afficher des **observations / signaux**, mais elle ne doit pas prétendre faire un diagnostic médical.
+
+---
+
+# 8. Progression
+
+Créer une section "Progression".
+
+Je veux pouvoir suivre l'évolution de mes performances dans le temps.
+
+Selon les données disponibles :
+
+* allure ;
+* puissance ;
+* fréquence cardiaque ;
+* VO2max ;
+* performances sur certaines distances ;
+* records ;
+* séances clés ;
+* seuil ;
+* zones ;
+* autres indicateurs pertinents.
+
+Je veux notamment pouvoir répondre à :
+
+> "Est-ce que je deviens réellement meilleur ?"
+
+Les graphiques doivent privilégier les tendances plutôt que l'accumulation de chiffres.
+
+---
+
+# 9. Analyse des séances
+
+Créer une page détaillée pour chaque séance.
+
+Elle doit pouvoir afficher :
+
+### Résumé
+
+* séance ;
+* sport ;
+* date ;
+* durée ;
+* distance ;
+* charge ;
+* Training Effect ;
+* principaux indicateurs.
+
+### Exécution
+
+Si disponible :
+
+* graphique FC ;
+* allure/vitesse ;
+* puissance ;
+* cadence ;
+* altitude ;
+* zones ;
+* laps/intervalles.
+
+### Comparaison
+
+Si une séance Coach Campus correspond à l'activité Garmin :
+
+**Planifié vs Réalisé**
+
+avec une comparaison visuelle claire.
+
+Exemple :
+
+| Métrique |  Prévu | Réalisé |  Écart |
+| -------- | -----: | ------: | -----: |
+| Durée    | 60 min |  64 min | +4 min |
+| Distance |  10 km | 10.2 km |    +2% |
+| Z2       | 45 min |  38 min | -7 min |
+
+---
+
+# 10. Intelligence de coordination
+
+Un des objectifs majeurs est de détecter les incohérences ou situations intéressantes dans le planning.
+
+Exemples :
+
+* plusieurs jours de charge élevée consécutifs ;
+* séance intense après une mauvaise récupération ;
+* séance importante non réalisée ;
+* volume beaucoup plus élevé que prévu ;
+* séance réalisée beaucoup plus intensément que prévu ;
+* accumulation de fatigue ;
+* changement important dans la charge ;
+* semaine atypique ;
+* progression positive ;
+* baisse de performance à effort comparable.
+
+Présente cela sous forme de **"Insights"**.
+
+Exemples :
+
+> ⚠️ Charge élevée
+> Les 4 derniers jours représentent une charge supérieure à ta moyenne récente.
+
+> ℹ️ Écart au plan
+> La séance de mardi a été réalisée à une intensité supérieure à celle prévue.
+
+> ✅ Bonne tendance
+> Ton allure moyenne s'améliore à fréquence cardiaque comparable sur les 4 dernières semaines.
+
+Ces insights doivent être basés uniquement sur les données réellement disponibles et sur des règles explicites.
+
+---
+
+# 11. Interface utilisateur
+
+Je veux une interface :
+
+* moderne ;
+* premium ;
+* sobre ;
+* orientée performance ;
+* très lisible ;
+* responsive ;
+* desktop-first mais utilisable sur mobile ;
+* avec une excellente hiérarchie visuelle.
+
+Inspiration générale :
+
+**Garmin Connect + TrainingPeaks + Whoop + dashboard SaaS moderne**
+
+mais sans copier leur interface.
+
+Éviter :
+
+* les dashboards surchargés ;
+* les dizaines de cartes inutiles ;
+* les graphiques décoratifs ;
+* les couleurs criardes ;
+* les informations sans contexte.
+
+Chaque élément doit répondre à une question utile.
+
+---
+
+# 12. Navigation
+
+Je propose une navigation principale de ce type :
+
+**Dashboard**
+
+* Aujourd'hui
+* Calendrier
+* Entraînement
+* Charge
+* Récupération
+* Progression
+* Activités
+* Insights
+
+Prévoir également une page :
+
+**Settings / Data**
+
+permettant de voir :
+
+* état des connexions MCP ;
+* dernière synchronisation ;
+* données disponibles ;
+* éventuelles erreurs ;
+* période couverte ;
+* statut des différents services.
+
+---
+
+# 13. Architecture technique
+
+Avant de coder :
+
+1. inspecte les MCP disponibles ;
+2. documente les données réellement accessibles ;
+3. propose une architecture ;
+4. identifie les éventuelles données manquantes ;
+5. définis les modèles de données nécessaires ;
+6. définis les règles de rapprochement entre séance Coach Campus et activité Garmin ;
+7. puis implémente.
+
+Je veux une architecture propre et maintenable.
+
+Sépare clairement :
+
+**Data layer**
+→ accès aux MCP
+
+**Domain layer**
+→ normalisation / calculs / rapprochement
+
+**Application layer**
+→ logique des écrans
+
+**UI layer**
+→ composants React et visualisations
+
+Ne mets pas la logique métier directement dans les composants UI.
+
+---
+
+# 14. Normalisation des données
+
+Les deux sources peuvent avoir des structures différentes.
+
+Crée donc un modèle interne permettant de normaliser :
+
+* Workout ;
+* Activity ;
+* Athlete Day;
+* Training Load ;
+* Recovery ;
+* Metric ;
+* Training Plan ;
+* Insight.
+
+Le système doit pouvoir associer une activité Garmin à une séance Coach Campus.
+
+Cette association doit être robuste et tenir compte si possible de :
+
+* date ;
+* type de sport ;
+* horaire ;
+* durée ;
+* distance ;
+* titre ;
+* caractéristiques de la séance.
+
+Si l'association est incertaine, ne force pas le matching : indique qu'il nécessite une validation.
+
+---
+
+# 15. Calculs et données dérivées
+
+Lorsque cela est utile, calcule des métriques supplémentaires à partir des données MCP.
+
+Exemples :
+
+* rolling averages ;
+* évolution 7 jours ;
+* évolution 28 jours ;
+* comparaison semaine/semaine ;
+* comparaison mois/mois ;
+* volume ;
+* intensité ;
+* distribution des zones ;
+* écarts planifié/réalisé.
+
+Chaque calcul doit être isolé dans une fonction clairement identifiable et testable.
+
+Évite les "magic numbers".
+
+---
+
+# 16. Performance et synchronisation
+
+L'application ne doit pas appeler inutilement les MCP à chaque rendu React.
+
+Prévoir :
+
+* cache ;
+* loading states ;
+* gestion des erreurs ;
+* refresh manuel ;
+* dernière date de synchronisation ;
+* récupération incrémentale lorsque possible.
+
+L'utilisateur doit toujours savoir si les données affichées sont :
+
+* à jour ;
+* en cours de synchronisation ;
+* issues du cache ;
+* incomplètes.
+
+---
+
+# 17. Gestion des erreurs
+
+Les MCP peuvent être indisponibles.
+
+L'application doit rester utilisable même si :
+
+* Garmin ne répond pas ;
+* Coach Campus ne répond pas ;
+* certaines données sont absentes ;
+* une activité ne peut pas être associée ;
+* une métrique n'est pas disponible.
+
+Ne jamais afficher de fausses valeurs.
+
+Afficher plutôt :
+
+> Donnée indisponible
+
+ou
+
+> Impossible de récupérer cette métrique actuellement.
+
+---
+
+# 18. Visualisations
+
+Les graphiques doivent être particulièrement soignés.
+
+Privilégier :
+
+* line charts ;
+* bar charts ;
+* stacked bars ;
+* zones ;
+* heatmaps ;
+* sparklines ;
+* comparaisons planifié/réalisé.
+
+Les graphiques doivent avoir :
+
+* unités ;
+* périodes ;
+* tooltips ;
+* références temporelles ;
+* légendes compréhensibles.
+
+Permettre autant que possible de changer la période :
+
+**7 jours / 28 jours / 3 mois / 6 mois / 1 an**
+
+---
+
+# 19. Première version
+
+Ne cherche pas à tout construire immédiatement.
+
+Commence par un **MVP fonctionnel et réellement connecté aux MCP**.
+
+Priorité :
+
+### V1
+
+1. Dashboard "Aujourd'hui"
+2. Calendrier
+3. Séances Coach Campus
+4. Activités Garmin
+5. Matching planifié/réalisé
+6. Analyse d'une séance
+7. Charge d'entraînement
+8. Récupération
+9. Quelques insights simples
+
+Puis seulement ensuite :
+
+* analyses avancées ;
+* progression ;
+* prédictions ;
+* fonctionnalités supplémentaires.
+
+---
+
+# 20. Méthode de travail
+
+Je veux que tu travailles comme un **senior product engineer + UX designer + data engineer spécialisé dans les applications de performance sportive**.
+
+Ne commence pas immédiatement par écrire des centaines de lignes de code.
+
+Commence par :
+
+### Étape 1 — Audit
+
+Inspecte les MCP Garmin et Coach Campus.
+
+Liste précisément les outils disponibles et les données accessibles.
+
+### Étape 2 — Architecture
+
+Propose :
+
+* architecture technique ;
+* modèle de données ;
+* flux de données ;
+* stratégie de cache ;
+* logique de matching ;
+* calculs dérivés.
+
+### Étape 3 — UX
+
+Propose la structure des écrans et leur hiérarchie.
+
+### Étape 4 — MVP
+
+Implémente une première version fonctionnelle.
+
+### Étape 5 — Validation
+
+Teste :
+
+* données manquantes ;
+* erreurs MCP ;
+* matching ;
+* cas limites ;
+* dates ;
+* séances non réalisées ;
+* séances supplémentaires ;
+* activités sans séance planifiée.
+
+### Étape 6 — Itération
+
+Après le MVP, identifie les améliorations les plus utiles et propose-les avant de les implémenter.
+
+---
+
+# 21. Principes importants
+
+Quelques règles doivent guider tout le projet :
+
+**1. Don't fake data.**
+Ne jamais inventer une donnée manquante.
+
+**2. Explain the numbers.**
+Une métrique doit avoir un contexte.
+
+**3. Plan vs Reality.**
+La comparaison entre entraînement prévu et entraînement réalisé est une fonctionnalité centrale.
+
+**4. Trends > snapshots.**
+Les tendances sont souvent plus utiles que les valeurs isolées.
+
+**5. Actionable information.**
+Le dashboard doit aider à décider, pas simplement à regarder des statistiques.
+
+**6. Progressive disclosure.**
+Afficher d'abord l'information importante, puis permettre d'aller dans le détail.
+
+**7. Mobile friendly.**
+
+**8. Testable architecture.**
+
+**9. No unnecessary complexity.**
+
+**10. Data transparency.**
+L'utilisateur doit toujours pouvoir comprendre d'où vient une information.
+
+---
+
+# 22. Livrable attendu
+
+Je veux que tu produises une application front-end réellement fonctionnelle et non uniquement une maquette.
+
+À la fin de chaque étape, indique :
+
+* ce qui a été fait ;
+* ce qui fonctionne ;
+* les données réellement disponibles ;
+* les hypothèses prises ;
+* les limitations ;
+* ce qui reste à faire.
+
+Lorsque tu dois choisir entre plusieurs solutions techniques, privilégie la solution :
+
+* simple ;
+* maintenable ;
+* performante ;
+* facilement extensible.
+
+Commence maintenant par **inspecter les deux MCP et me présenter ton audit des données et capacités disponibles**, puis propose l'architecture de l'application avant de commencer l'implémentation.
+## 23. Mes sports et ma pratique
+
+Je pratique principalement deux sports.
+
+### Sport principal : course à pied
+
+La course à pied est mon sport prioritaire.
+
+Elle comprend :
+
+* course sur route ;
+* trail ;
+* sorties faciles ;
+* sorties longues ;
+* séances de qualité ;
+* fractionné ;
+* seuil ;
+* côtes ;
+* éventuellement autres types de séances selon mon programme Coach Campus.
+
+L'application doit donc considérer la course à pied comme la référence principale lorsqu'elle analyse :
+
+* la charge ;
+* la récupération ;
+* la progression ;
+* les risques de surcharge ;
+* les besoins de mobilité ;
+* la planification.
+
+### Sport secondaire : vélo / home trainer
+
+Le vélo est mon sport secondaire.
+
+Il peut notamment être utilisé comme :
+
+* entraînement d'endurance ;
+* récupération active ;
+* complément de la course ;
+* travail cardiovasculaire avec moins d'impact mécanique.
+
+L'application doit donc prendre en compte le vélo dans la charge globale, mais ne doit pas le traiter exactement comme une séance de course.
+
+Lorsque c'est pertinent, l'application doit pouvoir répondre à des questions comme :
+
+> "Quelle est ma charge totale cette semaine en tenant compte de la course et du vélo ?"
+
+mais également :
+
+> "Quelle est ma charge mécanique liée spécifiquement à la course ?"
+
+---
+
+# 24. Routine mobilité du matin
+
+Je fais chaque matin une routine de mobilité fixe.
+
+Cette routine ne doit pas être générée ou modifiée automatiquement.
+
+Elle comprend exactement les exercices suivants :
+
+### 1. Claps devant / derrière
+
+Bras tendus.
+
+Effectuer des claps :
+
+* devant le corps ;
+* puis derrière le dos.
+
+Durée : **1 minute**
+
+Objectif :
+
+* mobilité des épaules ;
+* ouverture de la cage thoracique ;
+* mobilité du haut du corps.
+
+### 2. Balancement des bras
+
+Bras tendus.
+
+Un bras monte pendant que l'autre descend, puis inversion.
+
+Durée : **1 minute**
+
+Objectif :
+
+* mobilité des épaules ;
+* coordination ;
+* ouverture du haut du corps.
+
+### 3. Genoux hauts + ouverture/fermeture des bras
+
+Lever alternativement le genou droit puis gauche le plus haut possible.
+
+Les bras sont ouverts à environ 90°.
+
+Lorsque le genou arrive au point le plus haut :
+
+* les mains viennent toucher le genou devant le corps.
+
+Lorsque le pied repose :
+
+* les bras s'ouvrent ;
+* la cage thoracique se déploie.
+
+Alterner droite / gauche.
+
+Durée : **1 minute**
+
+Objectif :
+
+* mobilité de hanche ;
+* coordination ;
+* mobilité du haut du corps ;
+* ouverture de la cage thoracique.
+
+### 4. Rotation du buste
+
+Bras tendus devant le corps.
+
+Effectuer des rotations du buste droite / gauche.
+
+Durée : **1 minute**
+
+Objectif :
+
+* mobilité thoracique ;
+* rotation du tronc.
+
+### Règle importante
+
+Cette routine du matin est **fixe**.
+
+L'application doit simplement permettre de :
+
+* l'afficher ;
+* la cocher comme réalisée ;
+* suivre la régularité ;
+* éventuellement visualiser la régularité dans le temps.
+
+Elle ne doit pas modifier automatiquement son contenu.
+
+---
+
+# 25. Routine mobilité du soir
+
+Je souhaite mettre en place une routine de mobilité chaque soir avant de dormir.
+
+Contrairement à la routine du matin, cette routine doit être **adaptative**.
+
+Durée maximale :
+
+**8 minutes**
+
+La routine doit être spécifiquement orientée vers les besoins d'un coureur.
+
+Les principales zones à couvrir sont :
+
+* hanches ;
+* chaîne antérieure de hanche ;
+* fessiers ;
+* adducteurs ;
+* ischio-jambiers ;
+* quadriceps ;
+* genoux ;
+* mollets ;
+* tendon d'Achille ;
+* cheville ;
+* mobilité de la cheville ;
+* pied ;
+* mobilité des orteils ;
+* éventuellement fascia plantaire ;
+* contrôle / stabilité du membre inférieur.
+
+L'objectif n'est pas de faire une séance de stretching générale.
+
+L'objectif est :
+
+> **identifier mes limitations et mes faiblesses pertinentes pour la course, puis me proposer une courte routine quotidienne permettant de les travailler progressivement.**
+
+---
+
+# 26. Système de mobilité adaptative
+
+Je veux que l'application puisse progressivement construire un profil de mobilité.
+
+Pour chaque zone ou capacité, pouvoir suivre un statut du type :
+
+* bon ;
+* à surveiller ;
+* faible ;
+* priorité.
+
+Exemples :
+
+**Cheville**
+
+* dorsiflexion limitée ;
+* priorité élevée.
+
+**Hanche**
+
+* mobilité en rotation interne limitée ;
+* priorité moyenne.
+
+**Pied**
+
+* mobilité des orteils insuffisante ;
+* priorité faible.
+
+Ces informations peuvent provenir :
+
+* de tests que je réalise moi-même ;
+* de données que je renseigne manuellement ;
+* éventuellement d'évaluations futures ;
+* de mes observations ;
+* de mes éventuelles douleurs ou gênes, si je choisis de les renseigner.
+
+Ne déduis jamais automatiquement une blessure ou une pathologie à partir des données Garmin.
+
+---
+
+# 27. Bibliothèque d'exercices de mobilité
+
+Créer une bibliothèque d'exercices structurée.
+
+Chaque exercice doit posséder des métadonnées telles que :
+
+* nom ;
+* zone anatomique ;
+* type de mouvement ;
+* objectif ;
+* niveau ;
+* durée recommandée ;
+* éventuelles précautions ;
+* difficulté ;
+* mobilité vs contrôle vs activation ;
+* pertinence pour la course.
+
+Exemples de catégories :
+
+### Cheville
+
+* dorsiflexion ;
+* mobilité talo-crurale ;
+* mollet ;
+* soléaire ;
+* tendon d'Achille.
+
+### Pied
+
+* mobilité des orteils ;
+* contrôle du pied ;
+* arche plantaire ;
+* flexion / extension des orteils.
+
+### Genou
+
+* mobilité indirecte ;
+* contrôle ;
+* quadriceps ;
+* ischio-jambiers.
+
+### Hanche
+
+* flexion ;
+* extension ;
+* rotation interne ;
+* rotation externe ;
+* abduction ;
+* adducteurs ;
+* fléchisseurs de hanche ;
+* fessiers.
+
+---
+
+# 28. Génération de la routine du soir
+
+Chaque soir, l'application doit pouvoir générer une routine de **maximum 8 minutes**.
+
+La sélection des exercices doit tenir compte de :
+
+1. mes faiblesses actuelles ;
+2. mes priorités de mobilité ;
+3. ma charge de course récente ;
+4. ma séance de course récente ;
+5. ma séance prévue le lendemain ;
+6. mon état de récupération lorsque les données sont disponibles ;
+7. les exercices réalisés les jours précédents ;
+8. la nécessité de varier les mouvements.
+
+Exemple :
+
+Si ma mobilité de cheville est une priorité et que j'ai une séance de côtes prévue demain :
+
+**Routine du soir**
+
+* mobilité cheville : 2 min
+* soléaire : 1 min
+* dorsiflexion dynamique : 1 min
+* ouverture de hanche : 2 min
+* mobilité pied : 2 min
+
+Total : **8 min**
+
+La routine doit rester courte et réaliste.
+
+---
+
+# 29. Principe de progressivité
+
+Ne pas chercher à travailler toutes les faiblesses tous les jours.
+
+L'application doit établir une hiérarchie :
+
+**Priorité 1**
+→ faiblesse importante et pertinente pour la course
+
+**Priorité 2**
+→ limitation secondaire
+
+**Priorité 3**
+→ entretien
+
+La routine quotidienne doit généralement cibler 1 à 3 problématiques maximum.
+
+L'objectif est la **régularité**, pas la complexité.
+
+---
+
+# 30. Coordination avec l'entraînement
+
+La mobilité du soir doit être intégrée au calendrier d'entraînement.
+
+Exemple :
+
+### Lundi
+
+Course facile
+→ mobilité générale
+
+### Mardi
+
+Séance de fractionné
+→ mobilité légère le soir
+
+### Mercredi
+
+Vélo home trainer
+→ travail de mobilité hanche/cheville
+
+### Jeudi
+
+Repos
+→ routine mobilité plus complète
+
+### Vendredi
+
+Séance qualité
+→ routine légère
+
+### Samedi
+
+Sortie longue trail
+→ récupération / mobilité douce
+
+### Dimanche
+
+Repos ou vélo
+→ travail des limitations prioritaires
+
+La routine doit donc être contextualisée par rapport à l'entraînement, et pas simplement générée indépendamment.
+
+---
+
+# 31. Séparation mobilité / récupération / renforcement
+
+Important :
+
+L'application doit distinguer clairement :
+
+**Mobilité**
+→ améliorer l'amplitude / qualité du mouvement.
+
+**Activation**
+→ préparer un mouvement ou une séance.
+
+**Récupération**
+→ favoriser une sensation de récupération après l'entraînement.
+
+**Renforcement**
+→ augmenter la capacité musculaire / stabilité.
+
+Si un exercice est en réalité du renforcement, ne pas le présenter comme un simple exercice de mobilité.
+
+À terme, l'application pourra éventuellement proposer du renforcement, mais ce n'est pas le rôle principal de la V1.
+
+---
+
+# 32. Suivi de la régularité
+
+Créer un suivi spécifique de mes routines.
+
+Afficher notamment :
+
+### Matin
+
+* jours réalisés ;
+* jours manqués ;
+* taux de régularité ;
+* série actuelle ;
+* évolution sur 7 / 28 / 90 jours.
+
+### Soir
+
+Même chose.
+
+Mais ne pas transformer cela en système de gamification excessif.
+
+L'objectif est simplement de rendre la régularité visible.
+
+---
+
+# 33. Page "Mobilité"
+
+Créer une page dédiée :
+
+**Mobilité**
+
+avec :
+
+### Aujourd'hui
+
+**Routine matin**
+
+* 4 exercices
+* 4 minutes
+* fixe
+
+**Routine soir**
+
+* 3 à 5 exercices
+* ≤ 8 minutes
+* adaptée à mon profil
+
+### Mes priorités
+
+Exemple :
+
+1. Cheville droite — priorité haute
+2. Rotation interne hanche — priorité moyenne
+3. Mobilité pied — priorité moyenne
+
+### Historique
+
+Visualiser :
+
+* régularité ;
+* exercices effectués ;
+* évolution des priorités ;
+* tests réalisés.
+
+---
+
+# 34. Relation entre mobilité et course
+
+L'application doit chercher à faire émerger des relations utiles sans prétendre établir de diagnostic.
+
+Par exemple :
+
+> "Ta mobilité de cheville est actuellement une priorité et tu as une semaine comportant beaucoup de dénivelé."
+
+ou :
+
+> "Tu as travaillé la mobilité de hanche 5 fois cette semaine."
+
+Mais éviter les affirmations médicales du type :
+
+> "Ta limitation de cheville est la cause de ta douleur au genou."
+
+L'application peut signaler des corrélations ou des observations, mais pas poser de diagnostic.
+
+---
+
+# 35. Dashboard final
+
+Le dashboard principal devrait idéalement présenter quelque chose comme :
+
+## TODAY
+
+### 🏃 Entraînement
+
+**Séance du jour**
+
+* objectif
+* durée
+* intensité
+* statut
+
+### ❤️ Readiness
+
+* sommeil
+* récupération
+* HRV
+* charge récente
+
+### 📊 Training load
+
+* 7 jours
+* 28 jours
+* tendance
+
+### 🦵 Mobility
+
+**Ce soir — 8 min**
+
+* priorité du jour
+* exercices proposés
+
+### 💡 Insights
+
+3 à 5 informations maximum réellement utiles.
+
+Exemple :
+
+> **Charge élevée**
+> Ta charge de course est +18% par rapport à ta moyenne des 4 dernières semaines.
+
+> **Bonne récupération**
+> Ton sommeil et ta HRV sont dans ta plage habituelle.
+
+> **Demain**
+> Séance de seuil prévue — 55 min.
+
+> **Mobilité**
+> Priorité actuelle : dorsiflexion cheville.
+
+Le dashboard doit répondre en moins de 30 secondes aux questions :
+
+**Qu'ai-je fait ?
+Comment vais-je ?
+Que dois-je faire aujourd'hui ?
+Que dois-je faire ce soir ?
+Que se passe-t-il dans les prochains jours ?**
+
+---
+
+# 36. Principe général
+
+Je veux que cette application devienne progressivement mon **personal training operating system**.
+
+Elle doit connecter :
+
+**Programme**
+↓
+**Entraînement réalisé**
+↓
+**Charge**
+↓
+**Récupération**
+↓
+**Mobilité**
+↓
+**Progression**
+↓
+**Planification future**
+
+Ne construis donc pas simplement plusieurs dashboards indépendants.
+
+Construis un système cohérent où les différentes informations se répondent.
+
+Commence par auditer les MCP Garmin et Coach Campus, puis propose-moi l'architecture fonctionnelle et UX complète avant de commencer à coder.
+# 37. Renforcement musculaire
+
+Mon programme Coach Campus contient également des **séances et exercices de renforcement musculaire**.
+
+L'application doit donc considérer le renforcement comme un élément à part entière de mon entraînement.
+
+Il ne doit pas être oublié dans l'analyse de charge, la planification ou la récupération.
+
+---
+
+# 38. Données de renforcement provenant de Coach Campus
+
+Commence par inspecter précisément ce que le MCP Coach Campus expose concernant le renforcement.
+
+Identifier notamment, si disponible :
+
+* séances de renforcement ;
+* date ;
+* durée ;
+* nom de la séance ;
+* exercices ;
+* séries ;
+* répétitions ;
+* durée ;
+* charge utilisée ;
+* temps de repos ;
+* groupes musculaires ;
+* consignes ;
+* ordre des exercices ;
+* statut réalisé / non réalisé ;
+* historique ;
+* séances futures.
+
+Ne suppose pas que toutes ces données sont disponibles.
+
+Utilise uniquement ce que le MCP permet réellement d'obtenir.
+
+---
+
+# 39. Modèle de données du renforcement
+
+Créer un modèle interne permettant de représenter une séance de renforcement.
+
+Par exemple :
+
+**StrengthWorkout**
+
+* id
+* date
+* name
+* duration
+* status
+* exercises[]
+
+Chaque exercice pouvant contenir :
+
+**StrengthExercise**
+
+* name
+* muscle_groups
+* sets
+* repetitions
+* duration
+* load
+* rest
+* tempo
+* notes
+* completed
+
+Adapter ce modèle aux données réellement disponibles dans Coach Campus.
+
+---
+
+# 40. Intégration au calendrier
+
+Les séances de renforcement doivent apparaître dans le calendrier au même titre que :
+
+* course ;
+* trail ;
+* vélo ;
+* repos ;
+* mobilité.
+
+Mais elles doivent être visuellement identifiables comme du **renforcement musculaire**.
+
+Le calendrier doit donc permettre de comprendre rapidement la structure globale de ma semaine.
+
+Exemple :
+
+**Lundi**
+🏃 Course facile
+
+**Mardi**
+🏃 Fractionné
+
+**Mercredi**
+🏋️ Renforcement
+
+**Jeudi**
+🚴 Home trainer
+
+**Vendredi**
+🏃 Seuil
+
+**Samedi**
+🏃 Sortie longue trail
+
+**Dimanche**
+🏋️ Renforcement léger
+
+---
+
+# 41. Renforcement et charge globale
+
+Le renforcement doit être pris en compte dans la charge d'entraînement globale.
+
+Cependant, il ne faut pas nécessairement additionner naïvement :
+
+> charge Garmin + charge renforcement
+
+comme s'il s'agissait de métriques équivalentes.
+
+L'application doit distinguer :
+
+### Charge cardiovasculaire
+
+Principalement :
+
+* course ;
+* vélo ;
+* éventuellement autres sports.
+
+### Charge mécanique
+
+Principalement :
+
+* course ;
+* dénivelé ;
+* intensité ;
+* volume ;
+* renforcement du bas du corps.
+
+### Charge musculaire
+
+Principalement :
+
+* renforcement ;
+* séances intenses ;
+* volume musculaire ;
+* groupes musculaires sollicités.
+
+L'objectif est d'avoir une représentation plus intelligente de la charge globale.
+
+---
+
+# 42. Interaction avec la course
+
+Le renforcement doit être analysé en fonction de la course.
+
+Par exemple :
+
+Si une séance de renforcement sollicite fortement :
+
+* quadriceps ;
+* fessiers ;
+* ischio-jambiers ;
+* mollets ;
+
+et qu'une séance de course intense ou une sortie longue est prévue le lendemain, l'application doit pouvoir signaler la proximité des deux sollicitations.
+
+Exemple :
+
+> ⚠️ Attention à la succession des charges
+> Une séance de renforcement importante du bas du corps est prévue aujourd'hui et une séance de fractionné est prévue demain.
+
+Il ne faut pas automatiquement conclure que c'est mauvais.
+
+L'application doit simplement **mettre en évidence la situation afin de permettre une décision éclairée**.
+
+---
+
+# 43. Interaction avec la mobilité
+
+La mobilité du soir doit également tenir compte du renforcement effectué.
+
+Exemple :
+
+Si j'ai effectué une séance importante de jambes :
+
+**Renforcement**
+
+* squats
+* fentes
+* mollets
+
+La routine mobilité du soir peut privilégier :
+
+* chevilles ;
+* mollets ;
+* hanches ;
+* quadriceps ;
+* chaîne postérieure.
+
+À l'inverse, après une séance de renforcement du haut du corps, la routine de mobilité orientée course ne doit pas nécessairement être modifiée.
+
+La mobilité du soir doit donc prendre en compte :
+
+**course récente + renforcement récent + séance du lendemain + priorités de mobilité**
+
+---
+
+# 44. Groupes musculaires
+
+Si les données Coach Campus le permettent, construire une représentation des groupes musculaires sollicités.
+
+Par exemple :
+
+### Bas du corps
+
+* quadriceps
+* ischio-jambiers
+* fessiers
+* mollets
+* soléaire
+* adducteurs
+* abducteurs
+
+### Tronc
+
+* abdominaux
+* obliques
+* lombaires
+
+### Haut du corps
+
+* pectoraux
+* dos
+* épaules
+* bras
+
+L'objectif est de pouvoir visualiser la sollicitation musculaire récente.
+
+---
+
+# 45. Historique de renforcement
+
+Créer une page ou section permettant de suivre :
+
+* nombre de séances ;
+* durée ;
+* fréquence ;
+* exercices réalisés ;
+* groupes musculaires travaillés ;
+* progression des charges si disponible ;
+* progression des répétitions ;
+* régularité.
+
+Exemples de questions auxquelles l'application doit pouvoir répondre :
+
+> "Combien de fois ai-je travaillé mes jambes cette semaine ?"
+
+> "Quels groupes musculaires ai-je peu travaillés récemment ?"
+
+> "Est-ce que je réalise réellement les séances de renforcement prévues ?"
+
+> "Est-ce que ma fréquence de renforcement est régulière ?"
+
+---
+
+# 46. Planifié vs réalisé
+
+Le principe **Planifié → Réalisé** doit également s'appliquer au renforcement.
+
+Exemple :
+
+### Prévu
+
+Renforcement — 45 min
+
+* Squat — 3 × 8
+* Fentes — 3 × 10
+* Mollets — 3 × 15
+* Gainage — 3 × 45 s
+
+### Réalisé
+
+* Squat — 3 × 8
+* Fentes — 2 × 10
+* Mollets — 3 × 15
+* Gainage — non réalisé
+
+L'application doit pouvoir visualiser les écarts lorsque les données disponibles le permettent.
+
+---
+
+# 47. Progression en renforcement
+
+Si Coach Campus fournit suffisamment de données, permettre de suivre la progression d'un exercice.
+
+Exemple :
+
+**Squat**
+
+Semaine 1
+3 × 8 × 40 kg
+
+Semaine 4
+3 × 8 × 45 kg
+
+Semaine 8
+3 × 10 × 45 kg
+
+Afficher éventuellement une tendance.
+
+Ne pas inventer de progression si les charges ne sont pas disponibles.
+
+---
+
+# 48. Coordination de la semaine
+
+Le moteur de coordination doit désormais considérer **4 types de sollicitations** :
+
+### 🏃 Course
+
+Impact + charge cardiovasculaire + charge musculaire
+
+### 🚴 Vélo
+
+Charge cardiovasculaire + charge musculaire plus spécifique
+
+### 🏋️ Renforcement
+
+Charge musculaire + fatigue locale
+
+### 🧘 Mobilité
+
+Travail de mobilité / entretien
+
+L'application doit chercher à donner une vision globale de la semaine.
+
+Exemple :
+
+| Jour     | Entraînement    | Sollicitation principale |
+| -------- | --------------- | ------------------------ |
+| Lundi    | 🏃 Easy         | cardio / jambes          |
+| Mardi    | 🏃 Intervalles  | cardio + intensité       |
+| Mercredi | 🏋️ Force       | jambes                   |
+| Jeudi    | 🚴 Home trainer | cardio                   |
+| Vendredi | 🏃 Seuil        | cardio + jambes          |
+| Samedi   | 🏃 Trail long   | volume + impact          |
+| Dimanche | 🏋️ léger       | musculaire               |
+
+---
+
+# 49. Dashboard
+
+Le dashboard principal doit donc intégrer les quatre dimensions :
+
+## Aujourd'hui
+
+### 🏃 Course
+
+Séance prévue / réalisée
+
+### 🚴 Vélo
+
+Séance prévue / réalisée
+
+### 🏋️ Renforcement
+
+Séance prévue / réalisée
+
+### 🧘 Mobilité
+
+* routine matin
+* routine soir
+
+Mais éviter de créer quatre gros dashboards indépendants.
+
+L'objectif est de présenter **une seule vision cohérente de ma journée et de ma semaine**.
+
+---
+
+# 50. Analyse de la fatigue
+
+Lorsque suffisamment de données sont disponibles, différencier autant que possible :
+
+**Fatigue cardiovasculaire**
+
+vs
+
+**Fatigue musculaire**
+
+vs
+
+**Fatigue mécanique liée à la course**
+
+Par exemple :
+
+> ❤️ Charge cardio modérée
+> 🦵 Charge musculaire élevée
+> 🦶 Charge mécanique élevée
+
+Cette distinction est particulièrement importante dans mon cas car je combine course, vélo et renforcement.
+
+---
+
+# 51. Règle de priorité
+
+La course reste mon **sport principal**.
+
+Cela signifie que lors de l'analyse des conflits potentiels, l'application doit donner une priorité particulière aux séances importantes de course.
+
+Exemple :
+
+Si :
+
+* séance de force jambes importante ;
+* puis séance de fractionné le lendemain ;
+
+l'application doit attirer l'attention sur cette succession.
+
+À l'inverse, une séance de vélo facile peut être considérée comme une sollicitation différente et potentiellement compatible avec une séance de course, selon les données disponibles.
+
+Ne pas appliquer de règles rigides sans contexte.
+
+---
+
+# 52. Vision globale
+
+L'application doit finalement construire une représentation cohérente de mon entraînement :
+
+```
+                PLAN
+                 │
+      ┌──────────┼──────────┐
+      ↓          ↓          ↓
+   COURSE      VÉLO     RENFORCEMENT
+      │          │          │
+      └──────────┼──────────┘
+                 ↓
+            CHARGE TOTALE
+                 │
+      ┌──────────┴──────────┐
+      ↓                     ↓
+  RÉCUPÉRATION          MOBILITÉ
+      │                     │
+      └──────────┬──────────┘
+                 ↓
+             PROGRESSION
+                 │
+                 ↓
+           PLANIFICATION
+```
+
+L'application doit être conçue autour de cette logique plutôt que comme une simple collection de graphiques.
+
+---
+
+# 53. Priorité fonctionnelle
+
+Pour la première version, intégrer le renforcement dans :
+
+1. calendrier ;
+2. dashboard ;
+3. détail des séances ;
+4. planifié vs réalisé ;
+5. charge globale ;
+6. groupes musculaires ;
+7. coordination avec la course ;
+8. prise en compte dans la routine mobilité du soir.
+
+Les analyses avancées de progression en force peuvent venir ensuite.
+
+---
+
+# 54. Principe fondamental
+
+Mon objectif n'est pas de maximiser la quantité d'entraînement.
+
+Mon objectif est de **coordonner intelligemment plusieurs formes d'entraînement afin de progresser principalement en course à pied**.
+
+Le système doit donc toujours raisonner en termes de :
+
+**stimulus → récupération → adaptation → progression**
+
+et non simplement :
+
+**nombre de séances → nombre de kilomètres → statistiques.**

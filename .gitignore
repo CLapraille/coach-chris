@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+# Maquettes : instantanés de données réelles, non versionnés (D11)
+docs/maquettes/*.html
