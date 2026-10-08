@@ -51,6 +51,10 @@ const garmin = fakeMcp({
       : 'No HRV data',
   get_sleep_data: () => ({ dailySleepDTO: { sleepTimeSeconds: 26280 } }),
   get_training_readiness: () => [{ context: 'AFTER_WAKEUP_RESET', score: 76, level: 'HIGH' }],
+  get_device_last_used: () => ({
+    device_name: 'fenix 7X Pro Sapphire Solar',
+    last_upload_time: '2026-10-08 22:11:54',
+  }),
   get_body_battery: () => [
     { events: [{ type: 'SLEEP', body_battery_impact: 65 }], body_battery_level: 'HIGH' },
   ],
@@ -240,6 +244,19 @@ describe('mobilité et état des données', () => {
     expect(st.sources.garmin).toMatchObject({ lastOkAt: clock.now(), last: { outcome: 'ok' } });
     expect(st.sources.campus.last.outcome).toBe('ok');
     expect(st.missingNights).toEqual([]);
+    expect(st.device).toEqual({ name: 'fenix 7X Pro Sapphire Solar', lastUpload: '2026-10-08 22:11:54' });
+    expect(st.plan).toMatchObject({ weekIndex: 2, durationInWeeks: 8, done: 2, total: 5 });
+    expect(st.freshness.sleep).toMatchObject({ last: '2026-10-08', present: 14, days: 14 });
+    // La VFC n'est fournie que pour la nuit du 08/10 : les 13 autres nuits relues sont des manques, pas des estimations.
+    expect(st.freshness.hrv).toMatchObject({ last: '2026-10-08', lastMs: 68 });
+    expect(st.freshness.hrv.missing).toHaveLength(13);
+    expect(st.freshness.activities.lastRun).toBe('2026-10-06 20:58:51');
+    expect(st.freshness.weight).toEqual({ last: '2026-10-08', kg: 83.39 });
+    // Horloge figée : même instant pour les deux passages, l'ordre n'est pas significatif ici.
+    expect(st.log.map((l: { source: string; origin: string }) => `${l.source}:${l.origin}`).sort()).toEqual([
+      'campus:job',
+      'garmin:job',
+    ]);
   });
 });
 

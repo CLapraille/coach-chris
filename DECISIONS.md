@@ -247,6 +247,9 @@ Maquette : https://claude.ai/artifact/Be7xmuX9zrK782vmzbzCX1 (artefact privé).
 - ✅ **D113 Zones déclarées** (D37) codées dans `domain` (`DECLARED_ZONES`) : rotation et fléchisseurs de hanche, gros orteil, équilibre cheville/pied ; libellés de zone en français (`ZONE_LABEL`).
 - 🔄 **Écarts vs maquette Mobilité v4** (à valider) : bouton « Changer » du créneau du jour pas encore fait ; étape de proposition du bloc ajoutée dans la carte « Aujourd'hui » (la maquette ne montrait que l'état sans tests et un exemple de bloc en cours) ; régularité 90 j non affichée (7 et 28 j seulement).
 - 🔎 Rien n'a été saisi à ta place : aucun test, aucun bloc, aucune coche. L'écran réel montre l'état « aucun test fait ».
+- ✅ **Lot 4a Données** : écran de la maquette v3 sur l'API réelle. Par source : état (connecté / jeton expiré / erreur / jamais synchronisé), dernière synchro réussie, montre et dernier envoi (Garmin, `get_device_last_used`), plan en cache (Campus), dernière erreur, bouton « Actualiser maintenant » ; panneau de reconnexion avec la commande `.\reauth.ps1 -Source <source>` à copier quand le jeton est refusé. Fraîcheur sur 14 jours (sommeil, VFC, activités, poids, plan) avec les manques nommés ; journal des 10 derniers passages. Réel au 08/10 : nuit du 05/10 absente (sommeil et VFC), pesée du jour 83,4 kg.
+- ✅ **D114 Authentification Cosmos** : identifiant choisi explicitement (identité managée si `IDENTITY_ENDPOINT`, sinon Azure CLI) au lieu de `DefaultAzureCredential`, dont la chaîne de sondage coûtait ~24 s au premier appel ; démarrage à froid mesuré à 1,5 s.
+- 🔎 Le script `reauth.ps1` affiché par l'écran n'existe pas encore (prévu en M6).
 
 ## Actions en attente côté utilisateur
 

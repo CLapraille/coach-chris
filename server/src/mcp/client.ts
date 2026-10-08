@@ -23,6 +23,8 @@ export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
     'get_stress_data',
     'get_weigh_ins',
     'get_devices',
+    'get_device_last_used',
+    'get_activity',
   ]),
   campus: new Set([
     'get_active_goal',

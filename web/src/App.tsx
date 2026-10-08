@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useApi } from './api.ts';
 import { clock, parisDay, shortDate } from './format.ts';
 import { Calendar } from './calendar/Calendar.tsx';
+import { Data } from './data/Data.tsx';
 import { Mobility } from './mobility/Mobility.tsx';
 import { Today } from './today/Today.tsx';
 
@@ -32,11 +33,14 @@ export function App() {
             <Calendar />
           ) : tab === 'Mobilité' ? (
             <Mobility />
+          ) : st && status.state === 'ready' ? (
+            <Data status={st} onChanged={status.reload} />
+          ) : status.state === 'error' ? (
+            <p className="empty" role="alert">
+              {status.error.message}
+            </p>
           ) : (
-            <>
-              <h1 className="text-3xl">{tab}</h1>
-              <p className="mt-2 text-sm text-muted">Écran à venir (jalon M3).</p>
-            </>
+            <p className="muted">Chargement…</p>
           )}
         </main>
       </div>

@@ -1,5 +1,5 @@
 import { CosmosClient, type Container } from '@azure/cosmos';
-import { DefaultAzureCredential } from '@azure/identity';
+import { AzureCliCredential, ManagedIdentityCredential, type TokenCredential } from '@azure/identity';
 
 /** Conteneurs de la base `coachchris` (ARCHITECTURE §3) et leur clé de partition. */
 export const CONTAINERS = {
@@ -33,10 +33,8 @@ export class CosmosStore implements Store {
   private readonly containers: Record<ContainerName, Container>;
 
   constructor(endpoint: string) {
-    // Aucune clé : az login en local, identité managée sur Azure (disableLocalAuth).
-    const db = new CosmosClient({ endpoint, aadCredentials: new DefaultAzureCredential() }).database(
-      'coachchris',
-    );
+    // Aucune clé (disableLocalAuth) : identité managée sur Azure, az login en local.
+    const db = new CosmosClient({ endpoint, aadCredentials: credential() }).database('coachchris');
     this.containers = Object.fromEntries(
       Object.keys(CONTAINERS).map((name) => [name, db.container(name)]),
     ) as Record<ContainerName, Container>;
@@ -65,6 +63,19 @@ export class CosmosStore implements Store {
       if ((e as { code?: number }).code !== 404) throw e;
     }
   }
+}
+
+/**
+ * Choix explicite plutôt que DefaultAzureCredential : la chaîne par défaut sonde d'abord d'autres méthodes
+ * (dont l'identité managée, absente du poste), ce qui coûtait une vingtaine de secondes au démarrage.
+ */
+function credential(env = process.env): TokenCredential {
+  if (env.IDENTITY_ENDPOINT) {
+    return env.AZURE_CLIENT_ID
+      ? new ManagedIdentityCredential({ clientId: env.AZURE_CLIENT_ID })
+      : new ManagedIdentityCredential();
+  }
+  return new AzureCliCredential();
 }
 
 /** Retire les métadonnées système de Cosmos (_rid, _etag…). */

@@ -96,3 +96,13 @@ export function stress(raw: unknown): Night['stress'] {
     out.restPercent = Math.round((100 * measured.filter((v) => v <= REST_MAX).length) / measured.length);
   return out;
 }
+
+/** Montre qui a envoyé les dernières données (get_device_last_used). */
+export function device(raw: unknown): { name: string; lastUpload?: string } | null {
+  const d = raw as { device_name?: unknown; last_upload_time?: unknown } | null;
+  if (!d || typeof d.device_name !== 'string') return null;
+  return {
+    name: d.device_name,
+    ...(typeof d.last_upload_time === 'string' && { lastUpload: d.last_upload_time }),
+  };
+}

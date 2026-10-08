@@ -116,4 +116,24 @@ export const STATUS: DataStatus = {
     },
   },
   missingNights: ['2026-10-05'],
+  device: { name: 'fenix 7X Pro Sapphire Solar', lastUpload: '2026-10-08 07:10:00' },
+  plan: { goalType: 'back-from-injury', weekIndex: 2, durationInWeeks: 8, done: 2, total: 5 },
+  freshness: {
+    sleep: { last: '2026-10-08', missing: ['2026-10-05'], present: 13, days: 14 },
+    hrv: { last: '2026-10-08', lastMs: 68, missing: ['2026-10-05'] },
+    activities: { lastStart: '2026-10-07 09:17:35', lastRun: '2026-10-06 20:58:51' },
+    weight: { last: '2026-09-29', kg: 84.09 },
+    plan: { week: '2026-10-05', fetchedAt: '2026-10-08T05:00:00Z' },
+  },
+  log: [
+    {
+      at: '2026-10-08T05:00:00Z',
+      source: 'campus',
+      origin: 'job',
+      outcome: 'token-expired',
+      durationMs: 3200,
+      message: '401',
+    },
+    { at: '2026-10-08T05:00:00Z', source: 'garmin', origin: 'job', outcome: 'ok', durationMs: 16400 },
+  ],
 };

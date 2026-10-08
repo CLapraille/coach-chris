@@ -132,6 +132,9 @@ export class Sync {
     for (const w of garmin.weighIns(await this.mcp.garmin.call('get_weigh_ins', range))) {
       await this.store.upsert('cache', { ...this.doc(w.day, 'garmin'), pk: pk('weight', w.day), ...w });
     }
+    const device = garmin.device(await this.mcp.garmin.call('get_device_last_used'));
+    if (device)
+      await this.store.upsert('cache', { ...this.doc('garmin', 'garmin'), pk: 'device', ...device });
     // Toute la fenêtre est relue quand le contenu d'une nuit a changé de version.
     const nightsFrom = state?.nightVersion === NIGHT_VERSION ? from : addDays(today, -(NIGHT_DAYS - 1));
     for (let day = nightsFrom; day <= today; day = addDays(day, 1)) {

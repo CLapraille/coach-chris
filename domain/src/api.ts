@@ -216,6 +216,33 @@ export interface DataStatus {
   >;
   /** Nuits des 7 derniers jours sans sommeil ni VFC. */
   missingNights: string[];
+  /** Montre principale et dernier envoi vers Garmin Connect. */
+  device: { name: string; lastUpload?: string } | null;
+  /** Plan Campus en cache : semaine en cours et séances faites. */
+  plan: {
+    goalType?: string;
+    weekIndex?: number;
+    durationInWeeks?: number;
+    done: number;
+    total: number;
+  } | null;
+  /** Fraîcheur par type de donnée sur 14 jours (D84) : dernière valeur et manques, jamais d'estimation. */
+  freshness: {
+    sleep: { last: string | null; missing: string[]; present: number; days: number };
+    hrv: { last: string | null; lastMs?: number; missing: string[] };
+    activities: { lastStart: string | null; lastRun: string | null };
+    weight: { last: string | null; kg?: number };
+    plan: { week: string | null; fetchedAt: string | null };
+  };
+  /** 10 derniers passages de synchro, du plus récent au plus ancien (D83). */
+  log: {
+    at: string;
+    source: SourceName;
+    origin: 'job' | 'open' | 'button';
+    outcome: 'ok' | 'token-expired' | 'error';
+    durationMs: number;
+    message?: string;
+  }[];
 }
 
 const toSeconds = (d: { value: number; timeUnit: string }) =>
