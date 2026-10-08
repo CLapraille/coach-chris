@@ -4,6 +4,7 @@
  */
 import type { CampusBlock } from './plan/campus.ts';
 import type { Match, Activity } from './plan/matching.ts';
+import type { Deviation, DeviationRules, Lap } from './plan/deviation.ts';
 import type { RuleWarning } from './plan/placement.ts';
 import type { PlannedSession } from './plan/types.ts';
 import type { CapStatus, VolumeCap } from './load/volume.ts';
@@ -91,6 +92,45 @@ export interface WeekView {
   readiness: Record<string, number | null>;
   /** Routines de mobilité cochées, par jour. */
   routines: Record<string, Record<Slot, boolean>>;
+}
+
+/** Tour Garmin pour l'affichage (get_activity_splits). */
+export interface LapView extends Lap {
+  n: number;
+  distanceM?: number;
+  speedMps?: number;
+  maxHr?: number;
+  powerW?: number;
+}
+
+/** Activité Garmin détaillée, gardée en cache une fois lue (une activité terminée ne change plus). */
+export interface ActivityDetail extends CachedActivity {
+  maxHr?: number;
+  trainingEffect?: number;
+  trainingEffectLabel?: string;
+  trainingLoad?: number;
+  avgPowerW?: number;
+  /** Effort perçu et ressenti tels que renvoyés par Garmin (échelle RPE à confirmer, question ouverte n° 5). */
+  rpe?: number;
+  feel?: number;
+  laps: LapView[];
+  /** Temps passé dans chaque zone FC de l'activité ; `lowBpm` = borne basse de la zone. */
+  zones: { zone: number; lowBpm: number; seconds: number }[];
+}
+
+/** Détail de séance (maquette v2) : prévu vs réalisé, étapes, tours, zones, conseil. */
+export interface SessionView {
+  weekStart: string;
+  session: WeekSession;
+  description?: string;
+  coachAdvice?: string;
+  blocks: SessionBlock[];
+  activity: ActivityDetail | null;
+  /** Raison lisible quand l'activité rattachée n'a pas pu être lue. */
+  activityError?: string;
+  /** Écart étape par étape, pour une course programmée sur la montre (tours indexés). */
+  deviation: Deviation | null;
+  rules: DeviationRules;
 }
 
 /** Vue mois : les semaines (lundi → dimanche) qui recouvrent le mois. */

@@ -1,4 +1,4 @@
-import type { CachedActivity, Night, WeighIn } from '@coach-chris/domain';
+import type { ActivityDetail, CachedActivity, LapView, Night, WeighIn } from '@coach-chris/domain';
 
 /**
  * Conversion des réponses du MCP Garmin vers les documents du cache.
@@ -105,4 +105,81 @@ export function device(raw: unknown): { name: string; lastUpload?: string } | nu
     name: d.device_name,
     ...(typeof d.last_upload_time === 'string' && { lastUpload: d.last_upload_time }),
   };
+}
+
+interface GarminLap {
+  lap_number: number;
+  duration_seconds: number;
+  moving_duration_seconds?: number;
+  distance_meters?: number;
+  avg_speed_mps?: number;
+  avg_hr_bpm?: number;
+  max_hr_bpm?: number;
+  avg_cadence?: number;
+  avg_power_watts?: number;
+  workout_step_index?: number;
+}
+
+/** Tours d'une activité (get_activity_splits) ; `workoutStepIndex` n'existe que pour les tours du programme. */
+export function laps(raw: unknown): LapView[] {
+  const list = (raw as { laps?: GarminLap[] } | null)?.laps ?? [];
+  return list.map((l) => {
+    const out: LapView = {
+      n: l.lap_number,
+      durationS: Math.round(l.duration_seconds),
+      movingS: Math.round(l.moving_duration_seconds ?? l.duration_seconds),
+    };
+    if (l.avg_hr_bpm !== undefined) out.avgHr = l.avg_hr_bpm;
+    if (l.max_hr_bpm !== undefined) out.maxHr = l.max_hr_bpm;
+    if (l.avg_cadence !== undefined) out.avgCadence = Math.round(l.avg_cadence);
+    if (l.distance_meters !== undefined) out.distanceM = Math.round(l.distance_meters);
+    if (l.avg_speed_mps !== undefined) out.speedMps = l.avg_speed_mps;
+    if (l.avg_power_watts !== undefined) out.powerW = l.avg_power_watts;
+    if (l.workout_step_index !== undefined) out.workoutStepIndex = l.workout_step_index;
+    return out;
+  });
+}
+
+export function hrZones(raw: unknown): ActivityDetail['zones'] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as { zoneNumber?: unknown; zoneLowBoundary?: unknown; secsInZone?: unknown }[]).flatMap((z) =>
+    typeof z.zoneNumber === 'number' &&
+    typeof z.zoneLowBoundary === 'number' &&
+    typeof z.secsInZone === 'number'
+      ? [{ zone: z.zoneNumber, lowBpm: z.zoneLowBoundary, seconds: Math.round(z.secsInZone) }]
+      : [],
+  );
+}
+
+/** Résumé d'activité (get_activity) : seuls les champs présents sont gardés. */
+export function activitySummary(raw: unknown): Omit<ActivityDetail, 'laps' | 'zones'> | null {
+  const a = raw as Record<string, unknown> | null;
+  if (!a || typeof a.id !== 'number' || typeof a.start_time_local !== 'string') return null;
+  const num = (k: string) => (typeof a[k] === 'number' ? (a[k] as number) : undefined);
+  const out: Omit<ActivityDetail, 'laps' | 'zones'> = {
+    id: String(a.id),
+    // « 2026-10-08T21:23:01.0 » → « 2026-10-08 21:23:01 », comme les autres activités du cache.
+    startLocal: a.start_time_local.replace('T', ' ').slice(0, 19),
+    type: String(a.type),
+    durationS: Math.round(num('duration_seconds') ?? 0),
+  };
+  if (typeof a.name === 'string') out.name = a.name;
+  const set = <K extends keyof typeof out>(k: K, v: (typeof out)[K] | undefined) => {
+    if (v !== undefined) out[k] = v;
+  };
+  const dist = num('distance_meters');
+  set('distanceM', dist === undefined ? undefined : Math.round(dist));
+  set('avgHr', num('avg_hr_bpm'));
+  set('maxHr', num('max_hr_bpm'));
+  set('trainingEffect', num('training_effect'));
+  set(
+    'trainingEffectLabel',
+    typeof a.training_effect_label === 'string' ? a.training_effect_label : undefined,
+  );
+  const load = num('training_load');
+  set('trainingLoad', load === undefined ? undefined : Math.round(load));
+  set('avgPowerW', num('avg_power_watts'));
+  set('rpe', num('workout_rpe'));
+  set('feel', num('workout_feel'));
+  return out;
 }

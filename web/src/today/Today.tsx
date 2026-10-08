@@ -12,9 +12,11 @@ import { WeekCard } from './WeekCard.tsx';
 export function Today({
   status,
   onNavigate,
+  onOpenSession,
 }: {
   status: DataStatus | null;
   onNavigate: (tab: 'Calendrier' | 'Mobilité') => void;
+  onOpenSession: (key: string) => void;
 }) {
   const res = useApi<TodayView>('/today');
   if (res.state === 'loading') return <p className="muted">Chargement…</p>;
@@ -35,7 +37,7 @@ export function Today({
       </div>
       <div className="grid">
         <GoalCard goal={t.goal} today={t.today} />
-        <NextSessionCard next={t.nextSession} then={t.thenSession} today={t.today} />
+        <NextSessionCard next={t.nextSession} then={t.thenSession} today={t.today} onOpen={onOpenSession} />
         <FormCard form={t.form} />
         <VolumeCard volume={t.volume} />
         <WeekCard

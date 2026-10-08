@@ -20,11 +20,13 @@ export function Week({
   today,
   walks,
   onChanged,
+  onOpenSession,
 }: {
   week: WeekView;
   today: string;
   walks: boolean;
   onChanged: () => void;
+  onOpenSession: (key: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -151,12 +153,14 @@ export function Week({
                     <DoneItem
                       key={s.key}
                       s={s}
+                      onOpen={onOpenSession}
                       activity={s.match?.activityId ? byId.get(s.match.activityId) : undefined}
                     />
                   ) : (
                     <PlanItem
                       key={s.key}
                       s={s}
+                      onOpen={onOpenSession}
                       draggable={editable}
                       days={openDays}
                       onMove={(d) => void move(s.key, d)}
@@ -191,7 +195,24 @@ export function Week({
   );
 }
 
-function DoneItem({ s, activity }: { s: WeekSession; activity: CachedActivity | undefined }) {
+/** Titre de séance cliquable : ouvre le Détail de séance. */
+function Title({ s, onOpen }: { s: WeekSession; onOpen: (key: string) => void }) {
+  return (
+    <button type="button" className="it-open" onClick={() => onOpen(s.key)}>
+      {sessionLabel(s)}
+    </button>
+  );
+}
+
+function DoneItem({
+  s,
+  activity,
+  onOpen,
+}: {
+  s: WeekSession;
+  activity: CachedActivity | undefined;
+  onOpen: (key: string) => void;
+}) {
   const planned = s.durationMin * 60;
   const ratio = activity && planned ? activity.durationS / planned - 1 : 0;
   const isOver = ratio > OVER;
@@ -206,7 +227,7 @@ function DoneItem({ s, activity }: { s: WeekSession; activity: CachedActivity | 
   return (
     <div className="it done" style={{ '--c': SPORT_COLOR[s.sport] } as React.CSSProperties}>
       <div className="t">
-        <span>{sessionLabel(s)}</span>
+        <Title s={s} onOpen={onOpen} />
         <span className={`st ${isOver ? 'over' : 'done'}`}>
           {isOver ? `+${Math.round(ratio * 100)} %` : s.status === 'done' ? 'fait' : 'rattaché'}
         </span>
@@ -221,8 +242,10 @@ function PlanItem({
   draggable,
   days,
   onMove,
+  onOpen,
 }: {
   s: WeekSession;
+  onOpen: (key: string) => void;
   draggable: boolean;
   days: string[];
   onMove: (day: string) => void;
@@ -242,7 +265,7 @@ function PlanItem({
       onDrop={() => setDrop(false)}
     >
       <div className="t">
-        <span>{sessionLabel(s)}</span>
+        <Title s={s} onOpen={onOpen} />
         <span className="st todo">à faire</span>
       </div>
       <div className="m">

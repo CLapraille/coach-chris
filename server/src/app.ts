@@ -9,15 +9,19 @@ import {
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
+import { sessionView } from './read/session.ts';
 import { dataStatus } from './read/status.ts';
 import { todayView } from './read/today.ts';
 import { moveInWeek, PlacementError, resetWeek, weekData, weekView } from './read/week.ts';
+import type { McpCaller } from './mcp/client.ts';
 import type { Store } from './store/store.ts';
 import { parisClock, type Clock, type Sync } from './sync/sync.ts';
 
 export interface AppDeps {
   store: Store;
   sync: Sync;
+  /** Garmin, pour lire à la demande le détail d'une activité (tours, zones). */
+  garmin?: McpCaller;
   clock?: Clock;
 }
 
@@ -46,7 +50,7 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   if (!deps) return app;
-  const { store, sync, clock = parisClock } = deps;
+  const { store, sync, garmin, clock = parisClock } = deps;
 
   // Le cache répond tout de suite ; un rattrapage part en arrière-plan si le dernier passage est ancien (D15).
   const catchUp = () => {
@@ -107,6 +111,12 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     const p = z.object({ start: day }).safeParse(req.params);
     if (!p.success) return reply.code(400).send({ error: 'semaine invalide' });
     return resetWeek(store, mondayOf(p.data.start), clock.today());
+  });
+
+  app.get('/api/sessions/:key', async (req, reply) => {
+    const { key } = req.params as { key: string };
+    const view = await sessionView(store, garmin, key, clock.today(), clock.now());
+    return view ?? reply.code(404).send({ error: 'Séance introuvable' });
   });
 
   app.get('/api/data/status', async () => dataStatus(store, clock.today()));

@@ -20,7 +20,7 @@ const monthTitle = (m: string) => {
 const weekTitle = (start: string) =>
   `Semaine du ${new Date(`${start}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })}`;
 
-export function Calendar() {
+export function Calendar({ onOpenSession }: { onOpenSession: (key: string) => void }) {
   const today = parisDay(new Date().toISOString());
   const [view, setView] = useState<'week' | 'month'>('week');
   const [start, setStart] = useState(mondayOf(today));
@@ -68,7 +68,7 @@ export function Calendar() {
         </div>
       </div>
       {view === 'week' ? (
-        <WeekLoader key={start} start={start} today={today} walks={walks} />
+        <WeekLoader key={start} start={start} today={today} walks={walks} onOpenSession={onOpenSession} />
       ) : (
         <MonthLoader key={month} month={month} today={today} onOpenWeek={openWeek} />
       )}
@@ -76,7 +76,17 @@ export function Calendar() {
   );
 }
 
-function WeekLoader({ start, today, walks }: { start: string; today: string; walks: boolean }) {
+function WeekLoader({
+  start,
+  today,
+  walks,
+  onOpenSession,
+}: {
+  start: string;
+  today: string;
+  walks: boolean;
+  onOpenSession: (key: string) => void;
+}) {
   const res = useApi<WeekView>(`/calendar/week?start=${start}`);
   if (res.state === 'loading') return <p className="muted">Chargement…</p>;
   if (res.state === 'error')
@@ -85,7 +95,9 @@ function WeekLoader({ start, today, walks }: { start: string; today: string; wal
         {res.error.message}
       </p>
     );
-  return <Week week={res.data} today={today} walks={walks} onChanged={res.reload} />;
+  return (
+    <Week week={res.data} today={today} walks={walks} onChanged={res.reload} onOpenSession={onOpenSession} />
+  );
 }
 
 function MonthLoader({

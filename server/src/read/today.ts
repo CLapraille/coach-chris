@@ -66,7 +66,8 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
   ];
 
   const upcoming = week.sessions
-    .filter((s) => s.status === 'todo' && s.day && s.day >= today)
+    // Une séance déjà rattachée à une activité est faite, même si Campus ne l'a pas encore validée.
+    .filter((s) => s.status === 'todo' && !s.match && s.day && s.day >= today)
     .sort((a, b) => a.day!.localeCompare(b.day!));
 
   const hrv = lastNight?.hrv ?? null;

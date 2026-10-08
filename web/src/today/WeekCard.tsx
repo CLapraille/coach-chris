@@ -15,7 +15,7 @@ export function WeekCard({
   onOpenCalendar: () => void;
 }) {
   const active = week.sessions.filter((s) => s.status !== 'skipped');
-  const done = active.filter((s) => s.status === 'done').length;
+  const done = active.filter((s) => s.status === 'done' || s.match).length;
   const unplaced = active.filter((s) => s.status === 'todo' && !s.day);
   return (
     <article className="card s6">
@@ -44,8 +44,16 @@ export function WeekCard({
                     <span key={s.key} className="wk-s">
                       <i style={{ background: SPORT_COLOR[s.sport] }} />
                       {sessionLabel(s)} · {s.durationMin} min
-                      {s.status === 'done' && (
-                        <span className="ok" aria-label="faite">
+                      {(s.status === 'done' || s.match) && (
+                        <span
+                          className="ok"
+                          aria-label={s.status === 'done' ? 'faite' : 'faite, pas encore validée dans Campus'}
+                          title={
+                            s.status === 'done'
+                              ? undefined
+                              : 'Activité rattachée, pas encore validée dans Campus'
+                          }
+                        >
                           ✓
                         </span>
                       )}

@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 it('semaine : séances placées, disponibilité du jour, routines cochables jusqu’à J-3', async () => {
-  render(<Calendar />);
+  render(<Calendar onOpenSession={() => {}} />);
   await screen.findByRole('heading', { name: 'Semaine du 5 octobre' });
   expect(calls[0]!.url).toBe('/api/calendar/week?start=2026-10-05');
   expect(screen.getByText('Course S2-2')).toBeTruthy();
@@ -35,7 +35,7 @@ it('semaine : séances placées, disponibilité du jour, routines cochables jusq
 });
 
 it('déplacer une séance par la liste des jours envoie le placement', async () => {
-  render(<Calendar />);
+  render(<Calendar onOpenSession={() => {}} />);
   const select = await screen.findByRole('combobox', { name: 'Déplacer Renforcement S2-2' });
   fireEvent.change(select, { target: { value: '2026-10-11' } });
   await waitFor(() => expect(calls.some((c) => c.init?.method === 'PUT')).toBe(true));
@@ -47,13 +47,13 @@ it('déplacer une séance par la liste des jours envoie le placement', async () 
 
 it('placement ajusté : bouton pour revenir à la proposition', async () => {
   week.manual = true;
-  render(<Calendar />);
+  render(<Calendar onOpenSession={() => {}} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Revenir à la proposition' }));
   await waitFor(() => expect(calls.some((c) => c.init?.method === 'DELETE')).toBe(true));
 });
 
 it('vue mois : total de semaine et ouverture de la semaine', async () => {
-  render(<Calendar />);
+  render(<Calendar onOpenSession={() => {}} />);
   await screen.findByRole('heading', { name: 'Semaine du 5 octobre' });
   fireEvent.click(screen.getByRole('button', { name: 'Mois' }));
   await screen.findByRole('heading', { name: 'Octobre 2026' });
@@ -61,4 +61,11 @@ it('vue mois : total de semaine et ouverture de la semaine', async () => {
   expect(total.textContent).toContain('66 min');
   fireEvent.click(total);
   await screen.findByRole('heading', { name: 'Semaine du 5 octobre' });
+});
+
+it('le titre d’une séance ouvre son détail', async () => {
+  const open = vi.fn();
+  render(<Calendar onOpenSession={open} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Course S2-2' }));
+  expect(open).toHaveBeenCalledWith('k2');
 });

@@ -403,3 +403,111 @@ describe('Mobilité : tests → proposition → bloc validé', () => {
     expect(m.tests.hipInternalRotationDeg.value).toEqual({ left: 26, right: 27 });
   });
 });
+
+describe('Détail de séance', () => {
+  // Course S2-1 (06/10) rattachée par Campus à l'activité 24631672339 : 10 × (2′ course + 1′ marche) sur la montre.
+  const RUN_BLOCKS = [
+    {
+      repeat: 2,
+      exercises: [
+        {
+          name: 'slow_2',
+          exerciseType: 'running',
+          pace: { name: 'Lent', zoneKind: 'Z1' },
+          durations: [{ value: 2, timeUnit: 'minutes' }],
+        },
+        {
+          name: 'Walk_1',
+          exerciseType: 'recuperation',
+          pace: { name: 'Marche', zoneKind: 'RECOVER' },
+          durations: [{ value: 1, timeUnit: 'minutes' }],
+        },
+      ],
+    },
+  ];
+  const lap = (n: number, d: number, hr: number, cad: number, idx?: number) => ({
+    lap_number: n,
+    duration_seconds: d,
+    moving_duration_seconds: d,
+    avg_hr_bpm: hr,
+    avg_cadence: cad,
+    ...(idx !== undefined && { workout_step_index: idx }),
+  });
+  let garminCalls = 0;
+  const detailMcp = fakeMcp({
+    get_activity: () => {
+      garminCalls++;
+      return {
+        id: 24631672339,
+        type: 'running',
+        start_time_local: '2026-10-06T20:58:51.0',
+        duration_seconds: 1801.4,
+        distance_meters: 3810.99,
+        training_effect: 2.4,
+        training_effect_label: 'AEROBIC_BASE',
+        workout_rpe: 10,
+      };
+    },
+    get_activity_splits: () => ({
+      laps: [
+        lap(1, 120, 130, 150, 0),
+        lap(2, 60, 118, 140, 1),
+        lap(3, 121, 155, 152, 0),
+        lap(4, 60, 120, 100, 1),
+        lap(5, 300, 105, 100),
+      ],
+    }),
+    get_activity_hr_in_timezones: () => [{ zoneNumber: 1, secsInZone: 900.4, zoneLowBoundary: 123 }],
+  });
+
+  async function app() {
+    const store = new MemoryStore();
+    const campusWithBlocks = fakeMcp({
+      get_active_goal: () => [],
+      get_training_plan: () => ({ weeks: [S2_WEEK] }),
+      get_session_details: ({ session_index }) =>
+        session_index === 1
+          ? { ...S2_DETAILS.get(1), exercisesBlocks: RUN_BLOCKS, coachAdvice: 'Molo.' }
+          : (S2_DETAILS.get(session_index as number) ?? {}),
+    });
+    const sync = new Sync(store, { garmin, campus: campusWithBlocks }, clock);
+    await sync.run('garmin', 'job');
+    await sync.run('campus', 'job');
+    return buildApp({ store, sync, garmin: detailMcp, clock });
+  }
+  const KEY = encodeURIComponent('2026-10-05#1#Retour_Blessure_S2_1');
+
+  it('course faite : prévu vs réalisé étape par étape, tours après le programme à part, lu une seule fois', async () => {
+    garminCalls = 0;
+    const a = await app();
+    const res = await a.inject({ method: 'GET', url: `/api/sessions/${KEY}` });
+    expect(res.statusCode).toBe(200);
+    const v = res.json();
+    expect(v.coachAdvice).toBe('Molo.');
+    expect(v.activity).toMatchObject({ id: '24631672339', distanceM: 3811, trainingEffect: 2.4, rpe: 10 });
+    expect(v.activity.zones).toEqual([{ zone: 1, lowBpm: 123, seconds: 900 }]);
+    // Marche à 140 pas/min → courue ; course à 155 bpm → au-dessus du plafond de 151.
+    expect(v.deviation.steps.map((s: { issues: string[] }) => s.issues)).toEqual([
+      [],
+      ['ran'],
+      ['hr-too-high'],
+      [],
+    ]);
+    expect(v.deviation.after).toEqual({ laps: 1, durationS: 300 });
+    await a.inject({ method: 'GET', url: `/api/sessions/${KEY}` });
+    expect(garminCalls).toBe(1);
+  });
+
+  it('séance sans activité : pas de détail Garmin ni d’écart inventés ; clé inconnue → 404', async () => {
+    const a = await app();
+    const v = (
+      await a.inject({
+        method: 'GET',
+        url: `/api/sessions/${encodeURIComponent('2026-10-05#2#Retour_Blessure_S2_2')}`,
+      })
+    ).json();
+    expect(v.activity).toBeNull();
+    expect(v.deviation).toBeNull();
+    expect((await a.inject({ method: 'GET', url: '/api/sessions/inconnue' })).statusCode).toBe(404);
+  });
+});

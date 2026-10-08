@@ -5,10 +5,12 @@ export function NextSessionCard({
   next,
   then,
   today,
+  onOpen,
 }: {
   next: NextSession | null;
   then: WeekSession | null;
   today: string;
+  onOpen: (key: string) => void;
 }) {
   return (
     <article className="card s7">
@@ -31,16 +33,21 @@ export function NextSessionCard({
             ))}
             {next.description && <p className="nx-sub">{next.description}</p>}
           </div>
-          {then && (
-            <div className="nx-foot">
-              <span className="muted">
-                Ensuite :{' '}
-                <span className="text-fg">
-                  {sessionLabel(then)}, {then.durationMin} min
-                </span>
-              </span>
-            </div>
-          )}
+          <div className="nx-foot">
+            <span className="muted">
+              {then && (
+                <>
+                  Ensuite :{' '}
+                  <span className="text-fg">
+                    {sessionLabel(then)}, {then.durationMin} min
+                  </span>
+                </>
+              )}
+            </span>
+            <button className="btn primary" type="button" onClick={() => onOpen(next.key)}>
+              Détail
+            </button>
+          </div>
         </>
       ) : (
         <p className="empty">Plus de séance à faire cette semaine.</p>

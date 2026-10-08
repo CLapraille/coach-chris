@@ -5,6 +5,7 @@ import { clock, parisDay, shortDate } from './format.ts';
 import { Calendar } from './calendar/Calendar.tsx';
 import { Data } from './data/Data.tsx';
 import { Mobility } from './mobility/Mobility.tsx';
+import { SessionDetail } from './session/SessionDetail.tsx';
 import { Today } from './today/Today.tsx';
 
 export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
@@ -12,6 +13,12 @@ type Tab = (typeof TABS)[number];
 
 export function App() {
   const [tab, setTab] = useState<Tab>("Aujourd'hui");
+  // Détail de séance ouvert par-dessus l'onglet courant ; « Retour » y ramène.
+  const [session, setSession] = useState<string | null>(null);
+  const select = (t: Tab) => {
+    setSession(null);
+    setTab(t);
+  };
   const status = useApi<DataStatus>('/data/status');
   const st = status.state === 'ready' ? status.data : null;
 
@@ -23,14 +30,16 @@ export function App() {
             <i />
             CoachChris
           </div>
-          <Nav tab={tab} onSelect={setTab} className="nav" />
+          <Nav tab={tab} onSelect={select} className="nav" />
           {st && <SyncState status={st} />}
         </aside>
         <main>
-          {tab === "Aujourd'hui" ? (
-            <Today status={st} onNavigate={setTab} />
+          {session ? (
+            <SessionDetail key={session} sessionKey={session} onBack={() => setSession(null)} />
+          ) : tab === "Aujourd'hui" ? (
+            <Today status={st} onNavigate={select} onOpenSession={setSession} />
           ) : tab === 'Calendrier' ? (
-            <Calendar />
+            <Calendar onOpenSession={setSession} />
           ) : tab === 'Mobilité' ? (
             <Mobility />
           ) : st && status.state === 'ready' ? (
@@ -44,7 +53,7 @@ export function App() {
           )}
         </main>
       </div>
-      <Nav tab={tab} onSelect={setTab} className="tabbar" label="Navigation mobile" bar />
+      <Nav tab={tab} onSelect={select} className="tabbar" label="Navigation mobile" bar />
     </>
   );
 }
