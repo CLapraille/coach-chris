@@ -1,4 +1,10 @@
-import { addDays, mondayOf, type CampusSessionDetails, type CampusWeek } from '@coach-chris/domain';
+import {
+  addDays,
+  mondayOf,
+  type CampusSessionDetails,
+  type CampusWeek,
+  type Night,
+} from '@coach-chris/domain';
 import { createHash } from 'node:crypto';
 import { ToolError, type McpCaller, type SourceName } from '../mcp/client.ts';
 import type { Doc, Store } from '../store/store.ts';
@@ -33,9 +39,12 @@ const HISTORY_WEEKS = 4;
 const NIGHT_DAYS = 14;
 const LOG_TTL_S = 90 * 24 * 3600;
 const SCHEMA = 1;
+/** Version du contenu d'une nuit : 2 = Body Battery, stress, temps éveillé, récupération. */
+const NIGHT_VERSION = 2;
 
 interface SyncState extends Doc {
   lastDay: string;
+  nightVersion?: number;
   lastOkAt?: string;
 }
 
@@ -80,6 +89,7 @@ export class Sync {
         ...this.doc(`sync-state:${source}`, 'app'),
         kind: 'sync-state',
         lastDay: this.clock.today(),
+        ...(source === 'garmin' && { nightVersion: NIGHT_VERSION }),
         lastOkAt: this.clock.now(),
       } satisfies SyncState);
       result = { source, outcome: 'ok', durationMs: Math.round(performance.now() - t0) };
@@ -120,12 +130,16 @@ export class Sync {
     for (const w of garmin.weighIns(await this.mcp.garmin.call('get_weigh_ins', range))) {
       await this.store.upsert('cache', { ...this.doc(w.day, 'garmin'), pk: pk('weight', w.day), ...w });
     }
-    const nightsFrom = state ? from : addDays(today, -(NIGHT_DAYS - 1));
+    // Toute la fenêtre est relue quand le contenu d'une nuit a changé de version.
+    const nightsFrom = state?.nightVersion === NIGHT_VERSION ? from : addDays(today, -(NIGHT_DAYS - 1));
     for (let day = nightsFrom; day <= today; day = addDays(day, 1)) {
-      const night: garmin.Night = {
-        hrv: garmin.hrv(await this.mcp.garmin.call('get_hrv_data', { date: day })),
-        sleep: garmin.sleep(await this.mcp.garmin.call('get_sleep_data', { date: day })),
-        readiness: garmin.readiness(await this.mcp.garmin.call('get_training_readiness', { date: day })),
+      const g = (tool: string, args: Record<string, unknown>) => this.mcp.garmin.call(tool, args);
+      const night: Night = {
+        hrv: garmin.hrv(await g('get_hrv_data', { date: day })),
+        sleep: garmin.sleep(await g('get_sleep_data', { date: day })),
+        readiness: garmin.readiness(await g('get_training_readiness', { date: day })),
+        bodyBattery: garmin.bodyBattery(await g('get_body_battery', { start_date: day, end_date: day })),
+        stress: garmin.stress(await g('get_stress_data', { date: day })),
       };
       await this.store.upsert('cache', { ...this.doc(day, 'garmin'), pk: pk('night', day), day, ...night });
     }

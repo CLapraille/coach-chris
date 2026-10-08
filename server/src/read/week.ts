@@ -4,40 +4,16 @@ import {
   matchWeek,
   proposePlacement,
   weekDays,
-  type Match,
-  type PlannedSession,
-  type RuleWarning,
+  type CachedActivity,
+  type WeekSession,
+  type WeekView,
 } from '@coach-chris/domain';
 import type { Store } from '../store/store.ts';
-import type { CachedActivity } from '../sync/garmin.ts';
 import { activities, planWeek, type PlanWeek } from './cache.ts';
 
-export interface WeekSession {
-  key: string;
-  displayName: string;
-  sport: PlannedSession['sport'];
-  trainingType: string;
-  durationMin: number;
-  status: PlannedSession['status'];
-  intense: boolean;
-  legs: boolean;
-  legsFrom: PlannedSession['legsFrom'];
-  /** Jour placé ; `null` si la séance n'a plus de jour possible (semaine passée, non faite). */
-  day: string | null;
-  /** Jour connu (fait ou rattaché) : il ne bouge plus. */
-  fixed: boolean;
-  match?: Omit<Match, 'sessionKey'>;
-}
-
-export interface WeekView {
-  start: string;
-  days: { day: string; label: string }[];
-  /** `null` quand Campus n'a pas (encore) fourni cette semaine. */
-  plan: { fetchedAt: string; goalWeek?: PlanWeek['goalWeek'] } | null;
-  sessions: WeekSession[];
-  activities: CachedActivity[];
-  offPlan: CachedActivity[];
-  warnings: RuleWarning[];
+export interface WeekData {
+  view: WeekView;
+  plan: PlanWeek | undefined;
 }
 
 /**
@@ -45,6 +21,11 @@ export interface WeekView {
  * jours connus figés, reste placé par la proposition ; avertissements des règles.
  */
 export async function weekView(store: Store, start: string, today: string): Promise<WeekView> {
+  return (await weekData(store, start, today)).view;
+}
+
+/** Semaine et plan source (détails Campus) pour les écrans qui en ont besoin. */
+export async function weekData(store: Store, start: string, today: string): Promise<WeekData> {
   const days = weekDays(start);
   const [plan, acts] = await Promise.all([planWeek(store, start), activities(store, start, days[6]!)]);
   const sessions = plan?.sessions ?? [];
@@ -57,7 +38,7 @@ export async function weekView(store: Store, start: string, today: string): Prom
   const placement = proposePlacement({ days, from, sessions, fixed });
   const fixedKeys = new Set(Object.keys(fixed));
 
-  return {
+  const view: WeekView = {
     start,
     days: days.map((day) => ({ day, label: dayLabel(day) })),
     plan: plan ? { fetchedAt: plan.fetchedAt, ...(plan.goalWeek && { goalWeek: plan.goalWeek }) } : null,
@@ -66,6 +47,8 @@ export async function weekView(store: Store, start: string, today: string): Prom
       const out: WeekSession = {
         key: s.key,
         displayName: s.displayName,
+        name: s.name,
+        index: s.index,
         sport: s.sport,
         trainingType: s.trainingType,
         durationMin: s.durationMin,
@@ -87,4 +70,5 @@ export async function weekView(store: Store, start: string, today: string): Prom
     offPlan: offPlan as CachedActivity[],
     warnings: checkPlacement(placement, sessions, days, fixedKeys),
   };
+  return { view, plan };
 }

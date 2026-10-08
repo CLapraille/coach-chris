@@ -71,4 +71,33 @@ describe('adaptateurs Garmin', () => {
     expect(garmin.readiness(raw)).toEqual({ score: 76, level: 'HIGH' });
     expect(garmin.readiness([])).toBeNull();
   });
+
+  it('Body Battery : gain du sommeil et niveau', () => {
+    const raw = [
+      {
+        events: [
+          { type: 'SLEEP', body_battery_impact: 65 },
+          { type: 'RECOVERY', body_battery_impact: 2 },
+        ],
+        body_battery_level: 'MODERATE',
+      },
+    ];
+    expect(garmin.bodyBattery(raw)).toEqual({ sleepGain: 65, level: 'MODERATE' });
+    expect(garmin.bodyBattery([])).toBeNull();
+  });
+
+  it('stress : moyenne et part au repos sur le temps mesuré seulement', () => {
+    const raw = {
+      avgStressLevel: 33,
+      stressValuesArray: [
+        [1, 10],
+        [2, 25],
+        [3, 60],
+        [4, -1],
+        [5, -2],
+      ],
+    };
+    expect(garmin.stress(raw)).toEqual({ avg: 33, restPercent: 67 });
+    expect(garmin.stress({ avgStressLevel: -1 })).toBeNull();
+  });
 });

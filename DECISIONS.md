@@ -232,6 +232,14 @@ Maquette : https://claude.ai/artifact/Be7xmuX9zrK782vmzbzCX1 (artefact privé).
 - 🔎 Pesée du 08/10 : 83,39 kg (−0,7 kg depuis le 29/09). VFC nuit du 08/10 : 68 ms, moyenne 7 j 77 ms, plage 81–105.
 - ✅ **M2 terminé** (branche `m2-bff`) : `GET /api/today`, `GET /api/calendar/week?start=`, `POST /api/sync?source=`, `npm run sync -w server`. Vérifié sur les vraies données (placement S2 : course jeudi, renfo vendredi, course samedi, sans avertissement) ; 71 tests.
 
+### Tour 20 — M3 front (2026-10-08, en autonomie)
+
+- ✅ **D109 Contrat d'API partagé** : les types des réponses du BFF (`TodayView`, `WeekView`, `DataStatus`…) vivent dans `domain/src/api.ts`, importés par `server/` et `web/` : un changement de forme casse la compilation des deux côtés.
+- ✅ **D110 Styles** : le CSS des maquettes validées est repris tel quel dans `web/src/index.css` (mêmes classes, mêmes jetons) ; Tailwind sert aux ajustements ponctuels. Fidélité à la maquette plutôt que réécriture en utilitaires.
+- ✅ **Lot 1 Aujourd'hui** (branche `m3-front`) : 7 cartes de la maquette v21 sur l'API réelle. Ajouts côté BFF : Body Battery (gain de la nuit, niveau), stress de la veille (moyenne, % au repos), temps éveillé, récupération restante, VFC des 8 dernières nuits, structure de la prochaine séance (blocs Campus), séance suivante, piste du soir par jour, `GET /api/data/status`, `PUT /api/mobility/log/:date/:slot` (coche, rattrapage J-3). Les nuits déjà en cache sont relues automatiquement (version de nuit 2).
+- 🔄 **Écarts assumés vs maquette v21** (à valider) : graphe de volume sur **5 semaines** (4 d'historique + en cours, ce que la synchro charge) au lieu de 7 ; boutons « Détail » et « Envoyer sur la montre » absents tant que le Détail de séance (lot 4) et les écritures (M5) n'existent pas ; routine du soir réduite au **créneau du jour** tant que les tests de mobilité ne sont pas saisis (lien « Faire les tests ») ; titre de séance « Course S2-2 » déduit du nom Campus.
+- 🔎 Coche de routine testée sur les vraies données puis décochée aussitôt : aucune trace laissée dans Cosmos.
+
 ## Actions en attente côté utilisateur
 
 - ~~Installer Azure CLI~~ ✅ (2.91.0).

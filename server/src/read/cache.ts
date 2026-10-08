@@ -2,12 +2,14 @@ import {
   addDays,
   fromCampusWeek,
   type CampusSessionDetails,
+  type CachedActivity,
   type CampusWeek,
+  type GoalView,
+  type Night,
   type PlannedSession,
   type WeighIn,
 } from '@coach-chris/domain';
 import type { Doc, Store } from '../store/store.ts';
-import type { CachedActivity, Night } from '../sync/garmin.ts';
 import { pk } from '../sync/sync.ts';
 
 /** Lectures du cache Cosmos alimenté par la synchro. Rien n'est complété ni estimé. */
@@ -49,62 +51,81 @@ export async function weighIns(store: Store, from: string, to: string): Promise<
   return docs.map(({ day, kg }) => ({ day, kg }));
 }
 
-export type NightDoc = Night & { day: string; fetchedAt: string };
-
-export async function night(store: Store, day: string): Promise<NightDoc | undefined> {
-  const d = await store.get<Doc & NightDoc>('cache', day, pk('night', day));
-  return d && { day: d.day, fetchedAt: d.fetchedAt, hrv: d.hrv, sleep: d.sleep, readiness: d.readiness };
+/** Nuit en cache ; les documents d'avant la version 2 n'ont ni Body Battery ni stress : `null`, pas une estimation. */
+export async function night(
+  store: Store,
+  day: string,
+): Promise<(Night & { day: string; fetchedAt: string }) | undefined> {
+  const d = await store.get<Doc & Partial<Night> & { day: string }>('cache', day, pk('night', day));
+  return (
+    d && {
+      day: d.day,
+      fetchedAt: d.fetchedAt,
+      hrv: d.hrv ?? null,
+      sleep: d.sleep ?? null,
+      readiness: d.readiness ?? null,
+      bodyBattery: d.bodyBattery ?? null,
+      stress: d.stress ?? null,
+    }
+  );
 }
 
 export interface PlanWeek {
   sessions: PlannedSession[];
+  details: Map<number, CampusSessionDetails & { description?: string; coachAdvice?: string }>;
   fetchedAt: string;
   goalWeek?: { index: number; durationInWeeks: number };
+  cycleDescription?: string;
 }
 
 /** Dernière version connue du plan d'une semaine ; `undefined` si la source ne l'a jamais fournie. */
 export async function planWeek(store: Store, weekStart: string): Promise<PlanWeek | undefined> {
   const d = await store.get<
     Doc & {
-      week: CampusWeek & { goalWeek?: PlanWeek['goalWeek'] };
+      week: CampusWeek & { goalWeek?: PlanWeek['goalWeek']; cycleDescription?: string };
       details: Record<string, CampusSessionDetails>;
     }
   >('plan', 'latest', weekStart);
   if (!d) return undefined;
   const details = new Map(Object.entries(d.details).map(([k, v]) => [Number(k), v]));
-  const out: PlanWeek = { sessions: fromCampusWeek(d.week, details), fetchedAt: d.fetchedAt };
+  const out: PlanWeek = { sessions: fromCampusWeek(d.week, details), details, fetchedAt: d.fetchedAt };
   if (d.week.goalWeek) out.goalWeek = d.week.goalWeek;
+  if (d.week.cycleDescription) out.cycleDescription = d.week.cycleDescription;
   return out;
 }
 
-export interface Goal {
+interface CampusGoal {
   goalType: string;
   startDate: string;
   endDate: string;
   durationInWeeks: number;
-  sessionsDone?: number;
-  sessionsTotal?: number;
+  stats?: {
+    trainingsCount?: number;
+    trainingsDoneCount?: number;
+    distanceTotal?: number;
+    timeTotal?: number;
+  };
+  sessionCompetitionInfo?: { sessionCompetition?: { displayName?: string; weekDate?: string } };
 }
 
-export async function activeGoal(store: Store): Promise<Goal | undefined> {
+/** Objectif actif Campus, sans la description ni la semaine en cours (elles viennent du plan). */
+export async function activeGoal(store: Store): Promise<GoalView | undefined> {
   const d = await store.get<Doc & { goals: unknown }>('cache', 'active', 'goal');
-  const g = (Array.isArray(d?.goals) ? d.goals[0] : undefined) as
-    | {
-        goalType: string;
-        startDate: string;
-        endDate: string;
-        durationInWeeks: number;
-        stats?: { trainingsCount?: number; trainingsDoneCount?: number };
-      }
-    | undefined;
+  const g = (Array.isArray(d?.goals) ? d.goals[0] : undefined) as CampusGoal | undefined;
   if (!g) return undefined;
-  const out: Goal = {
+  const out: GoalView = {
     goalType: g.goalType,
     startDate: g.startDate.slice(0, 10),
     endDate: g.endDate.slice(0, 10),
     durationInWeeks: g.durationInWeeks,
   };
-  if (g.stats?.trainingsDoneCount !== undefined) out.sessionsDone = g.stats.trainingsDoneCount;
-  if (g.stats?.trainingsCount !== undefined) out.sessionsTotal = g.stats.trainingsCount;
+  const st = g.stats;
+  if (st?.trainingsDoneCount !== undefined) out.sessionsDone = st.trainingsDoneCount;
+  if (st?.trainingsCount !== undefined) out.sessionsTotal = st.trainingsCount;
+  if (st?.distanceTotal !== undefined) out.distanceKm = Math.round(st.distanceTotal * 10) / 10;
+  if (st?.timeTotal !== undefined) out.timeS = st.timeTotal;
+  const test = g.sessionCompetitionInfo?.sessionCompetition;
+  if (test?.displayName && test.weekDate)
+    out.test = { name: test.displayName, weekDate: test.weekDate.slice(0, 10) };
   return out;
 }

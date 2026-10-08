@@ -51,6 +51,21 @@ const garmin = fakeMcp({
       : 'No HRV data',
   get_sleep_data: () => ({ dailySleepDTO: { sleepTimeSeconds: 26280 } }),
   get_training_readiness: () => [{ context: 'AFTER_WAKEUP_RESET', score: 76, level: 'HIGH' }],
+  get_body_battery: () => [
+    { events: [{ type: 'SLEEP', body_battery_impact: 65 }], body_battery_level: 'HIGH' },
+  ],
+  get_stress_data: ({ date }) =>
+    date === '2026-10-07'
+      ? {
+          avgStressLevel: 33,
+          stressValuesArray: [
+            [1, 20],
+            [2, 60],
+            [3, -1],
+            [4, 25],
+          ],
+        }
+      : { avgStressLevel: -1 },
 });
 
 const campus = fakeMcp({
@@ -110,14 +125,21 @@ describe('BFF en lecture', () => {
   it('GET /api/today : prochaine séance, forme, poids, signaux', async () => {
     const { app } = await syncedApp();
     const t = (await app.inject({ method: 'GET', url: '/api/today' })).json();
-    expect(t.goal).toMatchObject({ goalType: 'back-from-injury', week: { index: 2 } });
+    expect(t.goal).toMatchObject({ goalType: 'back-from-injury', weekIndex: 2 });
     expect(t.nextSession).toMatchObject({ displayName: 'Retour de blessure', day: '2026-10-08' });
-    expect(t.form.night.hrv.position).toEqual({ lastNight: 'below', weekly: 'below' });
+    expect(t.form.night.hrvPosition).toEqual({ lastNight: 'below', weekly: 'below' });
     expect(t.form.weight).toMatchObject({ deltaKg: -0.7, direction: 'down' });
     expect(t.signals.map((s: { id: string }) => s.id)).toEqual(['hrv-weekly-below']);
     // Course de mardi + renfo validé sans montre (30 min prévues).
     expect(t.volume.weeks.at(-1)).toEqual({ start: '2026-10-05', run: 30, bike: 0, strength: 30 });
-    expect(t.mobility.evening).toMatchObject({ testsMissing: true, slot: { code: 'C3' } });
+    expect(t.mobility).toMatchObject({ testsMissing: true, evening: [{ code: 'C3' }] });
+    expect(t.form.stressYesterday).toEqual({ avg: 33, restPercent: 67 });
+    expect(t.form.night).toMatchObject({ bodyBattery: { sleepGain: 65, level: 'HIGH' } });
+    expect(t.form.hrvHistory.at(-1)).toEqual({ day: '2026-10-08', ms: 68 });
+    expect(t.form.hrvHistory.at(-2)).toEqual({ day: '2026-10-07', ms: null });
+    expect(t.nextSession.blocks).toEqual([]);
+    expect(t.thenSession).toMatchObject({ sport: 'strength', day: '2026-10-09' });
+    expect(t.evenings['2026-10-09']).toMatchObject({ reason: expect.stringContaining('renforcement') });
   });
 
   it("une nuit sans VFC reste sans VFC : pas d'interpolation", async () => {
@@ -157,5 +179,31 @@ describe('synchro', () => {
     const [a, b] = [sync.run('campus', 'open'), sync.run('campus', 'button')];
     expect(a).toBe(b);
     await a;
+  });
+});
+
+describe('mobilité et état des données', () => {
+  it('cocher une routine : visible dans Aujourd’hui, décochable, rattrapage limité à J-3', async () => {
+    const { app } = await syncedApp();
+    const put = (date: string, done: boolean) =>
+      app.inject({ method: 'PUT', url: `/api/mobility/log/${date}/morning`, payload: { done } });
+    expect((await put('2026-10-08', true)).statusCode).toBe(200);
+    expect((await put('2026-10-06', true)).statusCode).toBe(200);
+    expect((await put('2026-10-04', true)).statusCode).toBe(409);
+    expect((await put('2026-10-09', true)).statusCode).toBe(409);
+    let m = (await app.inject({ method: 'GET', url: '/api/today' })).json().mobility;
+    expect(m.checked).toEqual({ morning: true, evening: false });
+    expect(m.regularity.morning).toEqual({ done: 2, days: 7, streak: 1 });
+    await put('2026-10-08', false);
+    m = (await app.inject({ method: 'GET', url: '/api/today' })).json().mobility;
+    expect(m.checked.morning).toBe(false);
+  });
+
+  it('GET /api/data/status : dernier passage par source', async () => {
+    const { app } = await syncedApp();
+    const st = (await app.inject({ method: 'GET', url: '/api/data/status' })).json();
+    expect(st.sources.garmin).toMatchObject({ lastOkAt: clock.now(), last: { outcome: 'ok' } });
+    expect(st.sources.campus.last.outcome).toBe('ok');
+    expect(st.missingNights).toEqual([]);
   });
 });

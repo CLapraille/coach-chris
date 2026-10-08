@@ -25,6 +25,8 @@ export interface Store {
   /** Tous les documents d'une partition. */
   list<T extends Doc>(container: ContainerName, pk: string): Promise<T[]>;
   upsert(container: ContainerName, doc: Doc): Promise<void>;
+  /** Sans effet si le document n'existe pas. */
+  delete(container: ContainerName, id: string, pk: string): Promise<void>;
 }
 
 export class CosmosStore implements Store {
@@ -55,6 +57,14 @@ export class CosmosStore implements Store {
   async upsert(container: ContainerName, doc: Doc): Promise<void> {
     await this.containers[container].items.upsert(doc);
   }
+
+  async delete(container: ContainerName, id: string, pk: string): Promise<void> {
+    try {
+      await this.containers[container].item(id, pk).delete();
+    } catch (e) {
+      if ((e as { code?: number }).code !== 404) throw e;
+    }
+  }
 }
 
 /** Retire les métadonnées système de Cosmos (_rid, _etag…). */
@@ -83,5 +93,9 @@ export class MemoryStore implements Store {
     const pk = doc[CONTAINERS[container]];
     if (typeof pk !== 'string') throw new Error(`clé de partition /${CONTAINERS[container]} manquante`);
     this.data.set(this.key(container, pk, doc.id), structuredClone(doc));
+  }
+
+  async delete(container: ContainerName, id: string, pk: string): Promise<void> {
+    this.data.delete(this.key(container, pk, id));
   }
 }
