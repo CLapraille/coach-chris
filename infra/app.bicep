@@ -179,6 +179,8 @@ resource mcpCampus 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'mcp'
           image: '${imageRepo}-mcp-campus:${imageTag}'
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
+          // Protection DNS rebinding du MCP : nom interne appelé par le BFF et le job (campusUrl).
+          env: [{ name: 'CAMPUS_MCP_ALLOWED_HOSTS', value: 'aci-cc-9we-mcpcampus,aci-cc-9we-mcpcampus:*' }]
           volumeMounts: [{ volumeName: 'tokens', mountPath: '/data' }]
         }
       ]
