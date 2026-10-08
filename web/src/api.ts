@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { API_BASE, authHeader } from './auth.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -9,9 +10,13 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     ...init,
-    headers: { ...(init?.body ? { 'content-type': 'application/json' } : {}), ...init?.headers },
+    headers: {
+      ...(await authHeader()),
+      ...(init?.body ? { 'content-type': 'application/json' } : {}),
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };

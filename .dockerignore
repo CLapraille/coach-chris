@@ -1,0 +1,14 @@
+# Les images sont publiques (D116) : aucune donnée personnelle ni secret ne doit y entrer.
+**/node_modules
+**/.venv
+**/__pycache__
+**/.env
+**/*.test.ts
+**/*.test.tsx
+domain/src/fixtures
+web/dist
+.git
+.github
+.claude
+infra
+*.md

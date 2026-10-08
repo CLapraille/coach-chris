@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.25.0",
     "@coach-chris/domain": "*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

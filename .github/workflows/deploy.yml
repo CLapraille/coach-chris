@@ -1,0 +1,117 @@
+name: Deploy
+
+# Images à chaque push (GHCR, publiques : D116) ; infra et front seulement depuis main (ARCHITECTURE §10).
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_REPO: ghcr.io/clapraille/coach-chris
+  RESOURCE_GROUP: rg-coach-chris
+  # Identifiants de infra/bootstrap.ps1 : pas des secrets ; l'accès passe par la fédération OIDC.
+  AZURE_CLIENT_ID: fdbc65c5-76a6-4288-8dca-a31c551ede70
+  AZURE_TENANT_ID: 6570016a-1a15-459b-b3e7-5c27c8b450fc
+  AZURE_SUBSCRIPTION_ID: cb6c7412-168a-4d5b-b49c-2f5e8bf262b7
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: bff
+            context: .
+            file: server/Dockerfile
+          - name: mcp-garmin
+            context: mcp/garmin
+            file: mcp/garmin/Dockerfile
+          - name: mcp-campus
+            context: mcp/campus
+            file: mcp/campus/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}-${{ matrix.name }}:${{ github.sha }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}-{1}:latest', env.IMAGE_REPO, matrix.name) || '' }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  infra:
+    if: github.ref == 'refs/heads/main'
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      apiUrl: ${{ steps.deploy.outputs.apiUrl }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - id: deploy
+        name: Bicep (resource group)
+        run: |
+          url=$(az deployment group create -g "$RESOURCE_GROUP" -n "app-${GITHUB_SHA::7}" \
+            -p infra/app.bicepparam -p imageTag="$GITHUB_SHA" \
+            --query properties.outputs.apiUrl.value -o tsv)
+          echo "apiUrl=$url" >> "$GITHUB_OUTPUT"
+
+  web:
+    if: github.ref == 'refs/heads/main'
+    needs: infra
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build du front
+        run: npm run build -w web
+        env:
+          VITE_API_URL: ${{ needs.infra.outputs.apiUrl }}
+          VITE_ENTRA_CLIENT_ID: 35c93925-0537-452f-adc9-fd5471adbf22
+          VITE_ENTRA_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Jeton de déploiement SWA
+        id: swa
+        run: |
+          token=$(az staticwebapp secrets list -n swa-cc-9we-01 -g "$RESOURCE_GROUP" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
+          action: upload
+          app_location: web/dist
+          skip_app_build: true
+          skip_api_build: true

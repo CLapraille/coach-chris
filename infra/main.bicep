@@ -1,4 +1,6 @@
-// CoachChris — infrastructure Azure (D93). Portée abonnement : resource group, budget, puis modules.
+// CoachChris — portée abonnement (D93) : resource group et budget. Rarement rejoué, à la main :
+//   az deployment sub create -l westeurope -n cc-infra -p infra/main.bicepparam
+// Le contenu du resource group est dans app.bicep, déployé par GitHub Actions.
 targetScope = 'subscription'
 
 @description('Région de toutes les ressources (D20).')
@@ -12,9 +14,6 @@ param alertEmail string
 
 @description('Premier jour du mois de départ du budget (AAAA-MM-01).')
 param budgetStartDate string
-
-@description('Object ID Entra de l\'utilisateur, autorisé sur le plan de données Cosmos pour le développement local.')
-param userObjectId string
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: 'rg-coach-chris'
@@ -57,13 +56,4 @@ resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
   }
 }
 
-module cosmos 'modules/cosmos.bicep' = {
-  scope: rg
-  name: 'cosmos'
-  params: {
-    location: location
-    dataContributorIds: [userObjectId]
-  }
-}
 
-output cosmosEndpoint string = cosmos.outputs.endpoint
