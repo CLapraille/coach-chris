@@ -1,10 +1,10 @@
-import { CATCH_UP_DAYS, canCheck, mondayOf, type SourceName } from '@coach-chris/domain';
+import { addDays, CATCH_UP_DAYS, canCheck, mondayOf, type SourceName } from '@coach-chris/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { setRoutineLog } from './read/mobility.ts';
 import { dataStatus } from './read/status.ts';
 import { todayView } from './read/today.ts';
-import { weekView } from './read/week.ts';
+import { moveInWeek, PlacementError, resetWeek, weekView } from './read/week.ts';
 import type { Store } from './store/store.ts';
 import { parisClock, type Clock, type Sync } from './sync/sync.ts';
 
@@ -16,6 +16,12 @@ export interface AppDeps {
 
 const SOURCES: SourceName[] = ['garmin', 'campus'];
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** « 2026-10 » → « 2026-11 ». */
+function nextMonth(m: string): string {
+  const [y, mo] = m.split('-').map(Number) as [number, number];
+  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`;
+}
 
 export function buildApp(deps?: AppDeps): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
@@ -39,6 +45,50 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     if (!q.success) return reply.code(400).send({ error: 'start doit être une date AAAA-MM-JJ' });
     catchUp();
     return weekView(store, mondayOf(q.data.start ?? clock.today()), clock.today());
+  });
+
+  app.get('/api/calendar/month', async (req, reply) => {
+    const q = z
+      .object({
+        m: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .optional(),
+      })
+      .safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'm doit être un mois AAAA-MM' });
+    catchUp();
+    const month = q.data.m ?? clock.today().slice(0, 7);
+    const last = addDays(`${nextMonth(month)}-01`, -1);
+    const mondays: string[] = [];
+    for (let w = mondayOf(`${month}-01`); w <= last; w = addDays(w, 7)) mondays.push(w);
+    return { month, weeks: await Promise.all(mondays.map((w) => weekView(store, w, clock.today()))) };
+  });
+
+  // Déplacer une séance (D50) : la réponse porte la semaine recalculée et ses avertissements.
+  app.put('/api/calendar/week/:start/placement', async (req, reply) => {
+    const p = z.object({ start: day }).safeParse(req.params);
+    const b = z.object({ key: z.string(), day }).safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'semaine, séance ou jour invalide' });
+    try {
+      return await moveInWeek(
+        store,
+        mondayOf(p.data.start),
+        clock.today(),
+        b.data.key,
+        b.data.day,
+        clock.now(),
+      );
+    } catch (e) {
+      if (e instanceof PlacementError) return reply.code(409).send({ error: e.message });
+      throw e;
+    }
+  });
+
+  app.delete('/api/calendar/week/:start/placement', async (req, reply) => {
+    const p = z.object({ start: day }).safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'semaine invalide' });
+    return resetWeek(store, mondayOf(p.data.start), clock.today());
   });
 
   app.get('/api/data/status', async () => dataStatus(store, clock.today()));

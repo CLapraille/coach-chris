@@ -2,6 +2,7 @@ import type { DataStatus, SourceName } from '@coach-chris/domain';
 import { useState } from 'react';
 import { useApi } from './api.ts';
 import { clock, parisDay, shortDate } from './format.ts';
+import { Calendar } from './calendar/Calendar.tsx';
 import { Today } from './today/Today.tsx';
 
 export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
@@ -26,6 +27,8 @@ export function App() {
         <main>
           {tab === "Aujourd'hui" ? (
             <Today status={st} onNavigate={setTab} />
+          ) : tab === 'Calendrier' ? (
+            <Calendar />
           ) : (
             <>
               <h1 className="text-3xl">{tab}</h1>

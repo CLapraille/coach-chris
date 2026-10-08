@@ -83,6 +83,18 @@ export interface WeekView {
   activities: CachedActivity[];
   offPlan: CachedActivity[];
   warnings: RuleWarning[];
+  /** Le placement a été ajusté à la main (bouton « Revenir à la proposition »). */
+  manual: boolean;
+  /** Disponibilité Garmin du matin, par jour ; `null` si absente. */
+  readiness: Record<string, number | null>;
+  /** Routines de mobilité cochées, par jour. */
+  routines: Record<string, Record<Slot, boolean>>;
+}
+
+/** Vue mois : les semaines (lundi → dimanche) qui recouvrent le mois. */
+export interface MonthView {
+  month: string;
+  weeks: WeekView[];
 }
 
 export interface GoalView {

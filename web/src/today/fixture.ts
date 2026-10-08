@@ -91,6 +91,9 @@ export const TODAY: TodayView = {
     activities: [],
     offPlan: [],
     warnings: [],
+    manual: false,
+    readiness: Object.fromEntries(days.map((d) => [d, d === '2026-10-08' ? 76 : null])),
+    routines: Object.fromEntries(days.map((d) => [d, { morning: false, evening: false }])),
   },
   evenings: Object.fromEntries(days.map((d) => [d, null])),
   mobility: {

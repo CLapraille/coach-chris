@@ -41,6 +41,8 @@ const LOG_TTL_S = 90 * 24 * 3600;
 const SCHEMA = 1;
 /** Version du contenu d'une nuit : 2 = Body Battery, stress, temps éveillé, récupération. */
 const NIGHT_VERSION = 2;
+/** Au plus loin, le plan est lu sur 12 semaines (un objectif Campus dure en général 8 semaines). */
+const MAX_WEEKS_AHEAD = 12;
 
 interface SyncState extends Doc {
   lastDay: string;
@@ -146,11 +148,11 @@ export class Sync {
   }
 
   private async campus(): Promise<void> {
-    const goal = await this.mcp.campus.call<unknown[]>('get_active_goal');
+    const goal = await this.mcp.campus.call<{ endDate?: string }[]>('get_active_goal');
     await this.store.upsert('cache', { ...this.doc('active', 'campus'), pk: 'goal', goals: goal });
 
-    // Semaine en cours et suivante (ARCHITECTURE §5), plus les semaines d'historique encore absentes :
-    // une séance validée sans montre n'existe que dans Campus et compte dans le repère de volume (D90).
+    // Du plan : les semaines d'historique encore absentes (une séance validée sans montre n'existe que dans Campus
+    // et compte dans le repère de volume, D90), puis tout ce que Campus a publié jusqu'à la fin de l'objectif.
     const monday = mondayOf(this.clock.today());
     let start = monday;
     for (let w = HISTORY_WEEKS; w >= 1; w--) {
@@ -160,28 +162,46 @@ export class Sync {
         break;
       }
     }
+    const goalEnd = Array.isArray(goal) ? goal[0]?.endDate?.slice(0, 10) : undefined;
+    const horizon = addDays(monday, 7 * MAX_WEEKS_AHEAD - 1);
+    const end =
+      goalEnd && goalEnd > addDays(monday, 13)
+        ? goalEnd < horizon
+          ? goalEnd
+          : horizon
+        : addDays(monday, 13);
     const plan = await this.mcp.campus.call<{ weeks?: CampusWeek[] }>('get_training_plan', {
       start_date: start,
-      end_date: addDays(monday, 13),
+      end_date: end,
     });
     for (const week of plan.weeks ?? []) {
-      const details: Record<number, CampusSessionDetails> = {};
-      for (const s of week.sessions) {
-        details[s.sessionIndex] = await this.mcp.campus.call<CampusSessionDetails>('get_session_details', {
-          week_id: s.weekId,
-          session_index: s.sessionIndex,
-        });
+      const weekDate = week.weekDate.slice(0, 10);
+      const latest = await this.store.get<Doc & PlanContent>('plan', 'latest', weekDate);
+      // Le détail d'une semaine ne change qu'avec son résumé (statuts, séances) : on le relit seulement alors,
+      // et toujours pour la semaine en cours.
+      const unchanged = latest && weekDate !== monday && hashOf(latest.week) === hashOf(week);
+      const details: Record<number, CampusSessionDetails> = unchanged ? latest.details : {};
+      if (!unchanged) {
+        for (const s of week.sessions) {
+          details[s.sessionIndex] = await this.mcp.campus.call<CampusSessionDetails>('get_session_details', {
+            week_id: s.weekId,
+            session_index: s.sessionIndex,
+          });
+        }
       }
-      await this.savePlanWeek(week, details);
+      await this.savePlanWeek(week, details, latest);
     }
   }
 
   /** Le plan est archivé : chaque contenu différent devient une version, jamais écrasée (D45). */
-  private async savePlanWeek(week: CampusWeek, details: Record<number, CampusSessionDetails>): Promise<void> {
+  private async savePlanWeek(
+    week: CampusWeek,
+    details: Record<number, CampusSessionDetails>,
+    latest: (Doc & PlanContent) | undefined,
+  ): Promise<void> {
     const weekDate = week.weekDate.slice(0, 10);
-    const hash = createHash('sha256').update(JSON.stringify({ week, details })).digest('hex').slice(0, 16);
-    const latest = await this.store.get<Doc & { hash: string }>('plan', 'latest', weekDate);
-    const content = { weekDate, hash, week, details };
+    const hash = hashOf({ week, details });
+    const content: PlanContent = { weekDate, hash, week, details };
     if (latest?.hash !== hash) {
       await this.store.upsert('plan', {
         ...this.doc(`v:${this.clock.now()}`, 'campus'),
@@ -192,6 +212,15 @@ export class Sync {
     await this.store.upsert('plan', { ...this.doc('latest', 'campus'), kind: 'latest', ...content });
   }
 }
+
+interface PlanContent {
+  weekDate: string;
+  hash: string;
+  week: CampusWeek;
+  details: Record<number, CampusSessionDetails>;
+}
+
+const hashOf = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 16);
 
 /** Clé de partition du cache : `<type>#<AAAA-MM>`. */
 export const pk = (type: string, day: string): string => `${type}#${day.slice(0, 7)}`;

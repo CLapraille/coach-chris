@@ -173,6 +173,41 @@ describe('synchro', () => {
     expect(versions).toHaveLength(1);
   });
 
+  it('plan : semaines publiées jusqu’à la fin de l’objectif, détail relu seulement si la semaine change', async () => {
+    const s3 = {
+      ...S2_WEEK,
+      weekId: 'w3',
+      weekDate: '2026-10-12 00:00',
+      sessions: S2_WEEK.sessions.map((x) => ({
+        ...x,
+        weekId: 'w3',
+        weekDate: '2026-10-12 00:00',
+        status: 'todo',
+      })),
+    };
+    const ranges: unknown[] = [];
+    let details = 0;
+    const counting = fakeMcp({
+      get_active_goal: () => [{ endDate: '2026-11-22 00:00' }],
+      get_training_plan: (args) => {
+        ranges.push(args);
+        return { weeks: [S2_WEEK, s3] };
+      },
+      get_session_details: () => {
+        details++;
+        return {};
+      },
+    });
+    const store = new MemoryStore();
+    const sync = new Sync(store, { garmin, campus: counting }, clock);
+    await sync.run('campus', 'job');
+    expect(details).toBe(10);
+    expect(ranges[0]).toMatchObject({ end_date: '2026-11-22' });
+    await sync.run('campus', 'job');
+    // Seule la semaine en cours (S2) est relue : S3 n'a pas changé.
+    expect(details).toBe(15);
+  });
+
   it('deux synchros simultanées de la même source ne font qu’un passage', async () => {
     const store = new MemoryStore();
     const sync = new Sync(store, { garmin, campus }, clock);
@@ -205,5 +240,65 @@ describe('mobilité et état des données', () => {
     expect(st.sources.garmin).toMatchObject({ lastOkAt: clock.now(), last: { outcome: 'ok' } });
     expect(st.sources.campus.last.outcome).toBe('ok');
     expect(st.missingNights).toEqual([]);
+  });
+});
+
+describe('Calendrier', () => {
+  const week = async (app: Awaited<ReturnType<typeof syncedApp>>['app']) =>
+    (await app.inject({ method: 'GET', url: '/api/calendar/week?start=2026-10-05' })).json();
+  const move = (app: Awaited<ReturnType<typeof syncedApp>>['app'], key: string, day: string) =>
+    app.inject({ method: 'PUT', url: '/api/calendar/week/2026-10-05/placement', payload: { key, day } });
+  const dayOf = (w: { sessions: { name: string; day: string }[] }, name: string) =>
+    w.sessions.find((s) => s.name === name)?.day;
+
+  it('déplacer une séance : gardé, avertissement si deux courses se suivent', async () => {
+    const { app } = await syncedApp();
+    const before = await week(app);
+    const c3 = before.sessions.find((s: { name: string }) => s.name === 'Retour_Blessure_S2_3');
+    const res = await move(app, c3.key, '2026-10-09');
+    expect(res.statusCode).toBe(200);
+    // Vendredi portait le renfo S2-2 : les deux séances sont échangées.
+    const after = res.json();
+    expect(dayOf(after, 'Retour_Blessure_S2_3')).toBe('2026-10-09');
+    expect(dayOf(after, 'MIX - MID - BLESSURE - SEMAINE 2 SEANCE 2')).toBe('2026-10-10');
+    expect(after.manual).toBe(true);
+    expect(after.warnings.map((w: { rule: string }) => w.rule)).toContain('consecutive-runs');
+    // Relu depuis le stockage.
+    expect(dayOf(await week(app), 'Retour_Blessure_S2_3')).toBe('2026-10-09');
+  });
+
+  it('une séance faite ne se déplace pas ; un jour passé est refusé', async () => {
+    const { app } = await syncedApp();
+    const w = await week(app);
+    const done = w.sessions.find((s: { fixed: boolean }) => s.fixed);
+    expect((await move(app, done.key, '2026-10-11')).statusCode).toBe(409);
+    const todo = w.sessions.find((s: { fixed: boolean; status: string }) => !s.fixed);
+    expect((await move(app, todo.key, '2026-10-06')).statusCode).toBe(409);
+  });
+
+  it('revenir à la proposition efface le placement manuel', async () => {
+    const { app } = await syncedApp();
+    const w = await week(app);
+    const c3 = w.sessions.find((s: { name: string }) => s.name === 'Retour_Blessure_S2_3');
+    await move(app, c3.key, '2026-10-11');
+    const reset = await app.inject({ method: 'DELETE', url: '/api/calendar/week/2026-10-05/placement' });
+    expect(reset.json().manual).toBe(false);
+    expect(dayOf(reset.json(), 'Retour_Blessure_S2_3')).toBe('2026-10-10');
+  });
+
+  it('vue mois : les semaines qui recouvrent octobre, disponibilité et routines par jour', async () => {
+    const { app } = await syncedApp();
+    const m = (await app.inject({ method: 'GET', url: '/api/calendar/month?m=2026-10' })).json();
+    expect(m.weeks.map((w: { start: string }) => w.start)).toEqual([
+      '2026-09-28',
+      '2026-10-05',
+      '2026-10-12',
+      '2026-10-19',
+      '2026-10-26',
+    ]);
+    const s2 = m.weeks[1];
+    expect(s2.readiness['2026-10-08']).toBe(76);
+    expect(s2.routines['2026-10-08']).toEqual({ morning: false, evening: false });
+    expect(m.weeks[3].plan).toBeNull();
   });
 });
