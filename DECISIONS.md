@@ -255,6 +255,14 @@ Maquette : https://claude.ai/artifact/Be7xmuX9zrK782vmzbzCX1 (artefact privé).
 - 🔄 **Actions du Détail** (valider dans Campus, annoter dans Garmin) affichées mais désactivées jusqu'au jalon M5 (écritures avec aperçu et confirmation). Effort perçu affiché « 1/10 » à partir de `workout_rpe: 10` : échelle toujours à confirmer (question ouverte n° 5).
 - ✅ **M3 terminé** (branche `m3-front`, 5 commits) : les 4 onglets et le Détail de séance tournent sur l'API locale et les vraies données ; 105 tests.
 
+### Tour 21 — M4 Azure (2026-10-08)
+
+- ✅ **D116 Images GHCR publiques** (question ouverte n° 7) : `ghcr.io/clapraille/coach-chris-{bff,mcp-garmin,mcp-campus}`. Aucune donnée personnelle ni secret dedans (`.dockerignore` exclut les fixtures réelles, les tests, `.env`) ; pas de PAT GHCR à stocker.
+- ✅ **D117 Session Campus dédiée à Azure** : le refresh token Campus change à chaque rafraîchissement ; si le poste et Azure partageaient le même, l'un des deux serait refusé. `reauth.ps1 -Source campus` fait se connecter dans une **fenêtre de navigation privée** (session distincte) et n'envoie ces jetons qu'à Azure. Garmin accepte plusieurs copies : `reauth.ps1 -Source garmin` envoie les jetons du poste.
+- ✅ **D118 Découpage Bicep** : `infra/main.bicep` (abonnement : resource group, budget, rejoué à la main) et `infra/app.bicep` (resource group : identité managée, Log Analytics plafonné à 0,1 Go/jour, stockage + partage `tokens`, Cosmos, environnement Container Apps, BFF externe avec Easy Auth, 2 MCP internes 0→1 réplique, job de synchro cron `0 4 * * *` UTC, Static Web App Free), déployé par GitHub Actions à chaque push sur `main` (`deploy.yml`, OIDC, aucun secret).
+- ✅ **Bootstrap fait** (`infra/bootstrap.ps1`, relançable) : application Entra `app-cc-9we-01` (SPA + API `access_as_user`, jetons v2, affectation requise, seul ton compte affecté) ; identité de déploiement `gh-cc-9we-deploy` fédérée sur `repo:CLapraille/coach-chris:ref:refs/heads/main`, rôle Contributor limité à `rg-coach-chris`.
+- ✅ **D119 Authentification** : MSAL dans le front (connexion par redirection, jeton pour `api://<client>/access_as_user`) ; Easy Auth sur le BFF (401 sans jeton, audience vérifiée, seul ton object ID) ; le BFF revérifie l'en-tête `x-ms-client-principal-id` et refuse de démarrer en production sans `ALLOWED_OID`. CORS traité par l'ingress Container Apps (origine du front seulement). Local inchangé : pas d'authentification.
+
 ## Actions en attente côté utilisateur
 
 - ~~Installer Azure CLI~~ ✅ (2.91.0).

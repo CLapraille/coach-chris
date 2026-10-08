@@ -10,4 +10,9 @@ const store = new CosmosStore(process.env.COSMOS_ENDPOINT!);
 const mcp = { garmin: mcpFromEnv('garmin'), campus: mcpFromEnv('campus') };
 const sync = new Sync(store, mcp);
 
-await buildApp({ store, sync, garmin: mcp.garmin }).listen({ port, host });
+const allowedOid = process.env.ALLOWED_OID;
+// En production, jamais de BFF ouvert : sans compte autorisé configuré, on refuse de démarrer.
+if (process.env.NODE_ENV === 'production' && !allowedOid)
+  throw new Error('ALLOWED_OID manquant en production');
+
+await buildApp({ store, sync, garmin: mcp.garmin, ...(allowedOid && { allowedOid }) }).listen({ port, host });

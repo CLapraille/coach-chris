@@ -23,6 +23,11 @@ export interface AppDeps {
   /** Garmin, pour lire à la demande le détail d'une activité (tours, zones). */
   garmin?: McpCaller;
   clock?: Clock;
+  /**
+   * Seul compte autorisé (ARCHITECTURE §8). Sur Azure, Easy Auth valide déjà le jeton ; le BFF vérifie en plus
+   * l'identifiant transmis par Easy Auth (défense en profondeur). Absent en local : pas d'authentification (D17).
+   */
+  allowedOid?: string;
 }
 
 const SOURCES: SourceName[] = ['garmin', 'campus'];
@@ -50,7 +55,16 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   if (!deps) return app;
-  const { store, sync, garmin, clock = parisClock } = deps;
+  const { store, sync, garmin, clock = parisClock, allowedOid } = deps;
+
+  if (allowedOid) {
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.url === '/api/health') return;
+      if (req.headers['x-ms-client-principal-id'] !== allowedOid) {
+        return reply.code(403).send({ error: 'Compte non autorisé' });
+      }
+    });
+  }
 
   // Le cache répond tout de suite ; un rattrapage part en arrière-plan si le dernier passage est ancien (D15).
   const catchUp = () => {

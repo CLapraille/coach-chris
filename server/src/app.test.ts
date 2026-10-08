@@ -511,3 +511,19 @@ describe('Détail de séance', () => {
     expect((await a.inject({ method: 'GET', url: '/api/sessions/inconnue' })).statusCode).toBe(404);
   });
 });
+
+describe('Authentification (Azure)', () => {
+  it('seul le compte autorisé passe ; la sonde de santé reste ouverte', async () => {
+    const store = new MemoryStore();
+    const sync = new Sync(store, { garmin, campus }, clock);
+    const app = buildApp({ store, sync, clock, allowedOid: 'oid-chris' });
+    expect((await app.inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/data/status' })).statusCode).toBe(403);
+    const other = { 'x-ms-client-principal-id': 'oid-autre' };
+    expect((await app.inject({ method: 'GET', url: '/api/data/status', headers: other })).statusCode).toBe(
+      403,
+    );
+    const me = { 'x-ms-client-principal-id': 'oid-chris' };
+    expect((await app.inject({ method: 'GET', url: '/api/data/status', headers: me })).statusCode).toBe(200);
+  });
+});
