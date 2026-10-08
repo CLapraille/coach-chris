@@ -302,3 +302,87 @@ describe('Calendrier', () => {
     expect(m.weeks[3].plan).toBeNull();
   });
 });
+
+describe('Mobilité : tests → proposition → bloc validé', () => {
+  // Résultats d'exemple : rotation de hanche et gros orteil faibles (zones déclarées → priorité), Thomas au-dessus.
+  const RESULTS = {
+    hipInternalRotationDeg: { left: 26, right: 27 },
+    bigToeExtensionDeg: { left: 40, right: 44 },
+    thomas: { left: 'above', right: 'level' },
+    kneeToWallCm: { left: 12, right: 11 },
+  };
+
+  it('sans tests : zones déclarées signalées, pas de proposition ni de routine du soir', async () => {
+    const { app } = await syncedApp();
+    const m = (await app.inject({ method: 'GET', url: '/api/mobility' })).json();
+    expect(m.proposal).toBeNull();
+    expect(m.evening).toEqual([]);
+    expect(m.zones.filter((z: { status: string }) => z.status === 'declared')).toHaveLength(4);
+    expect(m.morning.map((e: { code: string }) => e.code)).toEqual(['M1', 'M2', 'M3', 'M4']);
+  });
+
+  it('résultats invalides refusés', async () => {
+    const { app } = await syncedApp();
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/mobility/tests',
+      payload: { kneeToWallCm: { left: -3, right: 10 } },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/mobility/tests', payload: {} })).statusCode).toBe(
+      400,
+    );
+  });
+
+  it('parcours complet', async () => {
+    const { app } = await syncedApp();
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/mobility/tests', payload: RESULTS })).statusCode,
+    ).toBe(200);
+    let m = (await app.inject({ method: 'GET', url: '/api/mobility' })).json();
+    const status = Object.fromEntries(
+      m.zones.map((z: { zone: string; status: string }) => [z.zone, z.status]),
+    );
+    expect(status).toMatchObject({
+      'hip-rotation': 'priority',
+      'big-toe': 'priority',
+      'hip-flexors': 'priority',
+      ankle: 'good',
+      'foot-ankle-control': 'declared',
+      'hip-knee-control': 'untested',
+    });
+    expect(m.tests.kneeToWallCm).toEqual({ day: '2026-10-08', value: { left: 12, right: 11 } });
+    const codes = m.proposal.map((p: { code: string }) => p.code);
+    expect(codes).toHaveLength(3);
+
+    // Une proposition périmée est refusée ; la bonne est acceptée une seule fois.
+    const accept = (c: string[]) =>
+      app.inject({ method: 'POST', url: '/api/mobility/blocks/accept', payload: { codes: c } });
+    expect((await accept(['R1'])).statusCode).toBe(409);
+    expect((await accept(codes)).statusCode).toBe(200);
+    expect((await accept(codes)).statusCode).toBe(409);
+
+    m = (await app.inject({ method: 'GET', url: '/api/mobility' })).json();
+    expect(m.block).toMatchObject({ start: '2026-10-08', end: '2026-10-21' });
+    expect(m.proposal).toBeNull();
+    expect(m.evening.map((e: { slot: string }) => e.slot)).toEqual(['socle', 'socle', 'socle', 'day']);
+
+    // L'écran Aujourd'hui suit le bloc.
+    const t = (await app.inject({ method: 'GET', url: '/api/today' })).json();
+    expect(t.mobility.testsMissing).toBe(false);
+    expect(t.mobility.evening).toHaveLength(4);
+  });
+
+  it('refaire un seul test garde les autres résultats', async () => {
+    const { app } = await syncedApp();
+    await app.inject({ method: 'POST', url: '/api/mobility/tests', payload: RESULTS });
+    await app.inject({
+      method: 'POST',
+      url: '/api/mobility/tests',
+      payload: { bigToeExtensionDeg: { left: 58, right: 60 } },
+    });
+    const m = (await app.inject({ method: 'GET', url: '/api/mobility' })).json();
+    expect(m.tests.bigToeExtensionDeg.value).toEqual({ left: 58, right: 60 });
+    expect(m.tests.hipInternalRotationDeg.value).toEqual({ left: 26, right: 27 });
+  });
+});

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useApi } from './api.ts';
 import { clock, parisDay, shortDate } from './format.ts';
 import { Calendar } from './calendar/Calendar.tsx';
+import { Mobility } from './mobility/Mobility.tsx';
 import { Today } from './today/Today.tsx';
 
 export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
@@ -29,6 +30,8 @@ export function App() {
             <Today status={st} onNavigate={setTab} />
           ) : tab === 'Calendrier' ? (
             <Calendar />
+          ) : tab === 'Mobilité' ? (
+            <Mobility />
           ) : (
             <>
               <h1 className="text-3xl">{tab}</h1>

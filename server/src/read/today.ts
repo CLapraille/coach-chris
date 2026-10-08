@@ -24,7 +24,7 @@ import {
 } from '@coach-chris/domain';
 import type { Store } from '../store/store.ts';
 import { activeGoal, activities, night, planWeek, weighIns, type PlanWeek } from './cache.ts';
-import { eveningSlot, mobilityToday } from './mobility.ts';
+import { eveningSlots, mobilityToday } from './mobility.ts';
 import { weekData } from './week.ts';
 
 /** Fenêtre de recherche de la dernière pesée (les pesées ne sont pas quotidiennes). */
@@ -96,7 +96,7 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
     },
     volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday),
     week,
-    evenings: Object.fromEntries(weekDays(monday).map((d) => [d, eveningSlot(week.sessions, d)])),
+    evenings: await eveningSlots(store, week.sessions, weekDays(monday), today),
     mobility: await mobilityToday(store, week.sessions, today),
     signals,
   };

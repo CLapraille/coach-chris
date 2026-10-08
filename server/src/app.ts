@@ -1,10 +1,17 @@
-import { addDays, CATCH_UP_DAYS, canCheck, mondayOf, type SourceName } from '@coach-chris/domain';
+import {
+  addDays,
+  CATCH_UP_DAYS,
+  canCheck,
+  mondayOf,
+  type SourceName,
+  type TestResults,
+} from '@coach-chris/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { setRoutineLog } from './read/mobility.ts';
+import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
 import { dataStatus } from './read/status.ts';
 import { todayView } from './read/today.ts';
-import { moveInWeek, PlacementError, resetWeek, weekView } from './read/week.ts';
+import { moveInWeek, PlacementError, resetWeek, weekData, weekView } from './read/week.ts';
 import type { Store } from './store/store.ts';
 import { parisClock, type Clock, type Sync } from './sync/sync.ts';
 
@@ -16,6 +23,17 @@ export interface AppDeps {
 
 const SOURCES: SourceName[] = ['garmin', 'campus'];
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const sides = <T extends z.ZodType>(t: T) => z.object({ left: t, right: t }).optional();
+const testResults = z
+  .object({
+    kneeToWallCm: sides(z.number().min(0).max(30)),
+    hipInternalRotationDeg: sides(z.number().min(0).max(90)),
+    thomas: sides(z.enum(['above', 'level', 'below'])),
+    bigToeExtensionDeg: sides(z.number().min(0).max(120)),
+    balanceEyesClosedS: sides(z.number().min(0).max(30)),
+    singleLegSquat: sides(z.enum(['yes', 'sometimes', 'no'])),
+  })
+  .strict();
 
 /** « 2026-10 » → « 2026-11 ». */
 function nextMonth(m: string): string {
@@ -103,6 +121,35 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     }
     await setRoutineLog(store, p.data.date, p.data.slot, b.data.done, clock.now());
     return { date: p.data.date, slot: p.data.slot, done: b.data.done };
+  });
+
+  app.get('/api/mobility', async () => {
+    const today = clock.today();
+    const { view } = await weekData(store, mondayOf(today), today);
+    return mobilityView(store, view.sessions, today);
+  });
+
+  // Auto-tests (D74) : chaque test est facultatif ; un test refait remplace seulement son propre résultat.
+  app.post('/api/mobility/tests', async (req, reply) => {
+    const b = testResults.safeParse(req.body);
+    if (!b.success || Object.keys(b.data).length === 0) {
+      return reply.code(400).send({ error: 'résultats de tests invalides' });
+    }
+    await saveTests(store, clock.today(), b.data as TestResults, clock.now());
+    return { saved: Object.keys(b.data) };
+  });
+
+  // Valider le bloc proposé (D78) : obligatoire avant de démarrer la routine du soir.
+  app.post('/api/mobility/blocks/accept', async (req, reply) => {
+    const b = z.object({ codes: z.array(z.string()).min(1) }).safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'codes manquants' });
+    try {
+      await acceptBlock(store, clock.today(), b.data.codes, clock.now());
+      return { accepted: b.data.codes };
+    } catch (e) {
+      if (e instanceof BlockError) return reply.code(409).send({ error: e.message });
+      throw e;
+    }
   });
 
   app.post('/api/sync', async (req, reply) => {

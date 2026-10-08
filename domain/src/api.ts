@@ -7,7 +7,9 @@ import type { Match, Activity } from './plan/matching.ts';
 import type { RuleWarning } from './plan/placement.ts';
 import type { PlannedSession } from './plan/types.ts';
 import type { CapStatus, VolumeCap } from './load/volume.ts';
+import type { ZoneId } from './mobility/library.ts';
 import type { Regularity, Slot } from './mobility/regularity.ts';
+import type { TestResults, ZoneStatus } from './mobility/tests.ts';
 import type { RangePosition, WeightTrend } from './wellness/wellness.ts';
 import type { Signal } from './signals/signals.ts';
 
@@ -134,6 +136,42 @@ export interface RoutineItemView {
   durationS: number;
   perSide: boolean;
   reason?: string;
+  /** Socle du bloc (fixe) ou créneau du jour (variable), pour la routine du soir (D78). */
+  slot?: 'socle' | 'day';
+}
+
+/** Bloc de 2 semaines validé par l'utilisateur (D78) : le socle ne change pas jusqu'à `end`. */
+export interface MobilityBlock {
+  start: string;
+  end: string;
+  socle: RoutineItemView[];
+  acceptedAt: string;
+}
+
+export interface ZoneView {
+  zone: ZoneId;
+  label: string;
+  /** `declared` : limitation déclarée pas encore testée ; `untested` : ni testée ni déclarée. */
+  status: ZoneStatus | 'declared' | 'untested';
+  detail: string;
+  declared: boolean;
+}
+
+export interface MobilityView {
+  today: string;
+  morning: RoutineItemView[];
+  /** Vide tant qu'aucun bloc n'est en cours. */
+  evening: RoutineItemView[];
+  checked: Record<Slot, boolean>;
+  zones: ZoneView[];
+  /** Dernier résultat connu de chaque test, avec sa date. */
+  tests: { [K in keyof TestResults]?: { day: string; value: NonNullable<TestResults[K]> } };
+  block: MobilityBlock | null;
+  /** Socle proposé d'après les tests, à valider avant de démarrer un bloc (validation obligatoire, D78). */
+  proposal: RoutineItemView[] | null;
+  regularity: Record<Slot, { d7: Regularity; d28: Regularity }>;
+  /** 28 derniers jours, du plus ancien à aujourd'hui. */
+  last28: { day: string; morning: boolean; evening: boolean }[];
 }
 
 export interface MobilityToday {
