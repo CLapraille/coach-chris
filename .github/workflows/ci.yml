@@ -33,3 +33,10 @@ jobs:
       - run: uv sync --frozen
       - name: Le serveur expose ses outils
         run: uv run --frozen python -c "import campus_coach_mcp.server as s; tools = sorted(t.name for t in s.mcp._tool_manager.list_tools()); print(tools); assert len(tools) == 9"
+
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Le Bicep compile
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null

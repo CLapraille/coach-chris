@@ -179,7 +179,7 @@ Protocole en deux temps :
 
 ## 9. Infrastructure Azure (Bicep, D93)
 
-`infra/main.bicep` (portée resource group), découpé en modules :
+`infra/main.bicep` (portée **abonnement** : il crée le resource group et le budget, puis appelle les modules de `infra/modules/`), paramètres dans `infra/main.bicepparam`. Déjà déployés (M2) : resource group, budget, Cosmos. Déploiement : `az deployment sub create -l westeurope -n cc-infra -p infra/main.bicepparam`.
 
 | Ressource | Nom | Points clés |
 |---|---|---|
@@ -192,7 +192,7 @@ Protocole en deux temps :
 | Stockage | `stacc9we01` | partage `tokens`, LRS |
 | Identité managée | `mid-cc-9we-01` | utilisée par le BFF et le job |
 | Static Web App | `swa-cc-9we-01` | Free |
-| Budget | `bud-cc-9we-01` | 10 €/mois, alertes à 50, 80 et 100 % (D33) |
+| Budget | `bud-cc-9we-01` | **7 €/mois** sur tout l'abonnement, alertes e-mail à 50, 80 et 100 % (D105) |
 
 Ce que Bicep ne fait pas bien est confié à `infra/bootstrap.ps1`, lancé une fois après `az login` :
 - l'inscription d'application Entra `app-cc-9we-01` et l'affectation de ton compte ;
@@ -207,7 +207,7 @@ Ce que Bicep ne fait pas bien est confié à `infra/bootstrap.ps1`, lancé une f
 | Azure Files (quelques Ko) + transactions | < 0,50 € |
 | Log Analytics | 0 € sous l'allocation gratuite ; **principal risque**, d'où le plafond journalier |
 | Static Web Apps Free, Entra ID | 0 € |
-| **Total attendu** | **< 2 €/mois**, sous le budget de 10 € |
+| **Total attendu** | **< 2 €/mois**, sous le budget de 7 € |
 
 ⚠️ **Risque GHCR** : sur un compte GitHub gratuit, le stockage et le transfert des paquets privés sont limités. Chaque démarrage à froid d'un conteneur peut télécharger l'image à nouveau. ❓ Il faudra mesurer pendant le premier mois et, en cas de dépassement, réduire la taille des images ou passer les images publiques, qui ne contiennent aucun secret.
 
@@ -223,10 +223,11 @@ Ce que Bicep ne fait pas bien est confié à `infra/bootstrap.ps1`, lancé une f
 
 ## 11. Développement local (D1, D14, D17)
 
-- `docker compose up` lance les deux MCP sur le poste avec les dossiers de jetons existants montés en volume (`C:\Users\lapra\.garminconnect`, `C:\Users\lapra\.campuscoach`).
+- Le BFF lance lui-même les deux MCP en **stdio** (`GARMIN_MCP_CMD`, `CAMPUS_MCP_CMD` dans `server/.env`, modèle `server/.env.example`) avec les jetons déjà présents sur le poste. Sur Azure, `GARMIN_MCP_URL` / `CAMPUS_MCP_URL` (streamable-http) les remplacent (D106).
+- `npm run sync -w server` lance une synchro complète en ligne de commande (même code que le futur job).
 - `npm run dev` lance le BFF sur `:3000` et Vite sur `:5173`, avec un proxy `/api`.
 - Cosmos est le **vrai compte Azure** (D14), avec `az login` et RBAC : il faut donc qu'Azure soit activé avant de coder la persistance.
-- **AVG** intercepte le HTTPS. Node doit faire confiance au certificat racine d'AVG : variable `NODE_EXTRA_CA_CERTS` pointant sur la racine exportée (❓ méthode exacte à valider sur ton poste). Côté Python, les MCP gardent `truststore` / `--system-certs`.
+- **AVG** intercepte le HTTPS : `NODE_OPTIONS=--use-system-ca` pour Node, `REQUESTS_CA_BUNDLE` pour Azure CLI, `--system-certs` pour uv.
 
 ## 12. Jalons proposés
 
@@ -249,5 +250,5 @@ L'activation d'Azure (paiement à l'usage, budget, Azure CLI) est nécessaire **
 3. ~~Cron du job~~ → heure UTC fixe (D97).
 4. Variantes `_t` du corps de validation Campus pour la route et le renforcement (à confirmer au premier usage, aperçu obligatoire).
 5. Échelle RPE Garmin.
-6. Méthode exacte pour faire accepter le certificat AVG par Node.
+6. ~~Certificat AVG et Node~~ → `NODE_OPTIONS=--use-system-ca`.
 7. Images GHCR privées (avec la limite de transfert) ou publiques.
