@@ -96,17 +96,29 @@ if (-not ($assigned.value | Where-Object principalId -eq $me)) {
 $deployId = Get-App 'gh-cc-9we-deploy'
 $deploySp = Get-Sp $deployId
 $creds = az ad app federated-credential list --id $deployId --query "[].name" -o tsv
-if ($creds -notcontains 'main') {
+# GitHub présente désormais le sujet avec les identifiants immuables du propriétaire et du dépôt
+# (repo:owner@ownerId/repo@repoId:…) ; on déclare les deux formes.
+$owner, $name = $Repo -split '/'
+# Deux requêtes jq sans guillemets : PowerShell 5.1 retire les guillemets des arguments d'un exécutable.
+$ownerId = gh api "repos/$Repo" --jq .owner.id
+$repoId = gh api "repos/$Repo" --jq .id
+if (-not $ownerId -or -not $repoId) { throw "Identifiants GitHub de $Repo introuvables (gh auth login ?)" }
+$subjects = @{
+  'main'     = "repo:${Repo}:ref:refs/heads/main"
+  'main-ids' = "repo:${owner}@${ownerId}/${name}@${repoId}:ref:refs/heads/main"
+}
+foreach ($credName in $subjects.Keys) {
+  if ($creds -contains $credName) { continue }
   $file = New-TemporaryFile
   @{
-    name      = 'main'
+    name      = $credName
     issuer    = 'https://token.actions.githubusercontent.com'
-    subject   = "repo:${Repo}:ref:refs/heads/main"
+    subject   = $subjects[$credName]
     audiences = @('api://AzureADTokenExchange')
   } | ConvertTo-Json | ForEach-Object { [IO.File]::WriteAllText($file, $_) }
   az ad app federated-credential create --id $deployId --parameters "@$file" --only-show-errors | Out-Null
   Remove-Item $file
-  Write-Host 'Fédération OIDC GitHub (branche main) créée.'
+  Write-Host "Fédération OIDC GitHub ($credName : $($subjects[$credName])) créée."
 }
 $rgId = az group show -n $ResourceGroup --query id -o tsv
 $has = az role assignment list --assignee $deploySp --scope $rgId --role Contributor --query '[0].id' -o tsv
