@@ -60,7 +60,7 @@ coach-chris/
 │  ├─ garmin/         # Dockerfile autour de garmin_mcp (version épinglée)
 │  └─ campus/         # source de campus-coach-mcp, repris ici (D96) + Dockerfile + outil d'écriture (§7)
 ├─ infra/             # Bicep (D93) + scripts d'amorçage
-├─ scripts/reauth.ps1 # réauthentification Garmin/Campus (D34, D92)
+├─ reauth.ps1         # réauthentification Garmin/Campus (D34, D92, D117)
 └─ .github/workflows/ # CI + déploiement (D32)
 ```
 
@@ -143,7 +143,8 @@ Toutes les routes sont sous `/api`. Elles exigent un jeton Entra valide (§8), s
 | Image | `garmin_mcp` épinglé, Python slim | `campus-coach-mcp` (code de l'utilisateur) |
 | Transport | streamable-http, port interne | streamable-http, port 8001 |
 | Ingress | **interne uniquement** en V1 (D27) | interne uniquement |
-| Jetons | `/data/.garminconnect` sur Azure Files | `/data/.campuscoach/tokens.json` sur Azure Files (`CAMPUS_COACH_TOKEN_DIR`) |
+| Jetons | `/data/garmin` sur Azure Files (`GARMINTOKENS`) | `/data/campus/tokens.json` sur Azure Files (`CAMPUS_COACH_TOKEN_DIR`), session dédiée (D117) |
+| Hôte HTTP | — | protection DNS rebinding active, nom interne admis par `CAMPUS_MCP_ALLOWED_HOSTS` (D121) |
 | Outils autorisés | lecture : activités, tours, zones FC, sommeil, VFC, disponibilité, Body Battery, stress, poids, appareil ; écriture : création et planification de workout, nom, description, RPE et ressenti d'activité, suppression des seuls workouts « CC · » | les 9 outils de lecture + `complete_session` (§7) |
 
 La liste blanche est appliquée **deux fois** :
@@ -171,15 +172,18 @@ Protocole en deux temps :
 - **Front** : Static Web Apps Free, contenu statique sans aucune donnée. MSAL se connecte avec l'inscription `app-cc-9we-01`, avec « affectation requise » : seul ton compte est autorisé.
 - **BFF** : Easy Auth de Container Apps (fournisseur Entra) valide le jeton bearer. Le BFF vérifie en plus l'audience et l'identifiant objet de ton compte (défense en profondeur). Le CORS n'autorise que l'origine SWA.
 - **Local** : pas d'authentification (D17) ; le drapeau `AUTH_DISABLED` est refusé au démarrage si `NODE_ENV=production`.
-- **Secrets** : pas de Key Vault. L'accès à Cosmos passe par l'identité managée `mid-cc-9we-01` avec un rôle RBAC sur le plan de données. Il reste trois secrets dans les secrets Container Apps :
+- **Secrets** : pas de Key Vault. L'accès à Cosmos passe par l'identité managée `mid-cc-9we-01` avec un rôle RBAC sur le plan de données. Les images GHCR sont publiques (D116) : aucun PAT. Il reste dans Container Apps :
   - la clé du compte de stockage, que le montage Azure Files de Container Apps exige ;
-  - le PAT GitHub `read:packages`, pour lire les images sur GHCR (D29) ;
-  - la clé de signature des jetons d'action.
+  - la clé de signature des jetons d'action (M5).
 - **Jetons Bearer** Garmin et Campus : jamais journalisés, jamais renvoyés au front.
 
 ## 9. Infrastructure Azure (Bicep, D93)
 
-`infra/main.bicep` (portée **abonnement** : il crée le resource group et le budget, puis appelle les modules de `infra/modules/`), paramètres dans `infra/main.bicepparam`. Déjà déployés (M2) : resource group, budget, Cosmos. Déploiement : `az deployment sub create -l westeurope -n cc-infra -p infra/main.bicepparam`.
+Deux fichiers (D118) :
+- `infra/main.bicep` (portée **abonnement** : resource group et budget), rejoué à la main : `az deployment sub create -l westeurope -n cc-infra -p infra/main.bicepparam` ;
+- `infra/app.bicep` (portée **resource group** : tout le reste, Cosmos compris via `infra/modules/cosmos.bicep`), déployé par `deploy.yml` à chaque push sur `main` : `az deployment group create -g rg-coach-chris -p infra/app.bicepparam -p imageTag=<sha>`.
+
+Adresses : API `https://aci-cc-9we-bff.icyflower-b20a9c19.westeurope.azurecontainerapps.io`, front `https://salmon-field-0225c0803.3.azurestaticapps.net`.
 
 | Ressource | Nom | Points clés |
 |---|---|---|
@@ -187,7 +191,7 @@ Protocole en deux temps :
 | Environnement Container Apps | `cae-cc-9we-01` | consommation, scale to zero |
 | BFF | `aci-cc-9we-bff` | ingress externe, Easy Auth, 0 à 1 réplique |
 | MCP Garmin / Campus | `aci-cc-9we-mcpgarmin`, `aci-cc-9we-mcpcampus` | ingress interne, 0 à 1 réplique, volume Azure Files |
-| Job de synchro | (dans `cae-cc-9we-01`) | image du BFF, commande `sync`, planifié |
+| Job de synchro | `job-cc-9we-sync` | image du BFF, `node server/src/sync-cli.ts`, cron `0 4 * * *` UTC |
 | Cosmos | `cos-cc-9we-01` | `enableFreeTier: true` (**un seul par abonnement, à fixer à la création**), API NoSQL, rôle RBAC sur le plan de données pour l'identité managée et pour ton compte (dev local) |
 | Stockage | `stacc9we01` | partage `tokens`, LRS |
 | Identité managée | `mid-cc-9we-01` | utilisée par le BFF et le job |
@@ -195,9 +199,10 @@ Protocole en deux temps :
 | Budget | `bud-cc-9we-01` | **7 €/mois** sur tout l'abonnement, alertes e-mail à 50, 80 et 100 % (D105) |
 
 Ce que Bicep ne fait pas bien est confié à `infra/bootstrap.ps1`, lancé une fois après `az login` :
-- l'inscription d'application Entra `app-cc-9we-01` et l'affectation de ton compte ;
-- la fédération OIDC pour GitHub Actions ;
-- le dépôt initial des jetons sur Azure Files.
+- l'inscription d'application Entra `app-cc-9we-01` (redirect URIs local et SWA) et l'affectation de ton compte ;
+- la fédération OIDC pour GitHub Actions (deux formes de sujet, D120).
+
+Le dépôt des jetons sur Azure Files passe par `reauth.ps1 -Source garmin|campus` (D117).
 
 ### Coût estimé (à vérifier après un mois réel)
 | Poste | Estimation |
@@ -209,16 +214,14 @@ Ce que Bicep ne fait pas bien est confié à `infra/bootstrap.ps1`, lancé une f
 | Static Web Apps Free, Entra ID | 0 € |
 | **Total attendu** | **< 2 €/mois**, sous le budget de 7 € |
 
-⚠️ **Risque GHCR** : sur un compte GitHub gratuit, le stockage et le transfert des paquets privés sont limités. Chaque démarrage à froid d'un conteneur peut télécharger l'image à nouveau. ❓ Il faudra mesurer pendant le premier mois et, en cas de dépassement, réduire la taille des images ou passer les images publiques, qui ne contiennent aucun secret.
+GHCR : images publiques (D116), donc sans limite de transfert ; elles ne contiennent ni secret ni donnée personnelle.
 
 ## 10. CI/CD (GitHub Actions, D32)
 
 - `ci.yml` (pull request et push) : installation, lint, contrôle des types, tests Vitest (`domain/` en priorité), build du web.
-- `deploy.yml` (push sur `main`) :
-  - build des 3 images (BFF, MCP Garmin, MCP Campus) → GHCR, avec 2 versions conservées (D29) ;
-  - `az deployment group create` avec Bicep via OIDC ;
-  - mise à jour des Container Apps vers la nouvelle image ;
-  - déploiement du front sur SWA.
+- `deploy.yml` :
+  - à chaque push : build des 3 images (BFF, MCP Garmin, MCP Campus) → GHCR, étiquetées par SHA (et `latest` sur `main`) ;
+  - sur `main` seulement : `az deployment group create` de `infra/app.bicep` via OIDC (les Container Apps passent à l'image du SHA), puis build du front avec l'URL de l'API et déploiement sur SWA.
 - Aucune clé Azure longue durée dans GitHub (OIDC).
 
 ## 11. Développement local (D1, D14, D17)
