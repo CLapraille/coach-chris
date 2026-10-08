@@ -1,0 +1,578 @@
+import type { ActivityDetail, LapView, SessionView, StepIssue, StepResult } from '@coach-chris/domain';
+import { useApi } from '../api.ts';
+import {
+  SPORT_COLOR,
+  SPORT_LABEL,
+  decimal,
+  longDate,
+  sessionShort,
+  shortDate,
+  stepDuration,
+} from '../format.ts';
+
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const pace = (mps: number | undefined) => {
+  if (!mps) return '—';
+  const s = Math.round(1000 / mps);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+const ISSUE: Record<StepIssue, string> = {
+  'too-short': 'trop court',
+  'too-long': 'trop long',
+  'hr-too-high': 'FC au-dessus du plafond',
+  walked: 'marché au lieu de courir',
+  ran: 'couru au lieu de marcher',
+  'mostly-stopped': "surtout à l'arrêt",
+  missing: 'étape absente',
+};
+const TE_LABEL: Record<string, string> = {
+  RECOVERY: 'récupération',
+  AEROBIC_BASE: 'aérobie · fond',
+  TEMPO: 'tempo',
+  LACTATE_THRESHOLD: 'seuil',
+  VO2MAX: 'VO2max',
+  ANAEROBIC_CAPACITY: 'anaérobie',
+  SPEED: 'vitesse',
+};
+/** Ressenti Garmin (0–100) en mots. */
+const feelLabel = (v: number) =>
+  v <= 12 ? 'très faible' : v <= 37 ? 'faible' : v <= 62 ? 'normal' : v <= 87 ? 'fort' : 'très fort';
+
+export function SessionDetail({ sessionKey, onBack }: { sessionKey: string; onBack: () => void }) {
+  const res = useApi<SessionView>(`/sessions/${encodeURIComponent(sessionKey)}`);
+  if (res.state === 'loading') return <p className="muted">Chargement…</p>;
+  if (res.state === 'error') {
+    return (
+      <div className="session-screen">
+        <Crumb onBack={onBack} />
+        <p className="empty" role="alert">
+          {res.error.message}
+        </p>
+      </div>
+    );
+  }
+  return <Detail view={res.data} onBack={onBack} />;
+}
+
+function Crumb({ onBack, weekStart, day }: { onBack: () => void; weekStart?: string; day?: string | null }) {
+  return (
+    <div className="crumb">
+      <button type="button" onClick={onBack}>
+        ‹ Retour
+      </button>
+      {weekStart && ` · Semaine du ${shortDate(weekStart)}`}
+      {day && ` › ${longDate(day)}`}
+    </div>
+  );
+}
+
+function Detail({ view, onBack }: { view: SessionView; onBack: () => void }) {
+  const { session: s, activity: a, deviation: d } = view;
+  const short = sessionShort(s.name);
+  const day = s.match?.day ?? s.day;
+  const badge =
+    s.status === 'done'
+      ? { cls: 'ok', text: 'Faite · validée dans Campus' }
+      : s.match
+        ? { cls: 'warn', text: 'Rattachée à une activité · pas encore validée dans Campus' }
+        : s.status === 'skipped'
+          ? { cls: '', text: 'Sautée' }
+          : { cls: '', text: 'À faire' };
+  const blocksLabel = view.blocks
+    .map((b) => {
+      const steps = b.steps.map((st) => `${stepDuration(st.seconds)} ${st.name.toLowerCase()}`).join(' + ');
+      return b.repeat > 1 ? `${b.repeat} × (${steps})` : steps;
+    })
+    .join(', ');
+
+  return (
+    <section className="session-screen" aria-labelledby="session-title">
+      <Crumb onBack={onBack} weekStart={view.weekStart} day={day} />
+      <div className="head" style={{ '--c': SPORT_COLOR[s.sport] } as React.CSSProperties}>
+        <div>
+          <h1 id="session-title">
+            {s.displayName}
+            {short && ` · ${short}`}
+          </h1>
+          <div className="sub">
+            {[
+              day && longDate(day),
+              a && a.startLocal.slice(11, 16),
+              a?.name,
+              `${SPORT_LABEL[s.sport].toLowerCase()} · ${s.durationMin} min prévues`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+        </div>
+        <div className="badges">
+          <span className={`badge ${badge.cls}`}>{badge.text}</span>
+          <span className="src">Campus</span>
+          {a && <span className="src">Garmin</span>}
+        </div>
+      </div>
+
+      <section className="card" aria-label="Prévu vs réalisé">
+        <header>
+          <span className="label">Prévu vs réalisé</span>
+          {blocksLabel && <span className="muted text-[12.5px]">{blocksLabel}</span>}
+        </header>
+        {a ? (
+          <Summary view={view} activity={a} />
+        ) : (
+          <p className="empty">
+            {view.activityError
+              ? `Activité rattachée, mais son détail n'a pas pu être lu : ${view.activityError}`
+              : s.status === 'done'
+                ? 'Séance validée dans Campus sans activité Garmin : pas de mesure à comparer.'
+                : 'Pas encore faite.'}
+            {view.description && ` ${view.description}`}
+          </p>
+        )}
+      </section>
+
+      {d && a && <Intervals view={view} activity={a} />}
+
+      {a && (a.laps.length > 0 || a.zones.length > 0) && (
+        <div className="two">
+          {a.laps.length > 0 && (
+            <section className="card" aria-label="Fréquence cardiaque par tour">
+              <header>
+                <span className="label">FC par tour (bpm)</span>
+                <span className="src">Garmin</span>
+              </header>
+              <HrChart laps={a.laps} steps={d?.steps} cap={view.rules.runMaxHr} />
+              <span className="muted text-xs">Moyennes par tour.</span>
+            </section>
+          )}
+          {a.zones.length > 0 && <Zones zones={a.zones} />}
+        </div>
+      )}
+
+      {view.coachAdvice && (
+        <section className="card">
+          <details className="coach">
+            <summary>
+              <span className="label">Conseil du coach</span>
+            </summary>
+            <p className="advice">« {view.coachAdvice} »</p>
+          </details>
+        </section>
+      )}
+
+      <section className="card" aria-label="Actions">
+        <header>
+          <span className="label">Actions</span>
+        </header>
+        <div className="acts">
+          <div className="act">
+            <h3>Campus Coach</h3>
+            <p>
+              {s.status === 'done'
+                ? `Séance déjà validée${s.match ? ` le ${shortDate(s.match.day)}` : ''}.`
+                : 'La validation dans Campus, avec aperçu et confirmation, arrive avec les écritures (jalon M5).'}
+            </p>
+            <button className="btn" type="button" disabled>
+              Valider dans Campus
+            </button>
+          </div>
+          {a && (
+            <div className="act">
+              <h3>Annotation Garmin</h3>
+              <div className="kvs">
+                <span>
+                  Effort perçu <b>{a.rpe !== undefined ? `${a.rpe / 10}/10` : '—'}</b>
+                </span>
+                <span>
+                  Ressenti <b>{a.feel !== undefined ? feelLabel(a.feel) : '—'}</b>
+                </span>
+              </div>
+              <p>
+                Échelle de l'effort perçu à confirmer. L'annotation (aperçu et confirmation) arrive au jalon
+                M5.
+              </p>
+              <button className="btn" type="button" disabled>
+                Annoter dans Garmin
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function Summary({ view, activity: a }: { view: SessionView; activity: ActivityDetail }) {
+  const d = view.deviation;
+  const inWorkout = d ? d.steps.flatMap((st) => (st.lap ? [st.lap as LapView] : [])) : a.laps;
+  const doneS = d ? inWorkout.reduce((n, l) => n + l.durationS, 0) : a.durationS;
+  const planned = view.session.durationMin * 60;
+  const gap = planned ? doneS / planned - 1 : 0;
+  const dist = d ? inWorkout.reduce((n, l) => n + (l.distanceM ?? 0), 0) : (a.distanceM ?? 0);
+  const afterLaps = d ? a.laps.slice(a.laps.findLastIndex((l) => l.workoutStepIndex !== undefined) + 1) : [];
+  return (
+    <>
+      <div className="pva">
+        <div className="pv">
+          <span className="label">Séance</span>
+          <b>{mmss(doneS)}</b>
+          <small className={Math.abs(gap) <= view.rules.durationTolerance ? 'ok' : 'w'}>
+            prévu {mmss(planned)} ·{' '}
+            {Math.abs(gap) < 0.01 ? 'exact' : `${gap > 0 ? '+' : '−'}${Math.round(Math.abs(gap) * 100)} %`}
+          </small>
+        </div>
+        {d && (
+          <div className="pv">
+            <span className="label">Étapes</span>
+            <b>
+              {d.compliantCount}/{d.steps.length}
+            </b>
+            <small>conformes</small>
+          </div>
+        )}
+        {dist > 0 && (
+          <div className="pv">
+            <span className="label">Distance</span>
+            <b>{decimal(dist / 1000, 2)} km</b>
+            <small>{d ? 'pendant la séance' : 'activité entière'}</small>
+          </div>
+        )}
+        {a.avgHr !== undefined && (
+          <div className="pv">
+            <span className="label">FC moyenne</span>
+            <b>{a.avgHr}</b>
+            <small>
+              {a.maxHr !== undefined && `max ${a.maxHr} · `}plafond course {view.rules.runMaxHr}
+            </small>
+          </div>
+        )}
+        {a.trainingEffect !== undefined && (
+          <div className="pv">
+            <span className="label">Training Effect</span>
+            <b>{decimal(a.trainingEffect)}</b>
+            <small>
+              {a.trainingEffectLabel ? (TE_LABEL[a.trainingEffectLabel] ?? a.trainingEffectLabel) : 'aérobie'}
+            </small>
+          </div>
+        )}
+        {a.trainingLoad !== undefined && (
+          <div className="pv">
+            <span className="label">Charge</span>
+            <b>{a.trainingLoad}</b>
+            <small>Garmin{a.avgPowerW !== undefined && ` · puissance moy. ${a.avgPowerW} W`}</small>
+          </div>
+        )}
+      </div>
+      {afterLaps.length > 0 && (
+        <div className="after">
+          Après la séance : <b>{mmss(afterLaps.reduce((n, l) => n + l.durationS, 0))}</b>
+          {afterLaps.some((l) => l.distanceM) &&
+            ` (${decimal(afterLaps.reduce((n, l) => n + (l.distanceM ?? 0), 0) / 1000, 2)} km)`}
+          . Non compté comme écart. Total enregistré {mmss(a.durationS)}
+          {a.distanceM !== undefined && `, ${decimal(a.distanceM / 1000, 2)} km`}.
+        </div>
+      )}
+    </>
+  );
+}
+
+const stepLabel = (st: StepResult, steps: StepResult[]) => {
+  const kind = st.planned.kind;
+  const nth = steps.slice(0, st.n).filter((x) => x.planned.kind === kind).length;
+  return `${kind === 'run' ? 'Course' : kind === 'walk' ? 'Marche' : 'Étape'} ${nth}`;
+};
+
+/** La mesure qui justifie l'écart : cadence pour marche / course, FC pour le plafond, durée sinon. */
+function evidence(st: StepResult): string {
+  const l = st.lap;
+  if (!l) return '';
+  const parts = [
+    (st.issues.includes('ran') || st.issues.includes('walked')) &&
+      l.avgCadence !== undefined &&
+      `cadence ${l.avgCadence}`,
+    st.issues.includes('hr-too-high') && l.avgHr !== undefined && `FC ${l.avgHr}`,
+    (st.issues.includes('too-short') || st.issues.includes('too-long')) &&
+      `${mmss(l.durationS)} pour ${mmss(st.planned.durationS)}`,
+  ].filter(Boolean);
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
+function Intervals({ view, activity: a }: { view: SessionView; activity: ActivityDetail }) {
+  const d = view.deviation!;
+  const total = a.laps.reduce((n, l) => n + l.durationS, 0) || 1;
+  const plannedTotal = d.steps.reduce((n, st) => n + st.planned.durationS, 0);
+  const afterLaps = a.laps.slice(a.laps.findLastIndex((l) => l.workoutStepIndex !== undefined) + 1);
+  const runs = d.steps.filter((st) => st.planned.kind === 'run');
+  const walks = d.steps.filter((st) => st.planned.kind === 'walk');
+  const bad = d.steps.filter((st) => !st.compliant);
+  const stopped = d.steps.filter((st) => st.issues.includes('mostly-stopped'));
+  const cls = (st: StepResult) =>
+    `${st.planned.kind}${st.compliant ? '' : ' bad'}${st.issues.includes('mostly-stopped') ? ' paused' : ''}`;
+  return (
+    <section className="card" aria-label="Respect des intervalles">
+      <header>
+        <span className="label">Respect des intervalles</span>
+        <span className="src">Calculé</span>
+      </header>
+      <div className="tl">
+        <span className="k">Prévu</span>
+        <div
+          className="bar"
+          role="img"
+          aria-label={`Prévu : ${d.steps.length} étapes, ${mmss(plannedTotal)}`}
+        >
+          {d.steps.map((st) => (
+            <i key={st.n} className={st.planned.kind} style={{ flex: st.planned.durationS / total }} />
+          ))}
+          {total > plannedTotal && <i className="empty" style={{ flex: (total - plannedTotal) / total }} />}
+        </div>
+        <span className="k">Réalisé</span>
+        <div
+          className="bar"
+          role="img"
+          aria-label={`Réalisé : ${d.compliantCount} étapes conformes sur ${d.steps.length}`}
+        >
+          {d.steps.map((st) =>
+            st.lap ? (
+              <i
+                key={st.n}
+                className={cls(st)}
+                style={{ flex: st.lap.durationS / total }}
+                title={`${stepLabel(st, d.steps)} · ${mmss(st.lap.durationS)}${st.lap.avgHr ? ` · FC ${st.lap.avgHr}` : ''}`}
+              />
+            ) : null,
+          )}
+          {afterLaps.map((l) => (
+            <i
+              key={`a${l.n}`}
+              className="after"
+              style={{ flex: l.durationS / total }}
+              title={`Après la séance · ${mmss(l.durationS)}`}
+            />
+          ))}
+        </div>
+        <span />
+        <div className="axis">
+          <span>0′</span>
+          <span>{mmss(total)}</span>
+        </div>
+      </div>
+      <div className="verdict">
+        {runs.length > 0 && (
+          <span>
+            <span className="sw" style={{ background: 'var(--p-run)' }} />
+            Course :{' '}
+            <b>
+              {runs.filter((st) => st.compliant).length}/{runs.length}
+            </b>{' '}
+            dans le temps et sous {view.rules.runMaxHr} bpm
+          </span>
+        )}
+        {walks.length > 0 && (
+          <span>
+            <span className="sw" style={{ background: 'var(--p-walk)' }} />
+            Marche :{' '}
+            <b>
+              {walks.filter((st) => st.compliant).length}/{walks.length}
+            </b>
+          </span>
+        )}
+        {bad.map((st) => (
+          <span key={st.n} className="w">
+            {stepLabel(st, d.steps)} :{' '}
+            {st.issues
+              .filter((i) => i !== 'mostly-stopped')
+              .map((i) => ISSUE[i])
+              .join(', ')}
+            {evidence(st)}
+          </span>
+        ))}
+        {stopped.map((st) => (
+          <span key={`s${st.n}`} className="muted">
+            {stepLabel(st, d.steps)} : surtout à l'arrêt ({st.lap?.movingS} s en mouvement)
+          </span>
+        ))}
+      </div>
+      <div className="tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>Étape</th>
+              <th className="r">Prévu</th>
+              <th className="r">Réalisé</th>
+              <th className="r">Allure</th>
+              <th className="r">FC moy / max</th>
+              <th className="r">Cadence</th>
+              <th className="r">Puissance</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.steps.map((st) => {
+              const l = st.lap as LapView | undefined;
+              return (
+                <tr
+                  key={st.n}
+                  className={!st.compliant ? 'flag' : st.planned.kind !== 'run' ? 'walkrow' : ''}
+                >
+                  <td>
+                    <span
+                      className="sw"
+                      style={{ background: st.planned.kind === 'run' ? 'var(--p-run)' : 'var(--p-walk)' }}
+                    />
+                    {stepLabel(st, d.steps)}
+                  </td>
+                  <td className="r">{mmss(st.planned.durationS)}</td>
+                  <td className="r">{l ? mmss(l.durationS) : '—'}</td>
+                  <td className="r">{pace(l?.speedMps)}</td>
+                  <td className="r">{l?.avgHr !== undefined ? `${l.avgHr} / ${l.maxHr ?? '—'}` : '—'}</td>
+                  <td className="r">{l?.avgCadence ?? '—'}</td>
+                  <td className="r">{l?.powerW !== undefined ? `${l.powerW} W` : '—'}</td>
+                  <td>
+                    {st.compliant
+                      ? st.issues.includes('mostly-stopped')
+                        ? "conforme · surtout à l'arrêt"
+                        : 'conforme'
+                      : st.issues.map((i) => ISSUE[i]).join(', ')}
+                  </td>
+                </tr>
+              );
+            })}
+            {afterLaps.map((l) => (
+              <tr key={`a${l.n}`} className="walkrow">
+                <td>
+                  <span className="sw" style={{ background: 'var(--p-after)' }} />
+                  Après
+                </td>
+                <td className="r">—</td>
+                <td className="r">{mmss(l.durationS)}</td>
+                <td className="r">{pace(l.speedMps)}</td>
+                <td className="r">{l.avgHr !== undefined ? `${l.avgHr} / ${l.maxHr ?? '—'}` : '—'}</td>
+                <td className="r">{l.avgCadence ?? '—'}</td>
+                <td className="r">{l.powerW !== undefined ? `${l.powerW} W` : '—'}</td>
+                <td>après la séance</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <details className="rule">
+        <summary>Règles</summary>
+        Course : durée ±{Math.round(view.rules.durationTolerance * 100)} %, FC moyenne ≤ {view.rules.runMaxHr}{' '}
+        bpm (haut de ta zone 2 Garmin course), cadence de course. Marche : durée ±
+        {Math.round(view.rules.durationTolerance * 100)} %, cadence &lt; {view.rules.cadenceRunMin} pas/min.
+        Les tours enregistrés après la dernière étape du programme sont « après la séance ».
+      </details>
+    </section>
+  );
+}
+
+function HrChart({ laps, steps, cap }: { laps: LapView[]; steps: StepResult[] | undefined; cap: number }) {
+  const L = 34,
+    R = 510,
+    T = 10,
+    B = 140;
+  const hrs = laps.flatMap((l) => (l.avgHr === undefined ? [] : [l.avgHr]));
+  if (!hrs.length) return <p className="empty">Pas de FC par tour.</p>;
+  const lo = Math.floor((Math.min(...hrs) - 10) / 10) * 10;
+  const hi = Math.ceil((Math.max(...hrs, cap) + 5) / 10) * 10;
+  const y = (v: number) => B - ((v - lo) / (hi - lo)) * (B - T);
+  const total = laps.reduce((n, l) => n + l.durationS, 0) || 1;
+  const kindOf = (l: LapView) => {
+    if (l.workoutStepIndex === undefined) return 'after';
+    const st = steps?.find((s) => (s.lap as LapView | undefined)?.n === l.n);
+    return st ? { kind: st.planned.kind, ok: st.compliant } : { kind: 'run', ok: true };
+  };
+  const ticks = Array.from({ length: Math.floor((hi - lo) / 20) + 1 }, (_, i) => lo + i * 20);
+  let t0 = 0;
+  return (
+    <svg
+      viewBox="0 0 520 170"
+      role="img"
+      aria-label={`FC moyenne de chaque tour, avec le plafond de ${cap} bpm`}
+    >
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={L} x2={R} y1={y(t)} y2={y(t)} stroke="var(--line)" />
+          <text x={L - 6} y={y(t) + 3} textAnchor="end">
+            {t}
+          </text>
+        </g>
+      ))}
+      <line x1={L} x2={R} y1={y(cap)} y2={y(cap)} stroke="var(--warn)" strokeDasharray="4 3" opacity={0.8} />
+      <text x={R} y={y(cap) - 4} textAnchor="end">
+        plafond course {cap}
+      </text>
+      {laps.map((l) => {
+        const x1 = L + (t0 / total) * (R - L);
+        t0 += l.durationS;
+        const x2 = L + (t0 / total) * (R - L);
+        if (l.avgHr === undefined) return null;
+        const k = kindOf(l);
+        const kind = typeof k === 'string' ? k : k.kind;
+        const fill = kind === 'run' ? 'var(--p-run)' : kind === 'walk' ? 'var(--p-walk)' : 'var(--p-after)';
+        return (
+          <rect
+            key={l.n}
+            x={x1 + 0.5}
+            y={y(l.avgHr)}
+            width={Math.max(1, x2 - x1 - 1)}
+            height={B - y(l.avgHr)}
+            fill={fill}
+            rx={1}
+            {...(typeof k !== 'string' && !k.ok && { stroke: 'var(--warn)' })}
+          >
+            <title>
+              Tour {l.n} : {l.avgHr} bpm
+            </title>
+          </rect>
+        );
+      })}
+      <text x={L} y={B + 14} textAnchor="start">
+        0′
+      </text>
+      <text x={R} y={B + 14} textAnchor="end">
+        {mmss(total)}
+      </text>
+    </svg>
+  );
+}
+
+function Zones({ zones }: { zones: ActivityDetail['zones'] }) {
+  const sorted = [...zones].sort((a, b) => a.zone - b.zone);
+  const range = (i: number) => {
+    const next = sorted[i + 1];
+    return next ? `${sorted[i]!.lowBpm}–${next.lowBpm - 1}` : `≥ ${sorted[i]!.lowBpm}`;
+  };
+  return (
+    <section className="card" aria-label="Zones de fréquence cardiaque">
+      <header>
+        <span className="label">Zones FC</span>
+        <span className="src">Garmin</span>
+      </header>
+      <div className="zbar" role="img" aria-label="Temps passé dans chaque zone">
+        {sorted.map((z) =>
+          z.seconds ? (
+            <i
+              key={z.zone}
+              style={{ flex: z.seconds, background: `var(--z${z.zone})` }}
+              title={`Z${z.zone} : ${mmss(z.seconds)}`}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="zl">
+        {sorted.map((z, i) => (
+          <div key={z.zone}>
+            <span className="sw" style={{ background: `var(--z${z.zone})` }} />
+            <span>Z{z.zone}</span>
+            <span>{range(i)} bpm</span>
+            <span className="num">{z.seconds ? mmss(z.seconds) : '—'}</span>
+          </div>
+        ))}
+      </div>
+      <span className="muted text-xs">Temps sous la zone 1 non fourni par Garmin.</span>
+    </section>
+  );
+}

@@ -5,3 +5,4 @@ docs
 *.md
 requirements.txt
 package-lock.json
+web/src/mobility/mannequin.js

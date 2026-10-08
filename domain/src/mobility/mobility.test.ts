@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { EXERCISES, MORNING, exercise, totalS, ZONE_EXERCISES, type ZoneId } from './library.ts';
+import { EXERCISES, MORNING, exercise, totalS, ZONE_EXERCISES } from './library.ts';
 import { canCheck, regularity } from './regularity.ts';
 import { chooseDailySlot, chooseSocle, EVENING_MAX_S } from './routine.ts';
-import { assessZones, type TestResults } from './tests.ts';
+import { assessZones, DECLARED_ZONES, type TestResults } from './tests.ts';
 
-const DECLARED = new Set<ZoneId>(['hip-rotation', 'hip-flexors', 'big-toe', 'foot-ankle-control']); // hanche + pied (D37)
+const DECLARED = DECLARED_ZONES;
 
 describe('bibliothèque', () => {
   it('contient la routine du matin (4 min) et 30 exercices aux codes uniques', () => {

@@ -2,41 +2,53 @@ import {
   activitySport,
   addDays,
   capStatus,
-  chooseDailySlot,
   hrvSignal,
   hrvStatus,
   matchWeek,
-  MORNING,
   mondayOf,
   offPlanSignals,
+  sessionBlocks,
   volumeCap,
+  weekDays,
   weeklyVolume,
   weightTrend,
+  type CapView,
+  type NextSession,
+  type NightView,
   type Signal,
+  type TodayView,
   type VolumeEntry,
+  type VolumeView,
+  type WeekSession,
   type WeekVolume,
 } from '@coach-chris/domain';
 import type { Store } from '../store/store.ts';
-import { activeGoal, activities, night, planWeek, weighIns } from './cache.ts';
-import { weekView, type WeekSession } from './week.ts';
+import { activeGoal, activities, night, planWeek, weighIns, type PlanWeek } from './cache.ts';
+import { eveningSlots, mobilityToday } from './mobility.ts';
+import { weekData } from './week.ts';
 
 /** Fenêtre de recherche de la dernière pesée (les pesées ne sont pas quotidiennes). */
 const WEIGHT_LOOKBACK_DAYS = 90;
 const HISTORY_WEEKS = 4;
+const HRV_NIGHTS = 8;
 
 /** Écran Aujourd'hui (maquette v21 validée) : tout vient du cache, une absence reste une absence. */
-export async function todayView(store: Store, today: string) {
+export async function todayView(store: Store, today: string): Promise<TodayView> {
   const monday = mondayOf(today);
   const historyFrom = addDays(monday, -7 * HISTORY_WEEKS);
   const historyWeeks = Array.from({ length: HISTORY_WEEKS }, (_, i) => addDays(historyFrom, 7 * i));
-  const [goal, week, lastNight, weights, history, historyPlans] = await Promise.all([
+  const nightDays = Array.from({ length: HRV_NIGHTS }, (_, i) => addDays(today, i - HRV_NIGHTS + 1));
+  const [goal, { view: week, plan }, nights, weights, history, historyPlans] = await Promise.all([
     activeGoal(store),
-    weekView(store, monday, today),
-    night(store, today),
+    weekData(store, monday, today),
+    Promise.all(nightDays.map((d) => night(store, d))),
     weighIns(store, addDays(today, -WEIGHT_LOOKBACK_DAYS), today),
     activities(store, historyFrom, addDays(monday, -1)),
     Promise.all(historyWeeks.map((w) => planWeek(store, w))),
   ]);
+  const lastNight = nights.at(-1);
+  const yesterday = nights.at(-2);
+
   // Séances validées dans Campus sans activité Garmin (ex. renforcement sans montre) : leur durée prévue compte.
   const campusOnly: VolumeEntry[] = [
     ...historyPlans.flatMap((p) => {
@@ -53,35 +65,51 @@ export async function todayView(store: Store, today: string) {
       .map((s) => ({ day: s.match!.day, sport: s.sport, minutes: s.durationMin })),
   ];
 
-  const next = week.sessions
-    .filter((s) => s.status === 'todo' && s.day && s.day >= today)
-    .sort((a, b) => a.day!.localeCompare(b.day!))[0];
+  const upcoming = week.sessions
+    // Une séance déjà rattachée à une activité est faite, même si Campus ne l'a pas encore validée.
+    .filter((s) => s.status === 'todo' && !s.match && s.day && s.day >= today)
+    .sort((a, b) => a.day!.localeCompare(b.day!));
 
-  const hrvReading = lastNight?.hrv ?? null;
+  const hrv = lastNight?.hrv ?? null;
   const signals: Signal[] = [
-    ...(hrvReading ? [hrvSignal(hrvReading)].filter((s): s is Signal => s !== null) : []),
+    ...(hrv ? [hrvSignal(hrv)].filter((s): s is Signal => s !== null) : []),
     ...offPlanSignals(week.offPlan),
   ];
 
+  const nightView: NightView | null = lastNight ? { ...lastNight, hrvPosition: hrv && hrvStatus(hrv) } : null;
+
   return {
     today,
-    goal: goal ? { ...goal, ...(week.plan?.goalWeek && { week: week.plan.goalWeek }) } : null,
-    nextSession: next ?? null,
+    goal: goal
+      ? {
+          ...goal,
+          ...(plan?.cycleDescription && { description: plan.cycleDescription }),
+          ...(plan?.goalWeek && { weekIndex: plan.goalWeek.index }),
+        }
+      : null,
+    nextSession: upcoming[0] ? withDetails(upcoming[0], plan) : null,
+    thenSession: upcoming[1] ?? null,
     form: {
-      night: lastNight
-        ? {
-            sleep: lastNight.sleep,
-            readiness: lastNight.readiness,
-            hrv: hrvReading && { ...hrvReading, position: hrvStatus(hrvReading) },
-            fetchedAt: lastNight.fetchedAt,
-          }
-        : null,
+      night: nightView,
+      stressYesterday: yesterday?.stress ?? null,
+      hrvHistory: nightDays.map((day, i) => ({ day, ms: nights[i]?.hrv?.lastNightMs ?? null })),
       weight: weightTrend(weights),
     },
     volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday),
     week,
-    mobility: mobility(week.sessions, today),
+    evenings: await eveningSlots(store, week.sessions, weekDays(monday), today),
+    mobility: await mobilityToday(store, week.sessions, today),
     signals,
+  };
+}
+
+function withDetails(s: WeekSession, plan: PlanWeek | undefined): NextSession {
+  const d = plan?.details.get(s.index);
+  return {
+    ...s,
+    blocks: sessionBlocks(d?.exercisesBlocks ?? []),
+    ...(d?.description && { description: d.description }),
+    ...(d?.coachAdvice && { coachAdvice: d.coachAdvice }),
   };
 }
 
@@ -94,7 +122,7 @@ function volume(
   acts: { startLocal: string; type: string; durationS: number }[],
   campusOnly: VolumeEntry[],
   monday: string,
-) {
+): VolumeView {
   const entries: VolumeEntry[] = [
     ...acts.map((a) => ({
       day: a.startLocal.slice(0, 10),
@@ -116,7 +144,7 @@ function volume(
     run: counted.filter((s) => s.sport === 'run').reduce((n, s) => n + s.durationMin, 0),
     total: counted.reduce((n, s) => n + s.durationMin, 0),
   };
-  const capOf = (values: number[], plannedMin: number) => {
+  const capOf = (values: number[], plannedMin: number): CapView | null => {
     const cap = volumeCap(values);
     return cap && { ...cap, planned: plannedMin, status: capStatus(plannedMin, cap) };
   };
@@ -129,23 +157,5 @@ function volume(
       ),
       total: capOf(previous.map(total), planned.total),
     },
-  };
-}
-
-/** Mobilité du jour : routine du matin fixe, créneau du soir selon le contexte (D78). */
-function mobility(sessions: WeekSession[], today: string) {
-  const on = (day: string) => sessions.filter((s) => s.day === day && s.status !== 'skipped');
-  const todays = on(today);
-  const ctx = {
-    legsStrengthToday: todays.some((s) => s.sport === 'strength' && s.legs),
-    runToday: todays.some((s) => s.sport === 'run'),
-    intenseTomorrow: on(addDays(today, 1)).some((s) => s.intense),
-    restDay: todays.length === 0,
-  };
-  return {
-    morning: MORNING.map((e) => e.code),
-    // Sans résultats de tests, pas de socle ni de zone prioritaire : seul le créneau du jour est proposé.
-    evening: { socle: [], slot: chooseDailySlot([], ctx, []), testsMissing: true },
-    context: ctx,
   };
 }

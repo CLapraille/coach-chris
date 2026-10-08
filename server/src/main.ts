@@ -7,6 +7,7 @@ const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? '127.0.0.1';
 
 const store = new CosmosStore(process.env.COSMOS_ENDPOINT!);
-const sync = new Sync(store, { garmin: mcpFromEnv('garmin'), campus: mcpFromEnv('campus') });
+const mcp = { garmin: mcpFromEnv('garmin'), campus: mcpFromEnv('campus') };
+const sync = new Sync(store, mcp);
 
-await buildApp({ store, sync }).listen({ port, host });
+await buildApp({ store, sync, garmin: mcp.garmin }).listen({ port, host });

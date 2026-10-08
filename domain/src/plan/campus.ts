@@ -33,7 +33,7 @@ export interface CampusBlock {
     name: string;
     exerciseType?: string;
     durations?: { value: number; timeUnit: string }[];
-    pace?: { zoneKind?: string };
+    pace?: { zoneKind?: string; name?: string };
   }[];
 }
 

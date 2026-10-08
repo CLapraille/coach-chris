@@ -1,6 +1,7 @@
-<script>
+/* eslint-disable */
+// Moteur du mannequin des démonstrations, repris tel quel de la maquette Mobilité validée (D80).
 // Mannequin 2D articulé (cinématique directe + IK 2 segments), D80
-window.Mannequin = (function () {
+const Mannequin = (function () {
   var R = Math.PI / 180, NS = 'http://www.w3.org/2000/svg', G = 184;
   var L = { torso: 52, ua: 26, fa: 24, th: 40, sh: 38, ft: 15 };
   var C = { near: 'var(--fg)', far: 'var(--faint)', hi: 'var(--mobility)', line: 'var(--line)', surf: 'var(--surface)', muted: 'var(--muted)' };
@@ -285,4 +286,5 @@ window.Mannequin = (function () {
     }
   };
 })();
-</script>
+
+export default Mannequin;

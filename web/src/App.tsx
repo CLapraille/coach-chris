@@ -1,33 +1,127 @@
+import type { DataStatus, SourceName } from '@coach-chris/domain';
 import { useState } from 'react';
+import { useApi } from './api.ts';
+import { clock, parisDay, shortDate } from './format.ts';
+import { Calendar } from './calendar/Calendar.tsx';
+import { Data } from './data/Data.tsx';
+import { Mobility } from './mobility/Mobility.tsx';
+import { SessionDetail } from './session/SessionDetail.tsx';
+import { Today } from './today/Today.tsx';
 
 export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
 type Tab = (typeof TABS)[number];
 
 export function App() {
   const [tab, setTab] = useState<Tab>("Aujourd'hui");
+  // Détail de séance ouvert par-dessus l'onglet courant ; « Retour » y ramène.
+  const [session, setSession] = useState<string | null>(null);
+  const select = (t: Tab) => {
+    setSession(null);
+    setTab(t);
+  };
+  const status = useApi<DataStatus>('/data/status');
+  const st = status.state === 'ready' ? status.data : null;
 
   return (
-    <div className="grid min-h-screen md:grid-cols-[200px_1fr]">
-      <aside className="flex flex-col gap-6 border-line px-3.5 py-5 md:border-r">
-        <div className="font-display text-xl font-bold">CoachChris</div>
-        <nav aria-label="Navigation principale" className="flex gap-1 md:flex-col">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              aria-current={t === tab ? 'page' : undefined}
-              onClick={() => setTab(t)}
-              className="rounded-md px-2.5 py-1.5 text-left text-sm text-muted aria-[current=page]:bg-surface-2 aria-[current=page]:font-medium aria-[current=page]:text-fg"
-            >
-              {t}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main className="px-6 py-5">
-        <h1 className="font-display text-3xl font-semibold">{tab}</h1>
-        <p className="mt-2 text-sm text-muted">Écran à venir (jalon M3).</p>
-      </main>
+    <>
+      <div className="app">
+        <aside className="side" aria-label="Navigation principale">
+          <div className="brand">
+            <i />
+            CoachChris
+          </div>
+          <Nav tab={tab} onSelect={select} className="nav" />
+          {st && <SyncState status={st} />}
+        </aside>
+        <main>
+          {session ? (
+            <SessionDetail key={session} sessionKey={session} onBack={() => setSession(null)} />
+          ) : tab === "Aujourd'hui" ? (
+            <Today status={st} onNavigate={select} onOpenSession={setSession} />
+          ) : tab === 'Calendrier' ? (
+            <Calendar onOpenSession={setSession} />
+          ) : tab === 'Mobilité' ? (
+            <Mobility />
+          ) : st && status.state === 'ready' ? (
+            <Data status={st} onChanged={status.reload} />
+          ) : status.state === 'error' ? (
+            <p className="empty" role="alert">
+              {status.error.message}
+            </p>
+          ) : (
+            <p className="muted">Chargement…</p>
+          )}
+        </main>
+      </div>
+      <Nav tab={tab} onSelect={select} className="tabbar" label="Navigation mobile" bar />
+    </>
+  );
+}
+
+function Nav({
+  tab,
+  onSelect,
+  className,
+  label = 'Onglets',
+  bar = false,
+}: {
+  tab: Tab;
+  onSelect: (t: Tab) => void;
+  className: string;
+  label?: string;
+  bar?: boolean;
+}) {
+  return (
+    <nav className={className} aria-label={label}>
+      {TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          aria-current={t === tab ? 'page' : undefined}
+          onClick={() => onSelect(t)}
+        >
+          {bar && <i />}
+          {t}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+const NAME: Record<SourceName, string> = { garmin: 'Garmin', campus: 'Campus' };
+
+function SyncState({ status }: { status: DataStatus }) {
+  return (
+    <div className="sync">
+      {(['garmin', 'campus'] as const).map((s) => {
+        const { lastOkAt, last } = status.sources[s];
+        const cls =
+          last?.outcome === 'token-expired'
+            ? 'alert'
+            : last?.outcome === 'error'
+              ? 'warn'
+              : lastOkAt
+                ? ''
+                : 'off';
+        const text =
+          last?.outcome === 'token-expired'
+            ? 'jeton expiré'
+            : lastOkAt
+              ? `${shortDate(parisDay(lastOkAt))} ${clock(lastOkAt)}`
+              : 'jamais synchronisé';
+        return (
+          <div key={s}>
+            <span className={`dot ${cls}`} />
+            {NAME[s]} · {text}
+          </div>
+        );
+      })}
+      {status.missingNights.map((d) => (
+        <div key={d}>
+          <span className="dot warn" />
+          Nuit du {shortDate(d)} manquante
+        </div>
+      ))}
     </div>
   );
 }

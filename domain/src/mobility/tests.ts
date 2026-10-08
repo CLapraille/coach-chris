@@ -103,3 +103,30 @@ const fr: Record<string, string> = {
   sometimes: 'parfois',
   no: 'non',
 };
+
+/** Limitations déclarées au départ (D37) : hanche et pied. */
+export const DECLARED_ZONES: ReadonlySet<ZoneId> = new Set<ZoneId>([
+  'hip-rotation',
+  'hip-flexors',
+  'big-toe',
+  'foot-ankle-control',
+]);
+
+export const ZONE_LABEL: Record<ZoneId, string> = {
+  'hip-rotation': 'Hanche · rotation interne',
+  'hip-flexors': 'Hanche · fléchisseurs',
+  'big-toe': 'Pied · gros orteil',
+  'foot-ankle-control': 'Cheville et pied · équilibre',
+  ankle: 'Cheville · flexion dorsale',
+  'hip-knee-control': 'Hanche et genou · contrôle',
+};
+
+/** Test qui renseigne chaque zone (D74). */
+export const ZONE_TEST: Record<ZoneId, keyof TestResults> = {
+  ankle: 'kneeToWallCm',
+  'hip-rotation': 'hipInternalRotationDeg',
+  'hip-flexors': 'thomas',
+  'big-toe': 'bigToeExtensionDeg',
+  'foot-ankle-control': 'balanceEyesClosedS',
+  'hip-knee-control': 'singleLegSquat',
+};

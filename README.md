@@ -32,4 +32,4 @@ Poste avec antivirus qui inspecte le HTTPS (AVG) : `NODE_OPTIONS=--use-system-ca
 | `web/` | front Vite + React + Tailwind |
 | `mcp/campus/` | serveur MCP Campus Coach (Python) |
 | `infra/` | Bicep (Azure) |
-| `docs/maquettes/` | moteur du mannequin des maquettes (les maquettes elles-mêmes ne sont pas versionnées) |
+| `web/src/mobility/mannequin.js` | moteur du mannequin des démonstrations (les maquettes ne sont pas versionnées) |

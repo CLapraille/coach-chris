@@ -1,5 +1,5 @@
 import { CosmosClient, type Container } from '@azure/cosmos';
-import { DefaultAzureCredential } from '@azure/identity';
+import { AzureCliCredential, ManagedIdentityCredential, type TokenCredential } from '@azure/identity';
 
 /** Conteneurs de la base `coachchris` (ARCHITECTURE §3) et leur clé de partition. */
 export const CONTAINERS = {
@@ -25,16 +25,16 @@ export interface Store {
   /** Tous les documents d'une partition. */
   list<T extends Doc>(container: ContainerName, pk: string): Promise<T[]>;
   upsert(container: ContainerName, doc: Doc): Promise<void>;
+  /** Sans effet si le document n'existe pas. */
+  delete(container: ContainerName, id: string, pk: string): Promise<void>;
 }
 
 export class CosmosStore implements Store {
   private readonly containers: Record<ContainerName, Container>;
 
   constructor(endpoint: string) {
-    // Aucune clé : az login en local, identité managée sur Azure (disableLocalAuth).
-    const db = new CosmosClient({ endpoint, aadCredentials: new DefaultAzureCredential() }).database(
-      'coachchris',
-    );
+    // Aucune clé (disableLocalAuth) : identité managée sur Azure, az login en local.
+    const db = new CosmosClient({ endpoint, aadCredentials: credential() }).database('coachchris');
     this.containers = Object.fromEntries(
       Object.keys(CONTAINERS).map((name) => [name, db.container(name)]),
     ) as Record<ContainerName, Container>;
@@ -55,6 +55,27 @@ export class CosmosStore implements Store {
   async upsert(container: ContainerName, doc: Doc): Promise<void> {
     await this.containers[container].items.upsert(doc);
   }
+
+  async delete(container: ContainerName, id: string, pk: string): Promise<void> {
+    try {
+      await this.containers[container].item(id, pk).delete();
+    } catch (e) {
+      if ((e as { code?: number }).code !== 404) throw e;
+    }
+  }
+}
+
+/**
+ * Choix explicite plutôt que DefaultAzureCredential : la chaîne par défaut sonde d'abord d'autres méthodes
+ * (dont l'identité managée, absente du poste), ce qui coûtait une vingtaine de secondes au démarrage.
+ */
+function credential(env = process.env): TokenCredential {
+  if (env.IDENTITY_ENDPOINT) {
+    return env.AZURE_CLIENT_ID
+      ? new ManagedIdentityCredential({ clientId: env.AZURE_CLIENT_ID })
+      : new ManagedIdentityCredential();
+  }
+  return new AzureCliCredential();
 }
 
 /** Retire les métadonnées système de Cosmos (_rid, _etag…). */
@@ -83,5 +104,9 @@ export class MemoryStore implements Store {
     const pk = doc[CONTAINERS[container]];
     if (typeof pk !== 'string') throw new Error(`clé de partition /${CONTAINERS[container]} manquante`);
     this.data.set(this.key(container, pk, doc.id), structuredClone(doc));
+  }
+
+  async delete(container: ContainerName, id: string, pk: string): Promise<void> {
+    this.data.delete(this.key(container, pk, id));
   }
 }

@@ -3,7 +3,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
-export type SourceName = 'garmin' | 'campus';
+import type { SourceName } from '@coach-chris/domain';
+
+export type { SourceName };
 
 /**
  * Liste blanche côté BFF (ARCHITECTURE §6) : seules ces lectures peuvent être appelées.
@@ -21,6 +23,8 @@ export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
     'get_stress_data',
     'get_weigh_ins',
     'get_devices',
+    'get_device_last_used',
+    'get_activity',
   ]),
   campus: new Set([
     'get_active_goal',
