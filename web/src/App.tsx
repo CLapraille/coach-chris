@@ -6,6 +6,7 @@ import { Calendar } from './calendar/Calendar.tsx';
 import { Data } from './data/Data.tsx';
 import { Mobility } from './mobility/Mobility.tsx';
 import { SessionDetail } from './session/SessionDetail.tsx';
+import { ThemeSwitch } from './theme.tsx';
 import { Today } from './today/Today.tsx';
 
 export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
@@ -32,6 +33,7 @@ export function App() {
           </div>
           <Nav tab={tab} onSelect={select} className="nav" />
           {st && <SyncState status={st} />}
+          <ThemeSwitch />
         </aside>
         <main>
           {session ? (

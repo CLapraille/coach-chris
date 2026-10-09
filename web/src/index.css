@@ -29,8 +29,9 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   color-scheme: dark;
 }
+/* Thème : automatique (système) par défaut ; « sombre » ou « clair » forcé par data-theme sur <html>. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme='dark']) {
     --bg: #f3f5f8;
     --surface: #ffffff;
     --surface-2: #f0f3f7;
@@ -52,6 +53,28 @@
     --focus: #2c62c9;
     color-scheme: light;
   }
+}
+:root[data-theme='light'] {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #f0f3f7;
+  --line: #dde3ea;
+  --fg: #17202b;
+  --muted: #5d6877;
+  --faint: #8d97a5;
+  --run: #2f8a77;
+  --bike: #4a6fd6;
+  --strength: #a8752a;
+  --mobility: #8562b8;
+  --rest: #9aa4b1;
+  --p-run: #a6d9cc;
+  --p-bike: #bccbf5;
+  --p-str: #efd7ab;
+  --good: #2f8f55;
+  --warn: #a97810;
+  --alert: #c0503c;
+  --focus: #2c62c9;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -2010,7 +2033,7 @@ button.mt:hover b {
   --z5: #d99aa8;
 }
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme='dark']) {
     --p-walk: #c9d0d9;
     --p-after: #e4e8ee;
     --z0: #e4e8ee;
@@ -2020,6 +2043,16 @@ button.mt:hover b {
     --z4: #f0bcae;
     --z5: #e3a9b6;
   }
+}
+:root[data-theme='light'] {
+  --p-walk: #c9d0d9;
+  --p-after: #e4e8ee;
+  --z0: #e4e8ee;
+  --z1: #a6d9cc;
+  --z2: #bccbf5;
+  --z3: #efd7ab;
+  --z4: #f0bcae;
+  --z5: #e3a9b6;
 }
 .session-screen {
   display: grid;
@@ -2409,4 +2442,27 @@ details.coach summary {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.theme {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  font-size: 12px;
+  align-self: start;
+}
+.theme button {
+  all: unset;
+  cursor: pointer;
+  padding: 4px 10px;
+  color: var(--muted);
+}
+.theme button[aria-checked='true'] {
+  background: var(--surface-2);
+  color: var(--fg);
+  font-weight: 500;
+}
+.theme button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
