@@ -52,13 +52,18 @@ else {
   try {
     Write-Host ''
     Write-Host '1. Ouvre une fenêtre de navigation PRIVÉE et connecte-toi sur https://app.campus.coach'
-    Write-Host '2. Colle dans la console (F12) le snippet affiché ci-dessous.'
-    Write-Host '3. Ferme ensuite la fenêtre privée SANS te déconnecter (la déconnexion révoquerait la session).'
+    Write-Host '2. Colle dans la console (F12) le snippet affiché ci-dessous : il copie les jetons dans le presse-papiers.'
+    Write-Host '3. Colle-les ici (rien ne s''affiche) puis Entrée.'
+    Write-Host '4. Ferme ensuite la fenêtre privée SANS te déconnecter (la déconnexion révoquerait la session).'
     Write-Host ''
     $env:CAMPUS_COACH_TOKEN_DIR = $tmp
     # --no-sync et module Python plutôt que l'exécutable : le MCP Campus de Claude Desktop ou du BFF local
     # verrouille campus-coach-mcp.exe, qu'une synchro de l'environnement tenterait de remplacer.
-    uv run --no-sync --directory (Join-Path $PSScriptRoot 'mcp\campus') python -c 'from campus_coach_mcp.auth import main; main()'
+    # --paste : Chrome refuse en navigation privée les requêtes d'un site vers 127.0.0.1 (Local Network Access).
+    try {
+      uv run --no-sync --directory (Join-Path $PSScriptRoot 'mcp\campus') python -c 'from campus_coach_mcp.auth import main; main()' --paste
+    }
+    finally { Set-Clipboard -Value ' ' }  # les jetons ne restent pas dans le presse-papiers
     if ($LASTEXITCODE -ne 0) { throw "campus-coach-auth a échoué (code $LASTEXITCODE)." }
     $file = Join-Path $tmp 'tokens.json'
     if (-not (Test-Path $file)) { throw 'Aucun jeton reçu.' }
