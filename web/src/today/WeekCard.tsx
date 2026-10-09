@@ -164,7 +164,7 @@ function NextPanel({
       <span className="wk-next-acts">
         {canPush && (
           <button
-            className="btn icon"
+            className="btn icon watch"
             type="button"
             aria-label={next.pushed ? 'Renvoyer sur la montre' : 'Envoyer sur la montre'}
             title={
@@ -178,7 +178,7 @@ function NextPanel({
           </button>
         )}
         <button
-          className="btn icon primary"
+          className="btn icon detail"
           type="button"
           aria-label="Détail"
           title="Détail"

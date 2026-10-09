@@ -2859,6 +2859,21 @@ details.coach summary {
   height: 32px;
   padding: 0;
 }
+/* Montre en couleur Garmin (destination de l'envoi), Détail en couleur Campus (origine de la séance). */
+.btn.icon.watch {
+  background: var(--src-garmin);
+  border-color: var(--src-garmin);
+  color: var(--bg);
+}
+.btn.icon.detail {
+  background: var(--src-campus);
+  border-color: var(--src-campus);
+  color: var(--bg);
+}
+.btn.icon.watch:hover,
+.btn.icon.detail:hover {
+  filter: brightness(1.08);
+}
 .btn.icon svg {
   width: 18px;
   height: 18px;
