@@ -2,6 +2,7 @@ import type { DataStatus, SourceName } from '@coach-chris/domain';
 import { useState } from 'react';
 import { api } from '../api.ts';
 import { GOAL_LABEL, clock, decimal, longDate, parisDay, shortDate } from '../format.ts';
+import { ThemeSwitch } from '../theme.tsx';
 
 const NAME: Record<SourceName, string> = { garmin: 'Garmin Connect', campus: 'Campus Coach' };
 // « job » couvre le job quotidien et la synchro en ligne de commande (npm run sync).
@@ -58,6 +59,13 @@ export function Data({ status, onChanged }: { status: DataStatus; onChanged: () 
         ))}
         <Freshness status={status} />
         <Journal log={status.log} />
+        <article className="card s5">
+          <header>
+            <span className="label">Affichage</span>
+            <span className="muted text-xs">cet appareil</span>
+          </header>
+          <ThemeSwitch />
+        </article>
       </div>
     </section>
   );
