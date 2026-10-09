@@ -2859,20 +2859,25 @@ details.coach summary {
   height: 32px;
   padding: 0;
 }
-/* Montre en couleur Garmin (destination de l'envoi), Détail en couleur Campus (origine de la séance). */
+/* Contour : montre en couleur Garmin (destination de l'envoi), Détail en couleur Campus (origine de la séance). */
+.btn.icon.watch,
+.btn.icon.detail {
+  background: transparent;
+  border-width: 1.5px;
+}
 .btn.icon.watch {
-  background: var(--src-garmin);
   border-color: var(--src-garmin);
-  color: var(--bg);
+  color: var(--src-garmin);
 }
 .btn.icon.detail {
-  background: var(--src-campus);
   border-color: var(--src-campus);
-  color: var(--bg);
+  color: var(--src-campus);
 }
-.btn.icon.watch:hover,
+.btn.icon.watch:hover {
+  background: color-mix(in srgb, var(--src-garmin) 14%, transparent);
+}
 .btn.icon.detail:hover {
-  filter: brightness(1.08);
+  background: color-mix(in srgb, var(--src-campus) 14%, transparent);
 }
 .btn.icon svg {
   width: 18px;
