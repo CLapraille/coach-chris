@@ -12,7 +12,7 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
   const days = Object.values(routines);
   const mobilityDone = days.reduce((n, d) => n + Number(d.morning) + Number(d.evening), 0);
   return (
-    <article className="card s6 vol-card">
+    <article className="card s7 vol-card">
       <header>
         <span className="label">Volume de la semaine (minutes)</span>
         <span>

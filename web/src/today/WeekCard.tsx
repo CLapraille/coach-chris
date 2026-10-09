@@ -43,7 +43,7 @@ export function WeekCard({
     <NextPanel next={next} today={today} onOpen={onOpen} onPush={(r) => setAction(r)} />
   );
   return (
-    <article className="card s6">
+    <article className="card s5">
       <header>
         <span className="label">Cette semaine{week.plan ? ` · ${done}/${active.length}` : ''}</span>
         <span>

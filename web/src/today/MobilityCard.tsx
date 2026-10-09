@@ -29,7 +29,7 @@ export function MobilityCard({
   };
   const done7 = mobility.last7.filter((d) => d.morning || d.evening).length;
   return (
-    <article className="card s6">
+    <article className="card s7">
       <header>
         <span className="label">Mobilité</span>
         <span className="src calc">CoachChris</span>

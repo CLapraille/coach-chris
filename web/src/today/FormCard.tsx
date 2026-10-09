@@ -32,7 +32,7 @@ export function FormCard({ form }: { form: TodayView['form'] }) {
   const readyDelta =
     ready && form.readinessYesterday !== null ? ready.score - form.readinessYesterday : undefined;
   return (
-    <article className="card s6 form-card">
+    <article className="card s7 form-card">
       <header>
         <span className="label">Forme ce matin</span>
         <span className="src garmin">Garmin</span>
