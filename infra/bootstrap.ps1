@@ -12,7 +12,8 @@
 param(
   [string] $Repo = 'CLapraille/coach-chris',
   [string] $ResourceGroup = 'rg-coach-chris',
-  [string[]] $RedirectUris = @('http://localhost:5173')
+  # Front local (Vite) et Static Web App (sortie webUrl de infra/app.bicep).
+  [string[]] $RedirectUris = @('http://localhost:5173', 'https://salmon-field-0225c0803.3.azurestaticapps.net')
 )
 $ErrorActionPreference = 'Stop'
 $graph = 'https://graph.microsoft.com/v1.0'

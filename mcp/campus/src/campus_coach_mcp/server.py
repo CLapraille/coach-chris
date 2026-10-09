@@ -8,6 +8,7 @@ Environment:
   CAMPUS_MCP_TRANSPORT     stdio (default) | streamable-http | sse
   CAMPUS_MCP_HOST          bind address for HTTP transports (default 127.0.0.1)
   CAMPUS_MCP_PORT          bind port for HTTP transports (default 8001)
+  CAMPUS_MCP_ALLOWED_HOSTS extra Host header values accepted (comma-separated)
 """
 
 import base64
@@ -29,6 +30,7 @@ truststore.inject_into_ssl()
 
 import httpx  # noqa: E402
 from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
 
 from .tokens import load_tokens, save_tokens  # noqa: E402
 
@@ -280,6 +282,14 @@ def main():
     if transport != "stdio":
         mcp.settings.host = os.getenv("CAMPUS_MCP_HOST", "127.0.0.1")
         mcp.settings.port = int(os.getenv("CAMPUS_MCP_PORT", "8001"))
+        # DNS rebinding protection stays on; extra Host values (e.g. an internal
+        # service name behind a reverse proxy) are added explicitly.
+        extra = [h.strip() for h in os.getenv("CAMPUS_MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
+        if extra:
+            mcp.settings.transport_security = TransportSecuritySettings(
+                enable_dns_rebinding_protection=True,
+                allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*", *extra],
+            )
     mcp.run(transport=transport)
 
 
