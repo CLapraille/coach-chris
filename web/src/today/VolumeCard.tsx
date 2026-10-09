@@ -1,169 +1,238 @@
-import type { CapView, VolumeView } from '@coach-chris/domain';
-import { decimal, shortDate } from '../format.ts';
+import type { CapView, VolumeView, WeekView } from '@coach-chris/domain';
+import { decimal } from '../format.ts';
 
-const PARTS = [
-  ['run', 'var(--p-run)', 'Course'],
-  ['bike', 'var(--p-bike)', 'Vélo'],
-  ['strength', 'var(--p-str)', 'Renforcement'],
-] as const;
-
-export function VolumeCard({ volume }: { volume: VolumeView }) {
+/**
+ * Volume de la semaine (visuel utilisateur du 09/10) : par ligne, le réalisé (plein), le reste prévu par Campus
+ * (clair) et le repère (trait « max », D90). Le vélo n'a ni plan ni repère : rien n'est inventé pour lui.
+ */
+export function VolumeCard({ volume, routines }: { volume: VolumeView; routines: WeekView['routines'] }) {
   const { run, total } = volume.cap;
+  const week = volume.weeks.at(-1) ?? { run: 0, bike: 0, strength: 0 };
+  const doneTotal = week.run + week.bike + week.strength;
+  // Mobilité : routines cochées (matin et soir) sur les 7 jours de la semaine ; leur durée n'est pas enregistrée.
+  const days = Object.values(routines);
+  const mobilityDone = days.reduce((n, d) => n + Number(d.morning) + Number(d.evening), 0);
   return (
-    <article className="card s5">
+    <article className="card s5 vol-card">
       <header>
-        <span className="label">Volume par semaine (minutes)</span>
+        <span className="label">Volume de la semaine (minutes)</span>
         <span>
           <span className="src garmin">Garmin</span> <span className="src campus">Campus</span>
         </span>
       </header>
-      <Chart volume={volume} />
-      <div className="legend">
-        {PARTS.map(([, color, label]) => (
-          <span key={label}>
-            <i style={{ background: color }} />
-            {label}
-          </span>
-        ))}
+      <p className="vol-head">
+        volume actuel / repère total ={' '}
+        <b className="num">
+          {Math.round(doneTotal)} / {total ? `${Math.round(total.cap)} min` : '—'}
+        </b>
+      </p>
+      <div className="vol-rows">
+        <Row
+          icon={<RunIcon />}
+          label="Course"
+          parts={[{ minutes: week.run, color: 'var(--run)' }]}
+          cap={run}
+          plannedColor="color-mix(in srgb, var(--run) 30%, transparent)"
+        />
+        <Row
+          icon={<BikeIcon />}
+          label="Vélo"
+          parts={[{ minutes: week.bike, color: 'var(--bike)' }]}
+          cap={null}
+        />
+        <Row
+          icon={<DumbbellIcon />}
+          label="Renforcement"
+          parts={[{ minutes: week.strength, color: 'var(--strength)' }]}
+          cap={null}
+          planned={volume.planned.strength}
+          plannedColor="color-mix(in srgb, var(--strength) 30%, transparent)"
+        />
+        <Row
+          icon={<StretchIcon />}
+          label="Mobilité"
+          parts={[{ minutes: mobilityDone, color: 'var(--mobility)' }]}
+          cap={null}
+          planned={days.length * 2}
+          plannedColor="color-mix(in srgb, var(--mobility) 25%, transparent)"
+          unit="routines"
+          note="matin et soir"
+        />
+        <Row
+          icon={<TrophyIcon />}
+          label="Total"
+          parts={[
+            { minutes: week.run, color: 'var(--run)' },
+            { minutes: week.bike, color: 'var(--bike)' },
+            { minutes: week.strength, color: 'var(--strength)' },
+          ]}
+          cap={total}
+          plannedColor="color-mix(in srgb, var(--fg) 18%, transparent)"
+        />
+      </div>
+      <div className="vol-legend">
+        <span>
+          <i className="done" /> réalisé
+        </span>
+        <span>
+          <i className="plan" /> reste prévu
+        </span>
+        <span>
+          <i className="mark" /> repère
+        </span>
         <span className="muted">Marches exclues</span>
       </div>
-      <div className="cap">
-        <span className="label">Repère pour cette semaine</span>
-        {run || total ? (
-          <>
-            {run && <CapRow label="Course" cap={run} color="var(--p-run)" />}
-            {total && <CapRow label="Total" cap={total} color="var(--p-str)" />}
-            <details>
-              <summary>Règle</summary>
-              Le plan Campus prime. Un dépassement est un point d'attention, pas une interdiction. Repère =
-              1,3 × moyenne des 4 semaines complètes précédentes (ratio charge aiguë / chronique)
-              {run && `. Course : 1,3 × ${decimal(run.mean)} min`}
-              {total && `. Total course + vélo + renforcement : 1,3 × ${decimal(total.mean)} min`}. Marches
-              exclues. Une séance validée dans Campus sans montre compte pour sa durée prévue. Repère courant
-              en préparation physique, pas une prescription médicale.
-            </details>
-          </>
-        ) : (
-          <p className="empty">Pas encore 4 semaines d'historique : pas de repère.</p>
-        )}
-      </div>
+      {run || total ? (
+        <details className="vol-rule">
+          <summary>Règle</summary>
+          Le plan Campus prime. Un dépassement est un point d'attention, pas une interdiction. Repère = 1,3 ×
+          moyenne des 4 semaines complètes précédentes (ratio charge aiguë / chronique)
+          {run && `. Course : 1,3 × ${decimal(run.mean)} min`}
+          {total && `. Total course + vélo + renforcement : 1,3 × ${decimal(total.mean)} min`}. « Sous le
+          repère » ou « au-dessus » compare le prévu de la semaine au repère. Une séance validée dans Campus
+          sans montre compte pour sa durée prévue. Repère courant en préparation physique, pas une
+          prescription médicale.
+        </details>
+      ) : (
+        <p className="empty">Pas encore 4 semaines d'historique : pas de repère.</p>
+      )}
     </article>
   );
 }
 
-function CapRow({ label, cap, color }: { label: string; cap: CapView; color: string }) {
-  const scale = Math.max(cap.planned, cap.cap) * 1.1 || 1;
-  const capMin = Math.round(cap.cap);
+function Row({
+  icon,
+  label,
+  parts,
+  cap,
+  planned: plannedOnly,
+  plannedColor,
+  unit,
+  note,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  parts: { minutes: number; color: string }[];
+  cap: CapView | null;
+  /** Prévu sans repère (renforcement, mobilité). */
+  planned?: number;
+  plannedColor?: string;
+  /** Unité autre que les minutes : la ligne affiche « fait / prévu ». */
+  unit?: string;
+  note?: string;
+}) {
+  const done = parts.reduce((n, p) => n + p.minutes, 0);
+  const plannedMin = cap?.planned ?? plannedOnly;
+  const planned = Math.max(plannedMin ?? 0, done);
+  const scale = Math.max(planned, cap?.cap ?? 0, 1) * 1.08;
+  const pct = (m: number) => `${(100 * m) / scale}%`;
+  const doneMin = Math.round(done);
   return (
-    <div className="cap-row">
-      <span>{label}</span>
-      <span
-        className="cap-bar"
-        role="img"
-        aria-label={`${label} : prévu ${cap.planned} minutes, repère ${capMin} minutes`}
-      >
-        <i style={{ width: `${(100 * cap.planned) / scale}%`, background: color }} />
-        <em style={{ left: `${(100 * cap.cap) / scale}%` }} />
-      </span>
-      <span className="cap-v">
-        <b className="num">≤ {capMin} min</b> · prévu {cap.planned}{' '}
-        {cap.status === 'over' ? (
-          <span className="w">au-dessus</span>
-        ) : (
-          <span className="ok">sous le repère</span>
-        )}
+    <div className="vol-row">
+      <span className="vol-icon">{icon}</span>
+      <div className="vol-main">
+        <span className="vol-label">{label}</span>
+        <span
+          className="vol-bar"
+          role="img"
+          aria-label={
+            unit
+              ? `${label} : ${doneMin} ${unit} faites sur ${plannedMin}`
+              : `${label} : ${doneMin} minutes faites` +
+                (plannedMin !== undefined ? `, ${plannedMin} prévues` : '') +
+                (cap ? `, repère ${Math.round(cap.cap)} minutes` : ', pas de repère')
+          }
+        >
+          {plannedMin !== undefined && planned > done && (
+            <i
+              className="plan"
+              style={{ left: pct(done), width: pct(planned - done), background: plannedColor }}
+            />
+          )}
+          {
+            parts.reduce<{ left: number; el: React.ReactNode[] }>(
+              (acc, p, i) => {
+                if (p.minutes > 0) {
+                  acc.el.push(
+                    <i key={i} style={{ left: pct(acc.left), width: pct(p.minutes), background: p.color }} />,
+                  );
+                }
+                acc.left += p.minutes;
+                return acc;
+              },
+              { left: 0, el: [] },
+            ).el
+          }
+          {done > 0 && <em className="now" style={{ left: pct(done) }} />}
+          {cap && (
+            <em className="max" style={{ left: pct(cap.cap) }}>
+              <small>max</small>
+            </em>
+          )}
+        </span>
+      </div>
+      <span className="vol-v">
+        <b className="num">{unit ? `${doneMin} / ${plannedMin} ${unit}` : `${doneMin} min`}</b>
+        <small>
+          {note ? (
+            note
+          ) : cap ? (
+            <>
+              prévu {cap.planned} ·{' '}
+              {cap.status === 'over' ? (
+                <span className="w">au-dessus</span>
+              ) : (
+                <span className="ok">sous le repère</span>
+              )}
+            </>
+          ) : plannedMin ? (
+            `prévu ${plannedMin} · pas de repère`
+          ) : (
+            'hors plan · pas de repère'
+          )}
+        </small>
       </span>
     </div>
   );
 }
 
-function Chart({ volume }: { volume: VolumeView }) {
-  const L = 34,
-    R = 410,
-    T = 12,
-    B = 160;
-  const totals = volume.weeks.map((w) => w.run + w.bike + w.strength);
-  const cap = volume.cap.total?.cap;
-  const max = Math.max(60, Math.ceil(Math.max(...totals, cap ?? 0) / 60) * 60);
-  const y = (v: number) => B - (v / max) * (B - T);
-  const ticks = Array.from({ length: max / 60 + 1 }, (_, i) => i * 60);
-  const slot = (R - L) / volume.weeks.length;
-  const bw = slot * 0.56;
-  const first = volume.weeks[0]?.start;
-  return (
-    <svg
-      className="load"
-      viewBox="0 0 420 190"
-      role="img"
-      aria-label={
-        first ? `Minutes d'entraînement par semaine et par sport depuis le ${shortDate(first)}` : ''
-      }
-    >
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={L} x2={R} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth={1} />
-          <text x={L - 6} y={y(t) + 3} textAnchor="end">
-            {t}
-          </text>
-        </g>
-      ))}
-      {volume.weeks.map((w, i) => {
-        const x = L + i * slot + (slot - bw) / 2;
-        const current = i === volume.weeks.length - 1;
-        let base = 0;
-        return (
-          <g key={w.start}>
-            {PARTS.map(([key, color, label]) => {
-              const v = w[key];
-              if (!v) return null;
-              const rect = (
-                <rect
-                  key={key}
-                  x={x}
-                  y={y(base + v)}
-                  width={bw}
-                  height={y(base) - y(base + v)}
-                  fill={color}
-                  rx={1.5}
-                >
-                  <title>
-                    Semaine du {shortDate(w.start)} · {label} : {Math.round(v)} min
-                  </title>
-                </rect>
-              );
-              base += v;
-              return rect;
-            })}
-            {current && <rect x={x} y={B - 1} width={bw} height={1} fill="var(--faint)" />}
-            <text x={x + bw / 2} y={B + 14} textAnchor="middle">
-              {shortDate(w.start)}
-            </text>
-            {current && (
-              <>
-                <text x={x + bw / 2} y={B + 26} textAnchor="middle">
-                  en cours
-                </text>
-                {cap !== undefined && (
-                  <>
-                    <line
-                      x1={x - 4}
-                      x2={x + bw + 4}
-                      y1={y(cap)}
-                      y2={y(cap)}
-                      stroke="var(--fg)"
-                      strokeWidth={1.5}
-                      strokeDasharray="3 2"
-                    />
-                    <text x={x + bw / 2} y={y(cap) - 4} textAnchor="middle">
-                      max
-                    </text>
-                  </>
-                )}
-              </>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+const icon = (path: React.ReactNode) => (
+  <svg className="vol-svg" viewBox="0 0 24 24" aria-hidden="true">
+    {path}
+  </svg>
+);
+const RunIcon = () =>
+  icon(
+    <>
+      <circle cx="15" cy="4.5" r="1.8" />
+      <path d="M8 21l3-6 3 2v5M6 11l4-3 4 1 2 4 3 1M11 15l-1-5" />
+    </>,
   );
-}
+const BikeIcon = () =>
+  icon(
+    <>
+      <circle cx="6" cy="16" r="3.5" />
+      <circle cx="18" cy="16" r="3.5" />
+      <path d="M6 16l4-7h5l3 7M10 9l2 7h-6M14 5h2l1 4" />
+    </>,
+  );
+const DumbbellIcon = () =>
+  icon(
+    <>
+      <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" />
+    </>,
+  );
+const StretchIcon = () =>
+  icon(
+    <>
+      <circle cx="12" cy="4.5" r="1.8" />
+      <path d="M4 9l8 1 8-1M12 10v5l-4 6M12 15l4 6" />
+    </>,
+  );
+const TrophyIcon = () =>
+  icon(
+    <>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+      <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4" />
+    </>,
+  );

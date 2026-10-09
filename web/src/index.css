@@ -582,12 +582,6 @@ svg text {
 }
 
 /* Volume */
-.load {
-  width: 100%;
-  max-width: 520px;
-  height: auto;
-  align-self: center;
-}
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -606,63 +600,6 @@ svg text {
   border-radius: 2px;
   display: inline-block;
 }
-.cap {
-  display: grid;
-  gap: 7px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  font-size: 12.5px;
-}
-.cap-row {
-  display: grid;
-  grid-template-columns: 46px minmax(60px, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-}
-.cap-bar {
-  position: relative;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  outline: 1px solid var(--line);
-}
-.cap-bar i {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 4px;
-}
-.cap-bar em {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  background: var(--fg);
-  border-radius: 1px;
-}
-.cap-v {
-  color: var(--muted);
-  white-space: nowrap;
-}
-.cap-v b {
-  color: var(--fg);
-}
-.cap-v .w {
-  color: var(--warn);
-}
-.cap-v .ok {
-  color: var(--good);
-}
-.cap details {
-  color: var(--muted);
-  font-size: 12px;
-}
-.cap summary {
-  cursor: pointer;
-}
-
 /* Semaine */
 .wk {
   list-style: none;
@@ -2729,4 +2666,145 @@ details.coach summary {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
+}
+
+/* ===== Volume de la semaine (visuel utilisateur du 09/10) ===== */
+.vol-card {
+  gap: 12px;
+}
+.vol-head {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.vol-head b {
+  color: var(--fg);
+  font-size: 16px;
+}
+.vol-rows {
+  display: grid;
+  gap: 14px;
+}
+.vol-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 11.5em;
+  gap: 10px;
+  align-items: end;
+}
+.vol-svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.vol-icon {
+  align-self: center;
+}
+.vol-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.vol-label {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.vol-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  outline: 1px solid var(--line);
+}
+.vol-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.vol-bar i:first-of-type {
+  border-radius: 5px 0 0 5px;
+}
+.vol-bar i.plan {
+  border-radius: 0 5px 5px 0;
+}
+.vol-bar em {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--fg);
+  border-radius: 1px;
+}
+.vol-bar em.now {
+  opacity: 0.55;
+}
+.vol-bar em.max small {
+  position: absolute;
+  bottom: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vol-v {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+  font-size: 13px;
+}
+.vol-v b {
+  font-size: 14px;
+}
+.vol-v small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.vol-v .w {
+  color: var(--warn);
+}
+.vol-v .ok {
+  color: var(--good);
+}
+.vol-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.vol-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.vol-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+}
+.vol-legend i.done {
+  background: var(--run);
+}
+.vol-legend i.plan {
+  background: color-mix(in srgb, var(--run) 30%, transparent);
+}
+.vol-legend i.mark {
+  width: 2px;
+  height: 12px;
+  background: var(--fg);
+}
+.vol-rule {
+  color: var(--muted);
+  font-size: 12px;
+}
+.vol-rule summary {
+  cursor: pointer;
 }

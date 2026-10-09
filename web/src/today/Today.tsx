@@ -46,7 +46,7 @@ export function Today({
           onChanged={res.reload}
         />
         <FormCard form={t.form} />
-        <VolumeCard volume={t.volume} />
+        <VolumeCard volume={t.volume} routines={t.week.routines} />
         <WeekCard
           week={t.week}
           evenings={t.evenings}

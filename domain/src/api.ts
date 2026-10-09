@@ -205,6 +205,8 @@ export interface CapView extends VolumeCap {
 export interface VolumeView {
   weeks: { start: string; run: number; bike: number; strength: number }[];
   cap: { run: CapView | null; total: CapView | null };
+  /** Minutes prévues par Campus cette semaine, par sport (séances faites ou à faire, hors sautées). */
+  planned: { run: number; strength: number; total: number };
 }
 
 export interface RoutineItemView {
