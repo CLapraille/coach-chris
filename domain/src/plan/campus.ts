@@ -83,6 +83,7 @@ export function fromCampusWeek(
       // Sans le détail des exercices, on suppose un renforcement jambes : c'est le cas le plus prudent pour la règle 3 (D60).
       legs: sport === 'strength' && (legsKnown ? legsFromExercises(exercises) : true),
       legsFrom: sport !== 'strength' ? 'not-strength' : legsKnown ? 'exercises' : 'assumed',
+      sourceSport: s.sport,
       campusRef: { weekId: s.weekId, sessionIndex: s.sessionIndex },
     };
     if (d?.racingNote?.externalId) session.externalActivityId = d.racingNote.externalId;

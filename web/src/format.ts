@@ -1,4 +1,4 @@
-import type { Sport } from '@coach-chris/domain';
+import { sessionShort, type Sport } from '@coach-chris/domain';
 
 /** Formats français de l'interface. Les dates AAAA-MM-JJ sont des jours civils (Paris), sans fuseau. */
 
@@ -74,11 +74,7 @@ export const SPORT_COLOR: Record<Sport, string> = {
   other: 'var(--faint)',
 };
 
-/** Repère court d'une séance Campus : « S2-2 » depuis Retour_Blessure_S2_2 ou « … SEMAINE 2 SEANCE 2 ». */
-export function sessionShort(name: string): string | null {
-  const m = /S(\d+)_(\d+)$/.exec(name) ?? /SEMAINE (\d+) SEANCE (\d+)/i.exec(name);
-  return m ? `S${m[1]}-${m[2]}` : null;
-}
+export { sessionShort };
 
 export function sessionLabel(s: { sport: Sport; name: string; displayName: string }): string {
   const short = sessionShort(s.name);

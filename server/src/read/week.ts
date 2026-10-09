@@ -7,6 +7,7 @@ import {
   weekDays,
   type CachedActivity,
   type Placement,
+  type PushRecord,
   type WeekSession,
   type WeekView,
 } from '@coach-chris/domain';
@@ -18,6 +19,12 @@ export interface WeekData {
   view: WeekView;
   plan: PlanWeek | undefined;
 }
+
+/** Envois sur la montre (D126) : partition `push` du conteneur `ops`, un document par séance. */
+export const PUSH_KIND = 'push';
+export type PushDoc = Doc & PushRecord & { sessionKey: string };
+/** Les clés de séance contiennent « # », interdit dans un identifiant Cosmos. */
+export const pushId = (sessionKey: string) => sessionKey.replace(/[#/\\?]/g, ':');
 
 /** Placement ajusté à la main (D50) : partition `placement` du conteneur `user`, un document par semaine. */
 const KIND = 'placement';
@@ -34,13 +41,15 @@ export async function weekView(store: Store, start: string, today: string): Prom
 /** Semaine et plan source (détails Campus) pour les écrans qui en ont besoin. */
 export async function weekData(store: Store, start: string, today: string): Promise<WeekData> {
   const days = weekDays(start);
-  const [plan, acts, saved, nights, logs] = await Promise.all([
+  const [plan, acts, saved, nights, logs, pushes] = await Promise.all([
     planWeek(store, start),
     activities(store, start, days[6]!),
     store.get<PlacementDoc>('user', start, KIND),
     Promise.all(days.map((d) => night(store, d))),
     routineLogs(store),
+    store.list<PushDoc>('ops', PUSH_KIND),
   ]);
+  const pushByKey = new Map(pushes.map((p) => [p.sessionKey, p]));
   const sessions = plan?.sessions ?? [];
   const { matches, offPlan } = matchWeek(sessions, acts);
   const matchByKey = new Map(matches.map((m) => [m.sessionKey, m]));
@@ -77,6 +86,8 @@ export async function weekData(store: Store, start: string, today: string): Prom
         day: placement[s.key] ?? null,
         fixed: fixedKeys.has(s.key),
       };
+      const pushed = pushByKey.get(s.key);
+      if (pushed) out.pushed = { workoutId: pushed.workoutId, date: pushed.date, at: pushed.at };
       if (m) {
         out.match = { day: m.day, method: m.method, confidence: m.confidence, reason: m.reason };
         if (m.activityId) out.match.activityId = m.activityId;

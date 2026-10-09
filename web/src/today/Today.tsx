@@ -37,7 +37,13 @@ export function Today({
       </div>
       <div className="grid">
         <GoalCard goal={t.goal} today={t.today} />
-        <NextSessionCard next={t.nextSession} then={t.thenSession} today={t.today} onOpen={onOpenSession} />
+        <NextSessionCard
+          next={t.nextSession}
+          then={t.thenSession}
+          today={t.today}
+          onOpen={onOpenSession}
+          onChanged={res.reload}
+        />
         <FormCard form={t.form} />
         <VolumeCard volume={t.volume} />
         <WeekCard

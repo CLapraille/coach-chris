@@ -2,6 +2,7 @@
  * Contrat de l'API du BFF (ARCHITECTURE §4), partagé par `server/` et `web/` :
  * les deux côtés sont vérifiés à la compilation. Une valeur absente est `null`, jamais estimée.
  */
+import type { Annotation } from './actions/actions.ts';
 import type { CampusBlock } from './plan/campus.ts';
 import type { Match, Activity } from './plan/matching.ts';
 import type { Deviation, DeviationRules, Lap } from './plan/deviation.ts';
@@ -75,6 +76,38 @@ export interface WeekSession {
   /** Jour connu (fait ou rattaché) : il ne bouge plus. */
   fixed: boolean;
   match?: Omit<Match, 'sessionKey'>;
+  /** Dernier envoi sur la montre par l'app (D126). */
+  pushed?: PushRecord;
+}
+
+/** Workout Garmin créé par l'app pour une séance. */
+export interface PushRecord {
+  workoutId: string;
+  /** Jour du calendrier Garmin où il est planifié. */
+  date: string;
+  /** Instant de l'envoi, ISO UTC. */
+  at: string;
+}
+
+/** Écritures (D123) : ce que le front demande ; le BFF relit les sources et construit les appels. */
+export type ActionRequest =
+  | { type: 'campus.complete'; sessionKey: string }
+  | { type: 'garmin.push'; sessionKey: string }
+  | { type: 'garmin.annotate'; activityId: string; changes: Annotation };
+
+/** Aperçu lisible d'une écriture ; `token` est à renvoyer tel quel pour confirmer (valable 5 min, une fois). */
+export interface ActionPreview {
+  token: string;
+  expiresAt: string;
+  title: string;
+  target: 'Campus Coach' | 'Garmin Connect';
+  fields: { label: string; value: string }[];
+  warnings: string[];
+}
+
+export interface ActionResult {
+  ok: boolean;
+  message: string;
 }
 
 export interface WeekView {
@@ -105,12 +138,14 @@ export interface LapView extends Lap {
 
 /** Activité Garmin détaillée, gardée en cache une fois lue (une activité terminée ne change plus). */
 export interface ActivityDetail extends CachedActivity {
+  /** Notes de l'activité dans Garmin. */
+  description?: string;
   maxHr?: number;
   trainingEffect?: number;
   trainingEffectLabel?: string;
   trainingLoad?: number;
   avgPowerW?: number;
-  /** Effort perçu et ressenti tels que renvoyés par Garmin (échelle RPE à confirmer, question ouverte n° 5). */
+  /** Effort perçu et ressenti tels que renvoyés par Garmin : RPE ×10 (10 = 1/10, D127), ressenti 0–100. */
   rpe?: number;
   feel?: number;
   laps: LapView[];
@@ -278,7 +313,7 @@ export interface DataStatus {
   log: {
     at: string;
     source: SourceName;
-    origin: 'job' | 'open' | 'button';
+    origin: 'job' | 'open' | 'button' | 'action';
     outcome: 'ok' | 'token-expired' | 'error';
     durationMs: number;
     message?: string;

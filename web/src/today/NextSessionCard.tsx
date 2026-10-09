@@ -1,17 +1,24 @@
-import type { NextSession, SessionBlock, WeekSession } from '@coach-chris/domain';
-import { SPORT_COLOR, longDate, sessionLabel, stepDuration } from '../format.ts';
+import type { ActionRequest, NextSession, SessionBlock, WeekSession } from '@coach-chris/domain';
+import { useState } from 'react';
+import { ActionDialog } from '../actions/ActionDialog.tsx';
+import { SPORT_COLOR, longDate, sessionLabel, shortDate, stepDuration } from '../format.ts';
 
 export function NextSessionCard({
   next,
   then,
   today,
   onOpen,
+  onChanged,
 }: {
   next: NextSession | null;
   then: WeekSession | null;
   today: string;
   onOpen: (key: string) => void;
+  onChanged: () => void;
 }) {
+  const [action, setAction] = useState<ActionRequest | null>(null);
+  // Envoi sur la montre (D126) : course à faire, avec un jour placé.
+  const canPush = next?.sport === 'run' && next.status === 'todo' && !next.match && !!next.day;
   return (
     <article className="card s7">
       <header>
@@ -44,10 +51,23 @@ export function NextSessionCard({
                 </>
               )}
             </span>
-            <button className="btn primary" type="button" onClick={() => onOpen(next.key)}>
-              Détail
-            </button>
+            <span className="nx-acts">
+              {canPush && (
+                <button
+                  className="btn"
+                  type="button"
+                  title={next.pushed ? `Envoyée le ${shortDate(next.pushed.at.slice(0, 10))}` : undefined}
+                  onClick={() => setAction({ type: 'garmin.push', sessionKey: next.key })}
+                >
+                  {next.pushed ? 'Renvoyer sur la montre' : 'Envoyer sur la montre'}
+                </button>
+              )}
+              <button className="btn primary" type="button" onClick={() => onOpen(next.key)}>
+                Détail
+              </button>
+            </span>
           </div>
+          {action && <ActionDialog request={action} onClose={() => setAction(null)} onDone={onChanged} />}
         </>
       ) : (
         <p className="empty">Plus de séance à faire cette semaine.</p>

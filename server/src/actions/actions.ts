@@ -1,0 +1,450 @@
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  annotationChanges,
+  campusRacingNote,
+  FEEL_LABEL,
+  garminWorkout,
+  mondayOf,
+  sessionBlocks,
+  sessionShort,
+  WorkoutError,
+  workoutSeconds,
+  type ActionPreview,
+  type ActionRequest,
+  type ActionResult,
+  type Annotation,
+  type CampusBlock,
+  type PlannedSession,
+  type WeekSession,
+} from '@coach-chris/domain';
+import type { McpCaller, SourceName } from '../mcp/client.ts';
+import type { PlanWeek } from '../read/cache.ts';
+import { pushId, PUSH_KIND, weekData, type PushDoc } from '../read/week.ts';
+import type { Doc, Store } from '../store/store.ts';
+import * as garmin from '../sync/garmin.ts';
+import { pk, type Clock, type Sync } from '../sync/sync.ts';
+
+/** Durée de validité d'un aperçu (ARCHITECTURE §7). */
+const TTL_MS = 5 * 60 * 1000;
+const LOG_TTL_S = 90 * 24 * 3600;
+
+/** Refus lisible, avec le code HTTP à renvoyer au front. */
+export class ActionError extends Error {
+  readonly status: number;
+  constructor(message: string, status = 409) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** Un appel d'outil d'écriture, figé au moment de l'aperçu. */
+interface Step {
+  source: SourceName;
+  tool: string;
+  args: Record<string, unknown>;
+  /** Reçoit en `workout_id` l'identifiant du workout créé par l'étape précédente. */
+  useWorkoutId?: true;
+}
+
+type After =
+  | { kind: 'campus' }
+  | { kind: 'push'; sessionKey: string; date: string }
+  | { kind: 'annotate'; activityId: string; day: string };
+
+/** Contenu signé du jeton d'action : exactement ce que la confirmation exécutera. */
+interface Signed {
+  id: string;
+  exp: number;
+  type: ActionRequest['type'];
+  title: string;
+  steps: Step[];
+  after: After;
+}
+
+export interface ActionDeps {
+  store: Store;
+  sync: Sync;
+  mcp: Partial<Record<SourceName, McpCaller>>;
+  clock: Clock;
+}
+
+const b64 = (b: Buffer | string) => Buffer.from(b).toString('base64url');
+const two = (n: number) => String(n).padStart(2, '0');
+const shortDate = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+const duration = (s: number) => {
+  const r = Math.round(s);
+  const h = Math.floor(r / 3600);
+  const m = Math.floor((r % 3600) / 60);
+  return h ? `${h} h ${two(m)}` : `${m}:${two(r % 60)}`;
+};
+const minutes = (s: number) => (s % 60 ? `${Math.floor(s / 60)}′${two(s % 60)}` : `${s / 60}′`);
+const longDay = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
+
+function sessionTitle(s: { name: string; displayName: string }): string {
+  const short = sessionShort(s.name);
+  return short ? `Course ${short}` : s.displayName;
+}
+
+/** « 4 × (4′ Lent + 1′ Marche) » : les étapes telles que la montre les déroulera. */
+function stepsSummary(blocks: CampusBlock[]): string {
+  return sessionBlocks(blocks)
+    .map((b) => {
+      const inner = b.steps.map((s) => `${minutes(s.seconds)} ${s.name}`).join(' + ');
+      return b.repeat > 1 ? `${b.repeat} × (${inner})` : inner;
+    })
+    .join(', ');
+}
+
+/**
+ * Écritures avec aperçu puis confirmation (D123) : l'aperçu relit les sources et signe les appels exacts,
+ * la confirmation exécute ce qui a été signé, contrôle chaque réponse et journalise.
+ */
+export class Actions {
+  private readonly deps: ActionDeps;
+  /** Clé aléatoire par processus : un seul réplica, aperçus de 5 min (D123). */
+  private readonly key = randomBytes(32);
+  /** Jetons déjà confirmés, jusqu'à leur expiration. */
+  private readonly used = new Map<string, number>();
+
+  constructor(deps: ActionDeps) {
+    this.deps = deps;
+  }
+
+  async preview(req: ActionRequest): Promise<ActionPreview> {
+    const built =
+      req.type === 'campus.complete'
+        ? await this.completePreview(req.sessionKey)
+        : req.type === 'garmin.push'
+          ? await this.pushPreview(req.sessionKey)
+          : await this.annotatePreview(req.activityId, req.changes);
+    const exp = Date.parse(this.deps.clock.now()) + TTL_MS;
+    const signed: Signed = { id: randomUUID(), exp, type: req.type, ...built.signed };
+    const body = b64(JSON.stringify(signed));
+    return {
+      token: `${body}.${this.sign(body)}`,
+      expiresAt: new Date(exp).toISOString(),
+      title: signed.title,
+      target: built.target,
+      fields: built.fields,
+      warnings: built.warnings,
+    };
+  }
+
+  async confirm(token: string): Promise<ActionResult> {
+    const plan = this.verify(token);
+    this.used.set(plan.id, plan.exp);
+    const done: string[] = [];
+    let workoutId: unknown;
+    let result: ActionResult;
+    try {
+      for (const step of plan.steps) {
+        const mcp = this.source(step.source);
+        const args = step.useWorkoutId ? { ...step.args, workout_id: workoutId } : step.args;
+        const res = await mcp.call(step.tool, args, { write: true });
+        if (step.source === 'garmin') {
+          const failure = garmin.writeFailure(res);
+          if (failure) throw new Error(failure);
+          if (step.tool === 'upload_workout') {
+            workoutId = (res as { workout_id?: unknown }).workout_id;
+            if (workoutId === undefined) throw new Error('Garmin n’a pas renvoyé l’identifiant du workout');
+          }
+        } else {
+          const status = (res as { status?: unknown } | null)?.status;
+          if (status === 'unverified') {
+            throw new Error('Campus a reçu la demande, mais la séance n’apparaît pas validée à la relecture');
+          }
+          if (status !== 'success') throw new Error('Réponse inattendue de Campus');
+        }
+        done.push(step.tool);
+      }
+      result = { ok: true, message: await this.after(plan.after, workoutId) };
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      const partial = done.length ? ` Déjà effectué : ${done.join(', ')}.` : '';
+      result = { ok: false, message: `${plan.title} : échec (${why}).${partial}` };
+    }
+    await this.log(plan, result, done);
+    return result;
+  }
+
+  // ------------------------------------------------------------------ aperçus
+
+  private async completePreview(sessionKey: string) {
+    const { session, planned, weekStart } = await this.session(sessionKey);
+    if (session.status !== 'todo') throw new ActionError('Séance déjà validée dans Campus');
+    if (session.sport !== 'run') throw new ActionError('Seules les courses se valident depuis l’app (D125)');
+    const activityId = session.match?.activityId;
+    if (!activityId) throw new ActionError('Aucune activité Garmin rattachée à cette séance');
+    const figures = garmin.activityFigures(
+      await this.source('garmin').call('get_activity', { activity_id: Number(activityId) }),
+    );
+    if (!figures) throw new ActionError('Activité introuvable dans Garmin', 404);
+    const device = await this.deps.store.get<Doc & { name: string }>('cache', 'garmin', 'device');
+    const note = this.guard(() => campusRacingNote(figures, device?.name));
+    const fields = [
+      { label: 'Séance', value: `${sessionTitle(planned)} · ${planned.displayName}` },
+      { label: 'Semaine', value: `du ${shortDate(weekStart)}` },
+      {
+        label: 'Activité Garmin',
+        value: `${figures.name ?? activityId} · ${shortDate(session.match!.day)}`,
+      },
+      { label: 'Rattachement', value: session.match!.reason },
+      { label: 'Distance', value: `${(note.distance as number).toFixed(2).replace('.', ',')} km` },
+      { label: 'Durée', value: duration(note.time as number) },
+      { label: 'Allure', value: `${duration(note.pace as number)} /km` },
+    ];
+    const opt = (label: string, v: unknown, unit = '') => {
+      if (v !== undefined) fields.push({ label, value: `${String(v).replace('.', ',')}${unit}` });
+    };
+    opt('FC moyenne', note.averageHeartRateInBeatsPerMinute, ' bpm');
+    opt('Cadence moyenne', note.averageRunCadenceInStepsPerMinute, ' pas/min');
+    opt('Dénivelé +', note.totalElevationGainInMeters, ' m');
+    opt('Dénivelé −', note.totalElevationLossInMeters, ' m');
+    opt('Calories', note.activeCalories, ' kcal');
+    opt('Montre', note.deviceName);
+    const warnings: string[] = [];
+    if (planned.sourceSport !== 'trailV2') {
+      warnings.push(
+        'Formulaire « route » pas encore confirmé (seul le trail a été capturé) : la relecture après l’envoi dira si Campus l’a accepté.',
+      );
+    }
+    if (session.match!.confidence !== 'sure') {
+      warnings.push(
+        `Rattachement ${session.match!.confidence === 'probable' ? 'probable' : 'incertain'} : vérifie que c’est la bonne activité.`,
+      );
+    }
+    return {
+      target: 'Campus Coach' as const,
+      fields,
+      warnings,
+      signed: {
+        title: 'Valider dans Campus',
+        steps: [
+          {
+            source: 'campus' as const,
+            tool: 'complete_session',
+            args: {
+              week_date: weekStart,
+              session_index: planned.index,
+              session_name: planned.name,
+              racing_note: note,
+            },
+          },
+        ],
+        after: { kind: 'campus' as const },
+      },
+    };
+  }
+
+  private async pushPreview(sessionKey: string) {
+    const { session, planned, details } = await this.session(sessionKey);
+    if (session.sport !== 'run') throw new ActionError('Seules les courses s’envoient sur la montre (D126)');
+    if (session.status !== 'todo' || session.match) throw new ActionError('Séance déjà faite');
+    const today = this.deps.clock.today();
+    if (!session.day || session.day < today)
+      throw new ActionError('La séance n’a pas de jour à venir dans le calendrier');
+    const blocks = details?.exercisesBlocks ?? [];
+    if (!blocks.length) {
+      throw new ActionError('Détail Campus de la séance pas encore lu : actualise Campus dans Données', 422);
+    }
+    const workout = this.guard(() =>
+      garminWorkout({
+        name: sessionTitle(planned),
+        blocks,
+        ...(details?.description && { description: details.description }),
+      }),
+    );
+    const previous = await this.deps.store.get<PushDoc>('ops', pushId(sessionKey), PUSH_KIND);
+    const steps: Step[] = [
+      { source: 'garmin', tool: 'upload_workout', args: { workout_data: workout } },
+      {
+        source: 'garmin',
+        tool: 'schedule_workout',
+        args: { calendar_date: session.day },
+        useWorkoutId: true,
+      },
+    ];
+    // L'ancien workout n'est supprimé qu'une fois le nouveau en place : un échec laisse l'ancien intact.
+    if (previous) {
+      steps.push({
+        source: 'garmin',
+        tool: 'delete_workout',
+        args: { workout_id: Number(previous.workoutId) },
+      });
+    }
+    const fields = [
+      { label: 'Nom', value: workout.workoutName as string },
+      { label: 'Jour', value: longDay(session.day) },
+      { label: 'Étapes', value: stepsSummary(blocks) },
+      { label: 'Durée totale', value: duration(workoutSeconds(blocks)) },
+      { label: 'Cible', value: 'aucune' },
+    ];
+    if (details?.description) fields.push({ label: 'Description', value: details.description });
+    const warnings = previous
+      ? [
+          `Remplace l’envoi du ${shortDate(previous.at.slice(0, 10))} (prévu le ${shortDate(previous.date)}) : l’ancien workout sera supprimé de Garmin.`,
+        ]
+      : [];
+    return {
+      target: 'Garmin Connect' as const,
+      fields,
+      warnings,
+      signed: {
+        title: 'Envoyer sur la montre',
+        steps,
+        after: { kind: 'push' as const, sessionKey, date: session.day },
+      },
+    };
+  }
+
+  private async annotatePreview(activityId: string, wanted: Annotation) {
+    const id = Number(activityId);
+    const summary = garmin.activitySummary(
+      await this.source('garmin').call('get_activity', { activity_id: id }),
+    );
+    if (!summary) throw new ActionError('Activité introuvable dans Garmin', 404);
+    const changes = annotationChanges(summary, wanted);
+    const steps: Step[] = [];
+    const fields = [
+      { label: 'Activité', value: `${summary.name ?? activityId} · ${shortDate(summary.startLocal)}` },
+    ];
+    const write = (tool: string, args: Record<string, unknown>) =>
+      steps.push({ source: 'garmin', tool, args: { activity_id: id, ...args } });
+    if (changes.name !== undefined) {
+      write('set_activity_name', { activity_name: changes.name });
+      fields.push({ label: 'Nom', value: `${summary.name ?? '—'} → ${changes.name}` });
+    }
+    if (changes.description !== undefined) {
+      write('set_activity_description', { description: changes.description });
+      fields.push({ label: 'Description', value: changes.description || '(effacée)' });
+    }
+    if (changes.rpe !== undefined) {
+      write('set_perceived_effort', { rpe: changes.rpe });
+      const before = summary.rpe !== undefined ? `${summary.rpe / 10}/10` : '—';
+      fields.push({ label: 'Effort perçu', value: `${before} → ${changes.rpe}/10` });
+    }
+    if (changes.feel !== undefined) {
+      write('set_activity_feel', { feel: changes.feel });
+      const before =
+        summary.feel !== undefined
+          ? (FEEL_LABEL[summary.feel as keyof typeof FEEL_LABEL] ?? String(summary.feel))
+          : '—';
+      fields.push({ label: 'Ressenti', value: `${before} → ${FEEL_LABEL[changes.feel]}` });
+    }
+    if (!steps.length) throw new ActionError('Rien à modifier : ce sont déjà les valeurs de Garmin', 422);
+    return {
+      target: 'Garmin Connect' as const,
+      fields,
+      warnings: [] as string[],
+      signed: {
+        title: 'Annoter dans Garmin',
+        steps,
+        after: { kind: 'annotate' as const, activityId, day: summary.startLocal.slice(0, 10) },
+      },
+    };
+  }
+
+  // ------------------------------------------------------------------ outils
+
+  private async session(sessionKey: string): Promise<{
+    session: WeekSession;
+    planned: PlannedSession;
+    weekStart: string;
+    details: ReturnType<PlanWeek['details']['get']>;
+  }> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionKey.slice(0, 10)))
+      throw new ActionError('Séance introuvable', 404);
+    const weekStart = mondayOf(sessionKey.slice(0, 10));
+    const { view, plan } = await weekData(this.deps.store, weekStart, this.deps.clock.today());
+    const session = view.sessions.find((s) => s.key === sessionKey);
+    const planned = plan?.sessions.find((s) => s.key === sessionKey);
+    if (!session || !planned) throw new ActionError('Séance introuvable', 404);
+    return { session, planned, weekStart, details: plan?.details.get(planned.index) };
+  }
+
+  private source(name: SourceName): McpCaller {
+    const mcp = this.deps.mcp[name];
+    if (!mcp) throw new ActionError(`${name === 'garmin' ? 'Garmin' : 'Campus'} non joignable`, 503);
+    return mcp;
+  }
+
+  private guard<T>(f: () => T): T {
+    try {
+      return f();
+    } catch (e) {
+      if (e instanceof WorkoutError) throw new ActionError(e.message, 422);
+      throw e;
+    }
+  }
+
+  private sign(body: string): string {
+    return createHmac('sha256', this.key).update(body).digest('base64url');
+  }
+
+  private verify(token: string): Signed {
+    const [body = '', mac = ''] = token.split('.');
+    const expected = Buffer.from(this.sign(body));
+    const given = Buffer.from(mac);
+    const now = Date.parse(this.deps.clock.now());
+    for (const [id, exp] of this.used) if (exp < now) this.used.delete(id);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+      throw new ActionError('Aperçu invalide : refais l’aperçu', 400);
+    }
+    const plan = JSON.parse(Buffer.from(body, 'base64url').toString()) as Signed;
+    if (plan.exp < now || this.used.has(plan.id)) {
+      throw new ActionError('Aperçu expiré ou déjà utilisé : refais l’aperçu', 410);
+    }
+    return plan;
+  }
+
+  /** Effets côté app après une écriture réussie ; renvoie le message affiché. */
+  private async after(after: After, workoutId: unknown): Promise<string> {
+    const { store, sync, clock } = this.deps;
+    if (after.kind === 'campus') {
+      // Relire Campus tout de suite : la séance passe « faite » à l'écran.
+      await sync.run('campus', 'action');
+      return 'Séance validée dans Campus.';
+    }
+    if (after.kind === 'push') {
+      await store.upsert('ops', {
+        id: pushId(after.sessionKey),
+        kind: PUSH_KIND,
+        source: 'app',
+        fetchedAt: clock.now(),
+        schemaVersion: 1,
+        sessionKey: after.sessionKey,
+        workoutId: String(workoutId),
+        date: after.date,
+        at: clock.now(),
+      } satisfies PushDoc);
+      return `Séance envoyée dans le calendrier Garmin pour ${longDay(after.date)}. Elle arrive sur la montre à sa prochaine synchronisation.`;
+    }
+    // Le détail en cache (nom, effort, ressenti) est relu à la prochaine ouverture ; la liste des activités aussi.
+    await store.delete('cache', after.activityId, pk('detail', after.day));
+    sync.run('garmin', 'action').catch(() => undefined);
+    return 'Activité annotée dans Garmin.';
+  }
+
+  private async log(plan: Signed, result: ActionResult, done: string[]): Promise<void> {
+    const now = this.deps.clock.now();
+    await this.deps.store.upsert('ops', {
+      id: `${now}:action`,
+      kind: 'action-log',
+      source: 'app',
+      fetchedAt: now,
+      schemaVersion: 1,
+      type: plan.type,
+      title: plan.title,
+      outcome: result.ok ? 'ok' : 'error',
+      message: result.message,
+      tools: done,
+      ttl: LOG_TTL_S,
+    });
+  }
+}

@@ -10,7 +10,8 @@ import { ToolError, type McpCaller, type SourceName } from '../mcp/client.ts';
 import type { Doc, Store } from '../store/store.ts';
 import * as garmin from './garmin.ts';
 
-export type SyncOrigin = 'job' | 'open' | 'button';
+/** `action` : relecture après une écriture confirmée (D123). */
+export type SyncOrigin = 'job' | 'open' | 'button' | 'action';
 export type SyncOutcome = 'ok' | 'token-expired' | 'error';
 
 export interface SyncResult {

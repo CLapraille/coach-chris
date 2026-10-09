@@ -1,4 +1,5 @@
-"""Read-only MCP server for Campus Coach (https://campus.coach).
+"""MCP server for Campus Coach (https://campus.coach): reads, plus one write
+(complete_session) that the CoachChris BFF only calls after an explicit confirmation.
 
 Uses the same private API as the web app (https://api.campus.coach), with
 tokens captured once by `campus-coach-auth` and refreshed automatically.
@@ -86,6 +87,18 @@ class CampusClient:
         if r.status_code >= 400:
             raise RuntimeError(f"Campus Coach API {path} -> {r.status_code}: {r.text[:300]}")
         return r.json()
+
+    def put(self, path: str, body: dict):
+        # Same headers as the web app's own call (captured once, see DECISIONS D18).
+        headers = {"X-Platform": "WEB", "X-TimeZone": "Europe/Paris"}
+        for attempt in range(2):
+            atk = self._access_token(force_refresh=attempt > 0)
+            r = self._http.put(path, json=body, headers={**headers, "Authorization": f"Bearer {atk}"})
+            if r.status_code != 401:
+                break
+        if r.status_code >= 400:
+            raise RuntimeError(f"Campus Coach API {path} -> {r.status_code}: {r.text[:300]}")
+        return r.json() if r.content else None
 
 
 client = CampusClient()
@@ -225,6 +238,71 @@ def get_session_details(week_id: str, session_index: int) -> str:
     s["weekId"], s["sessionIndex"] = week_id, session_index
     s["estimatedPaces"] = week.get("estimatedPaces")
     return json.dumps(_readable(s), ensure_ascii=False)
+
+
+# Form type sent with a completion, per sport. Only trailV2 was captured; road is a best guess
+# that the post-call check confirms or refutes.
+_RACING_NOTE_FORMS = {"trailV2": "SmartTrailV2RacingNoteForm", "road": "SmartRacingNoteForm"}
+_RACING_NOTE_FIELDS = (
+    "completionDate", "distance", "time", "pace", "activeCalories",
+    "averageHeartRateInBeatsPerMinute", "averageRunCadenceInStepsPerMinute",
+    "totalElevationGainInMeters", "totalElevationLossInMeters", "externalId", "name", "deviceName",
+)
+
+
+def _plan_session(week_date: str, session_index: int) -> tuple[str, dict]:
+    """Current weekId and session for a week (weekIds change whenever the plan is regenerated)."""
+    d0 = _parse_date(week_date)
+    data = client.get(
+        "/smart-training/enriched",
+        params={"from": _ms(d0), "to": _ms(d0 + timedelta(days=7)) - 1},
+    )
+    for w in data.get("weeks", []):
+        if _readable({"weekDate": w.get("weekDate")})["weekDate"][:10] == week_date:
+            sessions = w.get("sessions", [])
+            if 0 <= session_index < len(sessions):
+                return w["_id"], sessions[session_index]
+    raise ValueError(f"No session {session_index} in the week of {week_date}.")
+
+
+@mcp.tool()
+def complete_session(week_date: str, session_index: int, session_name: str, racing_note: dict) -> str:
+    """WRITE. Mark a planned Campus Coach session as done, linked to a watch activity.
+
+    The plan is re-read first: the session is found by week date (YYYY-MM-DD, Monday),
+    index and name, and refused if the plan changed or the session is not 'todo'.
+    racing_note holds the activity figures (completionDate epoch ms, distance km,
+    time s, pace s/km, activeCalories, averageHeartRateInBeatsPerMinute,
+    averageRunCadenceInStepsPerMinute, totalElevationGainInMeters,
+    totalElevationLossInMeters, externalId, name, deviceName). The session is read
+    again afterwards to check that Campus recorded it."""
+    week_id, s = _plan_session(week_date, session_index)
+    if s.get("name") != session_name:
+        raise ValueError(f"Plan changed: session {session_index} is now '{s.get('name')}'.")
+    if s.get("status") != "todo":
+        raise ValueError(f"Session '{session_name}' is '{s.get('status')}', not 'todo'.")
+    form = _RACING_NOTE_FORMS.get(s.get("sport"))
+    if not form:
+        raise ValueError(f"Completing a '{s.get('sport')}' session is not supported.")
+    note = {k: racing_note[k] for k in _RACING_NOTE_FIELDS if racing_note.get(k) is not None}
+    if not note.get("externalId"):
+        raise ValueError("racing_note.externalId (Garmin activity id) is required.")
+    note.update({
+        "_t": form, "source": "garmin", "sessionRating": 0,
+        "sessionComment": "", "sessionConditions": None,
+    })
+    client.put(f"/smart-training/session/{week_id}/{session_index}/complete", {"racingNote": note})
+
+    week_id, after = _plan_session(week_date, session_index)
+    recorded = (after.get("racingNote") or {}).get("externalId")
+    ok = after.get("status") == "done" and str(recorded) == str(note["externalId"])
+    return json.dumps({
+        "status": "success" if ok else "unverified",
+        "session": session_name,
+        "sessionStatus": after.get("status"),
+        "externalId": recorded,
+        "form": form,
+    }, ensure_ascii=False)
 
 
 @mcp.tool()

@@ -114,7 +114,8 @@ var bffEnv = [
   { name: 'ALLOWED_OID', value: userObjectId }
 ]
 
-// Liste blanche côté MCP (ARCHITECTURE §6) : lecture seule en V1 ; les écritures arriveront avec M5.
+// Liste blanche côté MCP (ARCHITECTURE §6) : lectures + écritures confirmées (D123), rien d'autre
+// (pas de nutrition, de poids ni de suppression en masse).
 var garminTools = join([
   'get_activities_by_date'
   'get_activity'
@@ -128,6 +129,13 @@ var garminTools = join([
   'get_weigh_ins'
   'get_devices'
   'get_device_last_used'
+  'upload_workout'
+  'schedule_workout'
+  'delete_workout'
+  'set_activity_name'
+  'set_activity_description'
+  'set_perceived_effort'
+  'set_activity_feel'
 ], ',')
 
 // Volume des jetons : propriétaire 1000 (utilisateur des images MCP), lecture réservée.
