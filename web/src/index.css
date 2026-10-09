@@ -2859,7 +2859,7 @@ details.coach summary {
   height: 32px;
   padding: 0;
 }
-/* Contour : montre en couleur Garmin (destination de l'envoi), Détail en couleur Campus (origine de la séance). */
+/* Contour : montre en couleur Garmin (destination de l'envoi), Détail en couleur du texte (blanc en thème sombre). */
 .btn.icon.watch,
 .btn.icon.detail {
   background: transparent;
@@ -2870,14 +2870,14 @@ details.coach summary {
   color: var(--src-garmin);
 }
 .btn.icon.detail {
-  border-color: var(--src-campus);
-  color: var(--src-campus);
+  border-color: var(--fg);
+  color: var(--fg);
 }
 .btn.icon.watch:hover {
   background: color-mix(in srgb, var(--src-garmin) 14%, transparent);
 }
 .btn.icon.detail:hover {
-  background: color-mix(in srgb, var(--src-campus) 14%, transparent);
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
 }
 .btn.icon svg {
   width: 18px;
