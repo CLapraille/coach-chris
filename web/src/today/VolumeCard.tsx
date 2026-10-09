@@ -14,7 +14,10 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
   return (
     <article className="card s7 vol-card">
       <header>
-        <span className="label">Volume de la semaine (minutes)</span>
+        <span className="label">
+          <span className="wide-only">Volume de la semaine (minutes)</span>
+          <span className="phone-only">Volume (min)</span>
+        </span>
         <span>
           <span className="src garmin">Garmin</span> <span className="src campus">Campus</span>
         </span>

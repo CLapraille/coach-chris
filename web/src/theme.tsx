@@ -17,6 +17,12 @@ export function storedTheme(): Theme {
 export function applyTheme(t: Theme): void {
   if (t === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
+  // Barre d'état du téléphone : couleur du fond du thème choisi (index.html suit le système en Auto).
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
+    const system = m.dataset.media ?? m.media;
+    m.dataset.media = system;
+    m.media = t === 'auto' ? system : (t === 'dark') === system.includes('dark') ? 'all' : 'not all';
+  });
 }
 
 const LABEL: Record<Theme, string> = { auto: 'Auto', dark: 'Sombre', light: 'Clair' };

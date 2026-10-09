@@ -390,7 +390,7 @@ function Freshness({ status }: { status: DataStatus }) {
         <span className="label">Fraîcheur des données</span>
         <span className="muted text-xs">14 derniers jours</span>
       </header>
-      <div className="tbl">
+      <div className="tbl stack">
         <table>
           <thead>
             <tr>
@@ -404,9 +404,13 @@ function Freshness({ status }: { status: DataStatus }) {
             {rows.map(([name, src, last, gap]) => (
               <tr key={name}>
                 <td>{name}</td>
-                <td className="muted">{src}</td>
-                <td className="mono">{last}</td>
-                <td>{gap}</td>
+                <td className="muted" data-label="Source">
+                  {src}
+                </td>
+                <td className="mono" data-label="Dernière">
+                  {last}
+                </td>
+                <td data-label="Manques">{gap}</td>
               </tr>
             ))}
           </tbody>

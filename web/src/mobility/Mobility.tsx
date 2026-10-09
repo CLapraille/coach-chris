@@ -190,7 +190,7 @@ function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
             />
           ) : (
             <>
-              <div className="tbl">
+              <div className="tbl stack">
                 <table className="tests">
                   <thead>
                     <tr>
@@ -206,7 +206,7 @@ function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
                       return (
                         <tr key={t.key}>
                           <td>{t.name}</td>
-                          <td className={`r ${r ? '' : 'faint'}`}>
+                          <td className={`r ${r ? '' : 'faint'}`} data-label="Dernier résultat">
                             {r ? (
                               <>
                                 {formatResult(t, r.value as Side<number | string>)}{' '}
@@ -216,8 +216,12 @@ function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
                               'pas encore fait'
                             )}
                           </td>
-                          <td className="r muted">{t.benchmark}</td>
-                          <td className="muted">{t.zone}</td>
+                          <td className="r muted" data-label="Repère">
+                            {t.benchmark}
+                          </td>
+                          <td className="muted" data-label="Zone">
+                            {t.zone}
+                          </td>
                         </tr>
                       );
                     })}
