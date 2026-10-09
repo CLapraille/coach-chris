@@ -1,5 +1,9 @@
 {
-  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/*"] },
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/*.png", "/manifest.webmanifest"]
+  },
+  "mimeTypes": { ".webmanifest": "application/manifest+json" },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",

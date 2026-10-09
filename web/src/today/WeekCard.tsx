@@ -128,7 +128,11 @@ function SessionLine({
         {sessionLabel(s)}
       </button>{' '}
       · {s.durationMin} min
-      {isNext && <span className="wk-tag">prochaine séance</span>}
+      {isNext && (
+        <span className="wk-tag">
+          prochaine<span className="wide-only"> séance</span>
+        </span>
+      )}
       {doneOrLinked && (
         <span
           className="ok"
@@ -159,6 +163,8 @@ function NextPanel({
         {next.blocks.map((b, i) => (
           <Block key={i} block={b} color={SPORT_COLOR[next.sport]} />
         ))}
+        {/* Sur téléphone la barre est trop étroite pour ses libellés : la séance est aussi écrite en clair. */}
+        <p className="nx-text phone-only">{next.blocks.map(blockText).join(' puis ')}</p>
         {next.description && <p className="nx-sub">{next.description}</p>}
       </div>
       <span className="wk-next-acts">
@@ -210,6 +216,12 @@ const DetailIcon = () =>
       <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" />
     </>,
   );
+
+/** « 4 × (4′ Lent + 1′ Marche) » */
+function blockText(block: SessionBlock): string {
+  const steps = block.steps.map((s) => `${stepDuration(s.seconds)} ${s.name}`).join(' + ');
+  return block.repeat > 1 ? `${block.repeat} × (${steps})` : steps;
+}
 
 function Block({ block, color }: { block: SessionBlock; color: string }) {
   const label = block.steps.map((s) => `${s.name} ${stepDuration(s.seconds)}`).join(', ');

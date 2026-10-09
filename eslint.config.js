@@ -7,7 +7,10 @@ export default tseslint.config(
   { ignores: ['**/dist/**', '**/coverage/**', 'mcp/**', 'docs/**', '**/*.tsbuildinfo'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { files: ['server/**/*.ts', '*.ts', '*.js'], languageOptions: { globals: globals.node } },
+  {
+    files: ['server/**/*.ts', '*.ts', '*.js', '**/scripts/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ['web/**/*.{ts,tsx}'],
     languageOptions: { globals: globals.browser },
