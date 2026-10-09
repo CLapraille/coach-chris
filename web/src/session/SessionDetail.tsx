@@ -122,8 +122,8 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
         </div>
         <div className="badges">
           <span className={`badge ${badge.cls}`}>{badge.text}</span>
-          <span className="src">Campus</span>
-          {a && <span className="src">Garmin</span>}
+          <span className="src campus">Campus</span>
+          {a && <span className="src garmin">Garmin</span>}
         </div>
       </div>
 
@@ -154,7 +154,7 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
             <section className="card" aria-label="Fréquence cardiaque par tour">
               <header>
                 <span className="label">FC par tour (bpm)</span>
-                <span className="src">Garmin</span>
+                <span className="src garmin">Garmin</span>
               </header>
               <HrChart laps={a.laps} steps={d?.steps} cap={view.rules.runMaxHr} />
               <span className="muted text-xs">Moyennes par tour.</span>
@@ -300,7 +300,7 @@ function Intervals({ view, activity: a }: { view: SessionView; activity: Activit
     <section className="card" aria-label="Respect des intervalles">
       <header>
         <span className="label">Respect des intervalles</span>
-        <span className="src">Calculé</span>
+        <span className="src calc">Calculé</span>
       </header>
       <div className="tl">
         <span className="k">Prévu</span>
@@ -536,7 +536,7 @@ function Zones({ zones }: { zones: ActivityDetail['zones'] }) {
     <section className="card" aria-label="Zones de fréquence cardiaque">
       <header>
         <span className="label">Zones FC</span>
-        <span className="src">Garmin</span>
+        <span className="src garmin">Garmin</span>
       </header>
       <div className="zbar" role="img" aria-label="Temps passé dans chaque zone">
         {sorted.map((z) =>

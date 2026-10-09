@@ -58,7 +58,7 @@ export function Week({
       <div className="notice">
         {editable ? (
           <>
-            <span className="src">Calculé</span>
+            <span className="src calc">Calculé</span>
             <span>
               {week.manual
                 ? 'Placement ajusté à la main.'
@@ -81,8 +81,8 @@ export function Week({
           </>
         ) : week.plan ? (
           <>
-            <span className="src">Garmin</span>
-            <span className="src">Campus</span>
+            <span className="src garmin">Garmin</span>
+            <span className="src campus">Campus</span>
             <span>
               {end < today
                 ? 'Semaine terminée : séances rattachées aux activités Garmin.'

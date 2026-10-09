@@ -40,14 +40,26 @@ it('affiche les 4 onglets de la V1 et change d’onglet', async () => {
 it('Aujourd’hui : séance, forme et poids sur les données de l’API, absences signalées', async () => {
   render(<App />);
   await screen.findByRole('heading', { name: 'Jeudi 8 octobre' });
-  expect(screen.getByRole('heading', { name: 'Course S2-2' })).toBeTruthy();
-  expect(screen.getByRole('img', { name: /Lent 2′, Marche 1′\. À répéter 12 fois/ })).toBeTruthy();
-  expect(screen.getByText('Renforcement S2-2, 30 min')).toBeTruthy();
+  // Prochaine séance dépliée dans « Cette semaine » : étapes et accès au détail.
+  const next = screen.getByLabelText('Prochaine séance : Course S2-2');
+  expect(within(next).getByRole('img', { name: /Lent 2′, Marche 1′\. À répéter 12 fois/ })).toBeTruthy();
+  expect(within(next).getByRole('button', { name: 'Détail' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Renforcement S2-2' })).toBeTruthy();
   expect(screen.getByText('83,4 kg')).toBeTruthy();
   expect(screen.getByRole('img', { name: 'en baisse' }).textContent).toBe('−0,7 kg');
-  // Body Battery absent : « indisponible », jamais une valeur inventée.
-  expect(screen.getAllByText('indisponible')).toHaveLength(1);
+  // Forme ce matin : Body Battery au réveil, sommeil, préparation (écart avec la veille), récupération.
+  expect(screen.getByRole('img', { name: 'Body Battery au réveil 78 sur 100' })).toBeTruthy();
+  expect(screen.getByText('+59 cette nuit')).toBeTruthy();
+  expect(screen.getByText('Bon sommeil')).toBeTruthy();
+  expect(screen.getByText('+3 vs hier')).toBeTruthy();
+  expect(screen.getByText('11,1 h')).toBeTruthy();
+  expect(screen.queryAllByText('indisponible')).toHaveLength(0);
   expect(screen.getByText("Pas encore 4 semaines d'historique : pas de repère.")).toBeTruthy();
+  // Signaux : points surveillés, une absence de repère reste dite.
+  const watched = screen.getByLabelText('Points surveillés');
+  expect(within(watched).getByText('sous la plage')).toBeTruthy();
+  expect(within(watched).getByText('pas encore de repère')).toBeTruthy();
+  expect(within(watched).getByText('règles respectées')).toBeTruthy();
 });
 
 it('barre latérale : jeton Campus expiré et nuit manquante', async () => {

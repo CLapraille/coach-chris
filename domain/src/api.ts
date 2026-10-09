@@ -33,9 +33,11 @@ export interface Night {
     baselineHighMs: number;
     status?: string;
   } | null;
-  sleep: { seconds: number; score?: number; awakeSeconds?: number } | null;
+  /** `qualifier` : appréciation Garmin du score (EXCELLENT, GOOD, FAIR, POOR). */
+  sleep: { seconds: number; score?: number; qualifier?: string; awakeSeconds?: number } | null;
   readiness: { score: number; level?: string; recoveryHours?: number } | null;
-  bodyBattery: { sleepGain?: number; level?: string } | null;
+  /** `wake` : Body Battery au réveil (dernière valeur de la nuit). */
+  bodyBattery: { sleepGain?: number; wake?: number; level?: string } | null;
   /** Stress de la journée : moyenne et part du temps mesuré au repos (niveau ≤ 25). */
   stress: { avg: number; restPercent?: number } | null;
 }
@@ -203,6 +205,8 @@ export interface CapView extends VolumeCap {
 export interface VolumeView {
   weeks: { start: string; run: number; bike: number; strength: number }[];
   cap: { run: CapView | null; total: CapView | null };
+  /** Minutes prévues par Campus cette semaine, par sport (séances faites ou à faire, hors sautées). */
+  planned: { run: number; strength: number; total: number };
 }
 
 export interface RoutineItemView {
@@ -272,6 +276,8 @@ export interface TodayView {
     /** VFC des 8 dernières nuits ; `null` = nuit absente. */
     hrvHistory: { day: string; ms: number | null }[];
     weight: WeightTrend | null;
+    /** Score de disponibilité de la veille, pour l'écart ; `null` si absent. */
+    readinessYesterday: number | null;
   };
   volume: VolumeView;
   week: WeekView;

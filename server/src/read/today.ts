@@ -94,6 +94,7 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
       stressYesterday: yesterday?.stress ?? null,
       hrvHistory: nightDays.map((day, i) => ({ day, ms: nights[i]?.hrv?.lastNightMs ?? null })),
       weight: weightTrend(weights),
+      readinessYesterday: yesterday?.readiness?.score ?? null,
     },
     volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday),
     week,
@@ -142,6 +143,7 @@ function volume(
   const counted = sessions.filter((s) => s.status !== 'skipped' && s.sport !== 'walk' && s.sport !== 'other');
   const planned = {
     run: counted.filter((s) => s.sport === 'run').reduce((n, s) => n + s.durationMin, 0),
+    strength: counted.filter((s) => s.sport === 'strength').reduce((n, s) => n + s.durationMin, 0),
     total: counted.reduce((n, s) => n + s.durationMin, 0),
   };
   const capOf = (values: number[], plannedMin: number): CapView | null => {
@@ -157,5 +159,6 @@ function volume(
       ),
       total: capOf(previous.map(total), planned.total),
     },
+    planned,
   };
 }

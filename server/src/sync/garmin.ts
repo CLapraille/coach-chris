@@ -61,12 +61,21 @@ export function sleep(raw: unknown): Night['sleep'] {
   if (!d || typeof d.sleepTimeSeconds !== 'number' || d.sleepTimeSeconds <= 0) return null;
   const out: NonNullable<Night['sleep']> = { seconds: d.sleepTimeSeconds };
   if (typeof d.awakeSleepSeconds === 'number') out.awakeSeconds = d.awakeSleepSeconds;
-  const score = (d.sleepScores as { overall?: { value?: unknown } } | undefined)?.overall?.value;
-  if (typeof score === 'number') out.score = score;
+  const overall = (d.sleepScores as { overall?: { value?: unknown; qualifierKey?: unknown } } | undefined)
+    ?.overall;
+  if (typeof overall?.value === 'number') out.score = overall.value;
+  if (typeof overall?.qualifierKey === 'string') out.qualifier = overall.qualifierKey;
   return out;
 }
 
 /** Garmin recalcule la disponibilité dans la journée ; on garde celle du réveil, à défaut la plus récente. */
+/** Body Battery au réveil : dernière valeur de la série de la nuit (get_sleep_data). */
+export function wakeBodyBattery(raw: unknown): number | undefined {
+  const series = (raw as { sleepBodyBattery?: { value?: unknown }[] } | null)?.sleepBodyBattery;
+  const last = Array.isArray(series) ? series.at(-1)?.value : undefined;
+  return typeof last === 'number' ? last : undefined;
+}
+
 export function readiness(raw: unknown): Night['readiness'] {
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const list = raw as { context?: string; score?: unknown; level?: unknown; recovery_time_hours?: unknown }[];

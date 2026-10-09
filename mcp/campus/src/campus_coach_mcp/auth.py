@@ -29,8 +29,13 @@ SNIPPET = (
     ".then(r=>r.text()).then(console.log)"
 )
 
-# DevTools' copy() puts the value on the clipboard without printing it.
-COPY_SNIPPET = "copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}))"
+# DevTools' copy() puts the value on the clipboard without printing it. The tokens are then removed
+# from the page and the tab leaves Campus: the web app can no longer refresh with this refresh token,
+# which would invalidate the copy (rotating tokens). No sign-out call, which would revoke the session.
+COPY_SNIPPET = (
+    "copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}));"
+    "localStorage.removeItem('atk');localStorage.removeItem('rtk');location.replace('about:blank')"
+)
 
 
 def _save(raw: str) -> str:

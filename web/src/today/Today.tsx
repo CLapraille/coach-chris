@@ -4,7 +4,6 @@ import { clock, longDate } from '../format.ts';
 import { FormCard } from './FormCard.tsx';
 import { GoalCard } from './GoalCard.tsx';
 import { MobilityCard } from './MobilityCard.tsx';
-import { NextSessionCard } from './NextSessionCard.tsx';
 import { SignalsCard } from './SignalsCard.tsx';
 import { VolumeCard } from './VolumeCard.tsx';
 import { WeekCard } from './WeekCard.tsx';
@@ -37,29 +36,26 @@ export function Today({
         {status && <Freshness status={status} />}
       </div>
       <div className="grid">
-        <GoalCard goal={t.goal} today={t.today} />
-        <NextSessionCard
-          next={t.nextSession}
-          then={t.thenSession}
-          today={t.today}
-          onOpen={onOpenSession}
-          onChanged={res.reload}
-        />
+        {/* Ordre choisi par l'utilisateur (D138) : forme, semaine, objectif, volume, mobilité, signaux. */}
         <FormCard form={t.form} />
-        <VolumeCard volume={t.volume} />
         <WeekCard
           week={t.week}
+          next={t.nextSession}
           evenings={t.evenings}
           today={t.today}
+          onOpen={onOpenSession}
           onOpenCalendar={() => onNavigate('Calendrier')}
+          onChanged={res.reload}
         />
+        <GoalCard goal={t.goal} today={t.today} />
+        <VolumeCard volume={t.volume} routines={t.week.routines} />
         <MobilityCard
           mobility={t.mobility}
           today={t.today}
           onChanged={res.reload}
           onOpenMobility={() => onNavigate('Mobilité')}
         />
-        <SignalsCard signals={t.signals} />
+        <SignalsCard signals={t.signals} today={t} />
       </div>
       <footer className="note">
         Sources : Garmin Connect (disponibilité, VFC, sommeil, Body Battery, stress, activités, poids) et

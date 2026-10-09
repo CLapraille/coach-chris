@@ -230,6 +230,18 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     }
   });
 
+  // Reconnexion Campus depuis n'importe quel navigateur (D133) : le corps contient des secrets, jamais journalisé.
+  app.post('/api/sources/campus/session', async (req, reply) => {
+    const b = z.object({ pasted: z.string().min(1).max(10_000) }).safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'texte collé manquant' });
+    try {
+      return await actions.campusSession(b.data.pasted);
+    } catch (e) {
+      if (e instanceof ActionError) return reply.code(e.status).send({ error: e.message });
+      throw e;
+    }
+  });
+
   app.post('/api/sync', async (req, reply) => {
     const q = z.object({ source: z.enum(['garmin', 'campus']).optional() }).safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'source doit valoir garmin ou campus' });

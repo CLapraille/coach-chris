@@ -101,3 +101,23 @@ describe('adaptateurs Garmin', () => {
     expect(garmin.stress({ avgStressLevel: -1 })).toBeNull();
   });
 });
+
+describe('nuit : Body Battery au réveil et appréciation du sommeil (relevé du 09/10)', () => {
+  const raw = {
+    dailySleepDTO: { sleepTimeSeconds: 23820, sleepScores: { overall: { value: 80, qualifierKey: 'GOOD' } } },
+    sleepBodyBattery: [
+      { value: 19, startGMT: 1791495180000 },
+      { value: 78, startGMT: 1791518940000 },
+    ],
+  };
+
+  it('le réveil = dernière valeur de la série de la nuit ; l’appréciation vient de Garmin', () => {
+    expect(garmin.wakeBodyBattery(raw)).toBe(78);
+    expect(garmin.sleep(raw)).toEqual({ seconds: 23820, score: 80, qualifier: 'GOOD' });
+  });
+
+  it('série absente : pas de valeur au réveil', () => {
+    expect(garmin.wakeBodyBattery({ dailySleepDTO: {} })).toBeUndefined();
+    expect(garmin.wakeBodyBattery({ sleepBodyBattery: [] })).toBeUndefined();
+  });
+});
