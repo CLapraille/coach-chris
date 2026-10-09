@@ -6,9 +6,8 @@ import { decimal } from '../format.ts';
  * (clair) et le repère (trait « max », D90). Le vélo n'a ni plan ni repère : rien n'est inventé pour lui.
  */
 export function VolumeCard({ volume, routines }: { volume: VolumeView; routines: WeekView['routines'] }) {
-  const { run, total } = volume.cap;
+  const { run } = volume.cap;
   const week = volume.weeks.at(-1) ?? { run: 0, bike: 0, strength: 0 };
-  const doneTotal = week.run + week.bike + week.strength;
   // Mobilité : routines cochées (matin et soir) sur les 7 jours de la semaine ; leur durée n'est pas enregistrée.
   const days = Object.values(routines);
   const mobilityDone = days.reduce((n, d) => n + Number(d.morning) + Number(d.evening), 0);
@@ -20,12 +19,6 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           <span className="src garmin">Garmin</span> <span className="src campus">Campus</span>
         </span>
       </header>
-      <p className="vol-head">
-        volume actuel / repère total ={' '}
-        <b className="num">
-          {Math.round(doneTotal)} / {total ? `${Math.round(total.cap)} min` : '—'}
-        </b>
-      </p>
       <div className="vol-rows">
         <Row
           icon={<RunIcon />}
@@ -58,17 +51,6 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           unit="routines"
           note="matin et soir"
         />
-        <Row
-          icon={<TrophyIcon />}
-          label="Total"
-          parts={[
-            { minutes: week.run, color: 'var(--run)' },
-            { minutes: week.bike, color: 'var(--bike)' },
-            { minutes: week.strength, color: 'var(--strength)' },
-          ]}
-          cap={total}
-          plannedColor="color-mix(in srgb, var(--fg) 18%, transparent)"
-        />
       </div>
       <div className="vol-legend">
         <span>
@@ -82,16 +64,14 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
         </span>
         <span className="muted">Marches exclues</span>
       </div>
-      {run || total ? (
+      {run ? (
         <details className="vol-rule">
           <summary>Règle</summary>
           Le plan Campus prime. Un dépassement est un point d'attention, pas une interdiction. Repère = 1,3 ×
           moyenne des 4 semaines complètes précédentes (ratio charge aiguë / chronique)
-          {run && `. Course : 1,3 × ${decimal(run.mean)} min`}
-          {total && `. Total course + vélo + renforcement : 1,3 × ${decimal(total.mean)} min`}. « Sous le
-          repère » ou « au-dessus » compare le prévu de la semaine au repère. Une séance validée dans Campus
-          sans montre compte pour sa durée prévue. Repère courant en préparation physique, pas une
-          prescription médicale.
+          {`. Course : 1,3 × ${decimal(run.mean)} min`}. « Sous le repère » ou « au-dessus » compare le prévu
+          de la semaine au repère. Une séance validée dans Campus sans montre compte pour sa durée prévue.
+          Repère courant en préparation physique, pas une prescription médicale.
         </details>
       ) : (
         <p className="empty">Pas encore 4 semaines d'historique : pas de repère.</p>
@@ -227,12 +207,5 @@ const StretchIcon = () =>
     <>
       <circle cx="12" cy="4.5" r="1.8" />
       <path d="M4 9l8 1 8-1M12 10v5l-4 6M12 15l4 6" />
-    </>,
-  );
-const TrophyIcon = () =>
-  icon(
-    <>
-      <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
-      <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4" />
     </>,
   );

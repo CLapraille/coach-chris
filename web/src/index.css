@@ -2672,15 +2672,6 @@ details.coach summary {
 .vol-card {
   gap: 12px;
 }
-.vol-head {
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted);
-}
-.vol-head b {
-  color: var(--fg);
-  font-size: 16px;
-}
 .vol-rows {
   display: grid;
   gap: 14px;
