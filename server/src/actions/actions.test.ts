@@ -159,6 +159,15 @@ describe('protocole aperçu → confirmation', () => {
     expect(log).toEqual([
       expect.objectContaining({ outcome: 'ok', type: 'campus.complete', tools: ['complete_session'] }),
     ]);
+    const st = (await t.app.inject({ method: 'GET', url: '/api/data/status' })).json();
+    expect(st.actions).toEqual([
+      {
+        at: '2026-10-08T05:00:00.000Z',
+        title: 'Valider dans Campus',
+        ok: true,
+        message: 'Séance validée dans Campus.',
+      },
+    ]);
   });
 
   it('jeton modifié → 400 ; aperçu de plus de 5 min → 410', async () => {

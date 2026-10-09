@@ -132,8 +132,9 @@ Toutes les routes sont sous `/api`. Elles exigent un jeton Entra valide (§8), s
 | Ouverture de l'app | rattrapage depuis le dernier `fetchedAt` |
 | Bouton « Actualiser » | idem, pour une source donnée |
 
-- Chaque passage écrit une ligne dans `ops` : origine, heure, durée et résultat par source (D83).
-- **Erreurs** : un 401 ou un refus du refresh token passe la source en « Jeton expiré ». L'écran Données affiche alors la commande `.\reauth.ps1 -Source campus|garmin` (D82, D92). Les autres erreurs sont réessayées avec un délai croissant, et le message reste lisible.
+- Chaque passage écrit une ligne dans `ops` : origine, heure, durée, résultat et nombre d'essais par source (D83, D130).
+- La synchro Garmin lit d'avance le détail (tours, zones FC) des nouvelles activités (D131).
+- **Erreurs** : un 401 ou un refus du refresh token passe la source en « Jeton expiré ». L'écran Données affiche alors la commande `.\reauth.ps1 -Source campus|garmin` (D82, D92). Les autres erreurs sont réessayées après 5 s puis 20 s (D130), et le message reste lisible.
 - Le cron s'exprime en UTC : **heure UTC fixe** (D97), le job tourne donc à 6 h l'été et à 5 h l'hiver (heure de Paris).
 
 ## 6. Serveurs MCP
@@ -208,11 +209,12 @@ Le dépôt des jetons sur Azure Files passe par `reauth.ps1 -Source garmin|campu
 | Poste | Estimation |
 |---|---|
 | Container Apps (consommation, scale to zero) | ≈ 0 €, dans l'allocation gratuite mensuelle si l'usage reste personnel |
+| BFF gardé prêt de 6 h à 23 h (`bffWarmHours`, D129) | ≈ 2–3 €, à vérifier ; vide = 0 € mais ~30 s d'attente après une pause |
 | Cosmos free tier (1000 RU/s, 25 Go) | 0 € |
 | Azure Files (quelques Ko) + transactions | < 0,50 € |
 | Log Analytics | 0 € sous l'allocation gratuite ; **principal risque**, d'où le plafond journalier |
 | Static Web Apps Free, Entra ID | 0 € |
-| **Total attendu** | **< 2 €/mois**, sous le budget de 7 € |
+| **Total attendu** | **< 2 €/mois** sans réplique gardée prête, **≈ 4–5 €** avec (D129), sous le budget de 7 € |
 
 GHCR : images publiques (D116), donc sans limite de transfert ; elles ne contiennent ni secret ni donnée personnelle.
 

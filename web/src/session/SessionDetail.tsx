@@ -21,6 +21,7 @@ import {
   shortDate,
   stepDuration,
 } from '../format.ts';
+import { Loading } from '../Loading.tsx';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const pace = (mps: number | undefined) => {
@@ -53,7 +54,7 @@ const feelLabel = (v: number) =>
 
 export function SessionDetail({ sessionKey, onBack }: { sessionKey: string; onBack: () => void }) {
   const res = useApi<SessionView>(`/sessions/${encodeURIComponent(sessionKey)}`);
-  if (res.state === 'loading') return <p className="muted">Chargement…</p>;
+  if (res.state === 'loading') return <Loading />;
   if (res.state === 'error') {
     return (
       <div className="session-screen">

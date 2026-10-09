@@ -3,49 +3,12 @@ import {
   DEFAULT_RULES,
   plannedSteps,
   sessionBlocks,
-  type ActivityDetail,
   type SessionView,
 } from '@coach-chris/domain';
 import type { McpCaller } from '../mcp/client.ts';
-import type { Doc, Store } from '../store/store.ts';
-import * as garmin from '../sync/garmin.ts';
-import { pk } from '../sync/sync.ts';
+import type { Store } from '../store/store.ts';
+import { activityDetail } from '../sync/sync.ts';
 import { weekData } from './week.ts';
-
-const SCHEMA = 1;
-
-/**
- * Détail d'une activité : lu une fois dans Garmin (résumé, tours, zones FC) puis gardé en cache,
- * car une activité terminée ne change plus.
- */
-async function activityDetail(
-  store: Store,
-  mcp: McpCaller | undefined,
-  id: string,
-  day: string,
-  now: string,
-): Promise<ActivityDetail> {
-  const cached = await store.get<Doc & { detail: ActivityDetail }>('cache', id, pk('detail', day));
-  if (cached) return cached.detail;
-  if (!mcp) throw new Error('Garmin non joignable : détail pas encore lu');
-  const args = { activity_id: Number(id) };
-  const summary = garmin.activitySummary(await mcp.call('get_activity', args));
-  if (!summary) throw new Error('Activité introuvable dans Garmin');
-  const detail: ActivityDetail = {
-    ...summary,
-    laps: garmin.laps(await mcp.call('get_activity_splits', args)),
-    zones: garmin.hrZones(await mcp.call('get_activity_hr_in_timezones', args)),
-  };
-  await store.upsert('cache', {
-    id,
-    pk: pk('detail', day),
-    source: 'garmin',
-    fetchedAt: now,
-    schemaVersion: SCHEMA,
-    detail,
-  });
-  return detail;
-}
 
 /** Détail de séance (maquette v2). `undefined` si la clé ne correspond à aucune séance connue. */
 export async function sessionView(

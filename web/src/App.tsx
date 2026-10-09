@@ -6,7 +6,9 @@ import { Calendar } from './calendar/Calendar.tsx';
 import { Data } from './data/Data.tsx';
 import { Mobility } from './mobility/Mobility.tsx';
 import { SessionDetail } from './session/SessionDetail.tsx';
+import { ThemeSwitch } from './theme.tsx';
 import { Today } from './today/Today.tsx';
+import { Loading } from './Loading.tsx';
 
 export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
 type Tab = (typeof TABS)[number];
@@ -32,6 +34,7 @@ export function App() {
           </div>
           <Nav tab={tab} onSelect={select} className="nav" />
           {st && <SyncState status={st} />}
+          <ThemeSwitch />
         </aside>
         <main>
           {session ? (
@@ -49,7 +52,7 @@ export function App() {
               {status.error.message}
             </p>
           ) : (
-            <p className="muted">Chargement…</p>
+            <Loading />
           )}
         </main>
       </div>
