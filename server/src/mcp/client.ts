@@ -8,8 +8,8 @@ import type { SourceName } from '@coach-chris/domain';
 export type { SourceName };
 
 /**
- * Liste blanche côté BFF (ARCHITECTURE §6) : seules ces lectures peuvent être appelées.
- * Les écritures arriveront avec le protocole aperçu → confirmation (M5).
+ * Liste blanche côté BFF (ARCHITECTURE §6) : seuls ces outils peuvent être appelés.
+ * Les écritures (WRITE_TOOLS) exigent en plus le drapeau `write`, que seul le module actions passe (D124).
  */
 export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
   garmin: new Set([
@@ -25,6 +25,13 @@ export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
     'get_devices',
     'get_device_last_used',
     'get_activity',
+    'upload_workout',
+    'schedule_workout',
+    'delete_workout',
+    'set_activity_name',
+    'set_activity_description',
+    'set_perceived_effort',
+    'set_activity_feel',
   ]),
   campus: new Set([
     'get_active_goal',
@@ -36,8 +43,21 @@ export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
     'get_stats_summary',
     'get_goal_history',
     'get_running_diary',
+    'complete_session',
   ]),
 };
+
+/** Outils qui modifient Garmin ou Campus : jamais appelés sans aperçu confirmé (D123). */
+export const WRITE_TOOLS: ReadonlySet<string> = new Set([
+  'upload_workout',
+  'schedule_workout',
+  'delete_workout',
+  'set_activity_name',
+  'set_activity_description',
+  'set_perceived_effort',
+  'set_activity_feel',
+  'complete_session',
+]);
 
 export class ToolNotAllowedError extends Error {}
 
@@ -45,7 +65,7 @@ export class ToolNotAllowedError extends Error {}
 export class ToolError extends Error {}
 
 export interface McpCaller {
-  call<T = unknown>(tool: string, args?: Record<string, unknown>): Promise<T>;
+  call<T = unknown>(tool: string, args?: Record<string, unknown>, opts?: { write?: boolean }): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -90,8 +110,11 @@ class McpSource implements McpCaller {
     return this.client;
   }
 
-  async call<T>(tool: string, args: Record<string, unknown> = {}): Promise<T> {
+  async call<T>(tool: string, args: Record<string, unknown> = {}, opts: { write?: boolean } = {}): Promise<T> {
     if (!ALLOWED_TOOLS[this.source].has(tool)) throw new ToolNotAllowedError(`${this.source}.${tool}`);
+    if (WRITE_TOOLS.has(tool) !== (opts.write === true)) {
+      throw new ToolNotAllowedError(`${this.source}.${tool} : écriture hors du protocole de confirmation`);
+    }
     const client = await this.connect();
     const res = await client.callTool({ name: tool, arguments: args });
     const text = (res.content as { type: string; text?: string }[])

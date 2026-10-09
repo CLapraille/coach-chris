@@ -15,4 +15,10 @@ const allowedOid = process.env.ALLOWED_OID;
 if (process.env.NODE_ENV === 'production' && !allowedOid)
   throw new Error('ALLOWED_OID manquant en production');
 
-await buildApp({ store, sync, garmin: mcp.garmin, ...(allowedOid && { allowedOid }) }).listen({ port, host });
+await buildApp({
+  store,
+  sync,
+  garmin: mcp.garmin,
+  campus: mcp.campus,
+  ...(allowedOid && { allowedOid }),
+}).listen({ port, host });

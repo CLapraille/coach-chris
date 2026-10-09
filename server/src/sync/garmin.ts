@@ -1,4 +1,11 @@
-import type { ActivityDetail, CachedActivity, LapView, Night, WeighIn } from '@coach-chris/domain';
+import type {
+  ActivityDetail,
+  ActivityFigures,
+  CachedActivity,
+  LapView,
+  Night,
+  WeighIn,
+} from '@coach-chris/domain';
 
 /**
  * Conversion des réponses du MCP Garmin vers les documents du cache.
@@ -164,6 +171,7 @@ export function activitySummary(raw: unknown): Omit<ActivityDetail, 'laps' | 'zo
     durationS: Math.round(num('duration_seconds') ?? 0),
   };
   if (typeof a.name === 'string') out.name = a.name;
+  if (typeof a.description === 'string' && a.description) out.description = a.description;
   const set = <K extends keyof typeof out>(k: K, v: (typeof out)[K] | undefined) => {
     if (v !== undefined) out[k] = v;
   };
@@ -182,4 +190,38 @@ export function activitySummary(raw: unknown): Omit<ActivityDetail, 'laps' | 'zo
   set('rpe', num('workout_rpe'));
   set('feel', num('workout_feel'));
   return out;
+}
+
+/** Chiffres de get_activity nécessaires à la validation Campus (D125) ; `null` si l'activité est illisible. */
+export function activityFigures(raw: unknown): ActivityFigures | null {
+  const a = raw as Record<string, unknown> | null;
+  if (!a || typeof a.id !== 'number' || typeof a.start_time_gmt !== 'string') return null;
+  const num = (k: string) => (typeof a[k] === 'number' ? (a[k] as number) : undefined);
+  const out: ActivityFigures = {
+    id: String(a.id),
+    startGmt: a.start_time_gmt,
+    durationS: num('duration_seconds') ?? 0,
+    distanceM: num('distance_meters') ?? 0,
+  };
+  const set = <K extends keyof ActivityFigures>(k: K, v: ActivityFigures[K] | undefined) => {
+    if (v !== undefined) out[k] = v;
+  };
+  set('calories', num('calories'));
+  set('avgHr', num('avg_hr_bpm'));
+  set('avgCadence', num('avg_cadence'));
+  set('elevationGainM', num('elevation_gain_meters'));
+  set('elevationLossM', num('elevation_loss_meters'));
+  set('name', typeof a.name === 'string' ? a.name : undefined);
+  return out;
+}
+
+/**
+ * Les outils d'écriture Garmin renvoient leurs échecs en texte (« Error … », « rpe must be … »)
+ * ou avec `status: failed`, jamais en erreur MCP (D124) : `null` si l'appel a réussi, sinon le message.
+ */
+export function writeFailure(result: unknown): string | null {
+  if (typeof result === 'string') return result;
+  const r = result as { success?: unknown; status?: unknown; message?: unknown } | null;
+  if (r && (r.success === true || r.status === 'success')) return null;
+  return typeof r?.message === 'string' ? r.message : 'Réponse inattendue de Garmin';
 }

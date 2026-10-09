@@ -11,4 +11,5 @@ export * from './mobility/routine.ts';
 export * from './mobility/regularity.ts';
 export * from './wellness/wellness.ts';
 export * from './signals/signals.ts';
+export * from './actions/actions.ts';
 export * from './api.ts';

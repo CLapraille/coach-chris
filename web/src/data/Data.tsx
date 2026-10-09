@@ -5,7 +5,7 @@ import { GOAL_LABEL, clock, decimal, longDate, parisDay, shortDate } from '../fo
 
 const NAME: Record<SourceName, string> = { garmin: 'Garmin Connect', campus: 'Campus Coach' };
 // « job » couvre le job quotidien et la synchro en ligne de commande (npm run sync).
-const ORIGIN = { job: 'job', open: 'ouverture', button: 'bouton' } as const;
+const ORIGIN = { job: 'job', open: 'ouverture', button: 'bouton', action: 'après écriture' } as const;
 
 /** Date et heure de Paris : « 08/10 22:14 ». */
 const stamp = (iso: string) => `${shortDate(parisDay(iso))} ${clock(iso)}`;

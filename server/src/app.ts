@@ -2,12 +2,15 @@ import {
   addDays,
   CATCH_UP_DAYS,
   canCheck,
+  FEEL_VALUES,
   mondayOf,
+  type ActionRequest,
   type SourceName,
   type TestResults,
 } from '@coach-chris/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { ActionError, Actions } from './actions/actions.ts';
 import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
 import { sessionView } from './read/session.ts';
 import { dataStatus } from './read/status.ts';
@@ -20,8 +23,10 @@ import { parisClock, type Clock, type Sync } from './sync/sync.ts';
 export interface AppDeps {
   store: Store;
   sync: Sync;
-  /** Garmin, pour lire à la demande le détail d'une activité (tours, zones). */
+  /** Garmin, pour lire à la demande le détail d'une activité (tours, zones) et pour les écritures. */
   garmin?: McpCaller;
+  /** Campus, pour les écritures (valider une séance). */
+  campus?: McpCaller;
   clock?: Clock;
   /**
    * Seul compte autorisé (ARCHITECTURE §8). Sur Azure, Easy Auth valide déjà le jeton ; le BFF vérifie en plus
@@ -44,6 +49,26 @@ const testResults = z
   })
   .strict();
 
+const actionRequest = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('campus.complete'), sessionKey: z.string().min(1) }),
+  z.object({ type: z.literal('garmin.push'), sessionKey: z.string().min(1) }),
+  z.object({
+    type: z.literal('garmin.annotate'),
+    activityId: z.string().regex(/^\d+$/),
+    changes: z
+      .object({
+        name: z.string().max(100).optional(),
+        description: z.string().max(2000).optional(),
+        rpe: z.number().int().min(1).max(10).optional(),
+        feel: z
+          .number()
+          .refine((v): v is (typeof FEEL_VALUES)[number] => (FEEL_VALUES as readonly number[]).includes(v))
+          .optional(),
+      })
+      .strict(),
+  }),
+]);
+
 /** « 2026-10 » → « 2026-11 ». */
 function nextMonth(m: string): string {
   const [y, mo] = m.split('-').map(Number) as [number, number];
@@ -55,7 +80,13 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   if (!deps) return app;
-  const { store, sync, garmin, clock = parisClock, allowedOid } = deps;
+  const { store, sync, garmin, campus, clock = parisClock, allowedOid } = deps;
+  const actions = new Actions({
+    store,
+    sync,
+    clock,
+    mcp: { ...(garmin && { garmin }), ...(campus && { campus }) },
+  });
 
   if (allowedOid) {
     app.addHook('onRequest', async (req, reply) => {
@@ -172,6 +203,29 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
       return { accepted: b.data.codes };
     } catch (e) {
       if (e instanceof BlockError) return reply.code(409).send({ error: e.message });
+      throw e;
+    }
+  });
+
+  // Écritures (D123) : aperçu relu dans les sources et signé, puis confirmation explicite.
+  app.post('/api/actions/preview', async (req, reply) => {
+    const b = actionRequest.safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'demande d’écriture invalide' });
+    try {
+      return await actions.preview(b.data as ActionRequest);
+    } catch (e) {
+      if (e instanceof ActionError) return reply.code(e.status).send({ error: e.message });
+      throw e;
+    }
+  });
+
+  app.post('/api/actions/confirm', async (req, reply) => {
+    const b = z.object({ token: z.string().min(1) }).safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'jeton manquant' });
+    try {
+      return await actions.confirm(b.data.token);
+    } catch (e) {
+      if (e instanceof ActionError) return reply.code(e.status).send({ error: e.message });
       throw e;
     }
   });

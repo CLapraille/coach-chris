@@ -27,6 +27,8 @@ export interface PlannedSession {
   externalActivityId?: string;
   /** Instant de validation dans la source, AAAA-MM-JJ HH:mm UTC. */
   completedAtUtc?: string;
+  /** Sport tel que la source le nomme (Campus : road, trail, trailV2, ppg), utile aux écritures. */
+  sourceSport?: string;
   /** Référence volatile vers Campus : à relire avant toute écriture. */
   campusRef?: { weekId: string; sessionIndex: number };
 }
