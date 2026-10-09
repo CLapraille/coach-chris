@@ -1,4 +1,4 @@
-import type { TodayView, WeighIn } from '@coach-chris/domain';
+import type { TodayView } from '@coach-chris/domain';
 import { LEVEL_LABEL, READINESS_LABEL, decimal, hoursMinutes, shortDate, signed } from '../format.ts';
 
 const NA = <span className="na">indisponible</span>;
@@ -95,16 +95,16 @@ export function FormCard({ form }: { form: TodayView['form'] }) {
         </section>
         <div className="fm-side">
           <Weight form={form} />
-          <section className="fm-box" aria-label="Récupération">
+          <section className="fm-box fm-stat" aria-label="Récupération">
             <div className="fm-title">
               <ClockIcon />
               <span>Récupération</span>
             </div>
             {ready?.recoveryHours !== undefined ? (
-              <div className="fm-big">
-                <b className="num">{decimal(ready.recoveryHours)} h</b>{' '}
-                <span className="muted">restante</span>
-              </div>
+              <>
+                <b className="num fm-big">{decimal(ready.recoveryHours)} h</b>
+                <span className="fm-sub muted">restante</span>
+              </>
             ) : (
               NA
             )}
@@ -186,33 +186,32 @@ function Ring({ value, color, label }: { value: number | undefined; color: strin
 function Weight({ form }: { form: TodayView['form'] }) {
   const w = form.weight;
   return (
-    <section className="fm-box" aria-label="Poids">
+    <section className="fm-box fm-stat" aria-label="Poids">
       <div className="fm-title">
         <ScaleIcon />
         <span>Poids</span>
       </div>
       {w ? (
         <>
-          <div className="fm-weight">
-            <b className="num fm-big">{decimal(w.latest.kg)} kg</b>
-            <WeightLine points={form.weightHistory} />
-          </div>
+          <b className="num fm-big">{decimal(w.latest.kg)} kg</b>
           <span className="fm-sub">
             {w.deltaKg !== undefined && w.direction && w.direction !== 'flat' && (
-              <span
-                className={`wt ${w.direction}`}
-                role="img"
-                aria-label={w.direction === 'down' ? 'en baisse' : 'en hausse'}
-              >
-                <svg viewBox="0 0 10 10" aria-hidden="true">
-                  <path d="M5 9 L1 3 H9 Z" />
-                </svg>
-                {signed(w.deltaKg)} kg
-              </span>
-            )}{' '}
+              <>
+                <span
+                  className={`wt ${w.direction}`}
+                  role="img"
+                  aria-label={w.direction === 'down' ? 'en baisse' : 'en hausse'}
+                >
+                  <svg viewBox="0 0 10 10" aria-hidden="true">
+                    <path d="M5 9 L1 3 H9 Z" />
+                  </svg>
+                  {signed(w.deltaKg)} kg
+                </span>
+              </>
+            )}
             <span className="muted">
               pesée du {shortDate(w.latest.day)}
-              {w.previous && `, vs ${shortDate(w.previous.day)}`}
+              {w.previous && ` · vs ${shortDate(w.previous.day)}`}
             </span>
           </span>
         </>
@@ -220,41 +219,6 @@ function Weight({ form }: { form: TodayView['form'] }) {
         NA
       )}
     </section>
-  );
-}
-
-/** Courbe des pesées (chaque point est une vraie pesée ; rien n'est interpolé entre deux jours sans pesée). */
-function WeightLine({ points }: { points: WeighIn[] }) {
-  if (points.length < 2) return null;
-  const W = 110;
-  const H = 30;
-  const kgs = points.map((p) => p.kg);
-  const lo = Math.min(...kgs);
-  const hi = Math.max(...kgs);
-  const t0 = Date.parse(points[0]!.day);
-  const span = Math.max(1, Date.parse(points.at(-1)!.day) - t0);
-  const x = (p: WeighIn) => 2 + ((Date.parse(p.day) - t0) / span) * (W - 4);
-  const y = (kg: number) => (hi === lo ? H / 2 : 3 + ((hi - kg) / (hi - lo)) * (H - 6));
-  const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(p).toFixed(1)} ${y(p.kg).toFixed(1)}`).join(' ');
-  const last = points.at(-1)!;
-  return (
-    <svg
-      className="fm-spark"
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`${points.length} pesées du ${shortDate(points[0]!.day)} au ${shortDate(last.day)}`}
-    >
-      <path
-        d={d}
-        fill="none"
-        stroke="var(--fg)"
-        strokeWidth={1.4}
-        opacity={0.6}
-        vectorEffect="non-scaling-stroke"
-      />
-      <circle cx={x(last)} cy={y(last.kg)} r={2.6} fill="var(--fg)" />
-    </svg>
   );
 }
 

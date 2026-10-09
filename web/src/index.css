@@ -2613,15 +2613,25 @@ details.coach summary {
   font-size: 12.5px;
   font-weight: 600;
 }
+/* Même grille de 3 colonnes que les jauges : la VFC couvre les deux premières, poids et récupération la troisième. */
 .fm-bottom {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+.fm-hrv {
+  grid-column: span 2;
 }
 .fm-side {
   display: grid;
+  grid-template-rows: 1fr 1fr;
   gap: 10px;
-  align-content: start;
+}
+.fm-stat {
+  align-content: space-between;
+}
+.fm-stat .fm-big {
+  line-height: 1.1;
 }
 .fm-legend {
   margin-left: auto;
@@ -2657,22 +2667,15 @@ details.coach summary {
 .fm-big b {
   font-size: 22px;
 }
-.fm-weight {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.fm-spark {
-  width: 110px;
-  height: 30px;
-  flex: none;
-}
 @media (max-width: 700px) {
   .fm-bottom {
     grid-template-columns: minmax(0, 1fr);
   }
+  .fm-hrv {
+    grid-column: auto;
+  }
   .fm-side {
+    grid-template-rows: none;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
@@ -2712,18 +2715,16 @@ details.coach summary {
   align-self: start;
   justify-content: center;
 }
-.fm-weight b {
-  white-space: nowrap;
-}
-.fm-weight .fm-spark {
-  flex: 0 1 110px;
-  min-width: 50px;
-}
-.fm-weight {
-  display: grid;
+/* Tuiles à jauge : icône au-dessus du titre, pour que les titres sur deux lignes restent centrés. */
+.fm-tile .fm-title {
+  flex-direction: column;
   gap: 4px;
+  text-align: center;
 }
-.fm-weight .fm-spark {
-  width: 100%;
-  height: 28px;
+.fm-stat {
+  align-content: start;
+}
+.fm-stat .fm-sub {
+  display: grid;
+  gap: 2px;
 }

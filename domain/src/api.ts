@@ -12,7 +12,7 @@ import type { CapStatus, VolumeCap } from './load/volume.ts';
 import type { ZoneId } from './mobility/library.ts';
 import type { Regularity, Slot } from './mobility/regularity.ts';
 import type { TestResults, ZoneStatus } from './mobility/tests.ts';
-import type { RangePosition, WeighIn, WeightTrend } from './wellness/wellness.ts';
+import type { RangePosition, WeightTrend } from './wellness/wellness.ts';
 import type { Signal } from './signals/signals.ts';
 
 export type SourceName = 'garmin' | 'campus';
@@ -274,8 +274,6 @@ export interface TodayView {
     /** VFC des 8 dernières nuits ; `null` = nuit absente. */
     hrvHistory: { day: string; ms: number | null }[];
     weight: WeightTrend | null;
-    /** Pesées des derniers jours, pour la courbe du poids. */
-    weightHistory: WeighIn[];
     /** Score de disponibilité de la veille, pour l'écart ; `null` si absent. */
     readinessYesterday: number | null;
   };

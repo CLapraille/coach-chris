@@ -51,7 +51,6 @@ it('Aujourd’hui : séance, forme et poids sur les données de l’API, absence
   expect(screen.getByText('Bon sommeil')).toBeTruthy();
   expect(screen.getByText('+3 vs hier')).toBeTruthy();
   expect(screen.getByText('11,1 h')).toBeTruthy();
-  expect(screen.getByRole('img', { name: '3 pesées du 29/09 au 08/10' })).toBeTruthy();
   expect(screen.queryAllByText('indisponible')).toHaveLength(0);
   expect(screen.getByText("Pas encore 4 semaines d'historique : pas de repère.")).toBeTruthy();
 });

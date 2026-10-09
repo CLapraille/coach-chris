@@ -78,11 +78,6 @@ export const TODAY: TodayView = {
       deltaKg: -0.7,
       direction: 'down',
     },
-    weightHistory: [
-      { day: '2026-09-29', kg: 84.09 },
-      { day: '2026-10-03', kg: 83.8 },
-      { day: '2026-10-08', kg: 83.39 },
-    ],
     readinessYesterday: 73,
   },
   volume: {
