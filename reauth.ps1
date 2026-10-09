@@ -56,7 +56,10 @@ else {
     Write-Host '3. Ferme ensuite la fenêtre privée SANS te déconnecter (la déconnexion révoquerait la session).'
     Write-Host ''
     $env:CAMPUS_COACH_TOKEN_DIR = $tmp
-    uv run --system-certs --directory (Join-Path $PSScriptRoot 'mcp\campus') campus-coach-auth
+    # --no-sync et module Python plutôt que l'exécutable : le MCP Campus de Claude Desktop ou du BFF local
+    # verrouille campus-coach-mcp.exe, qu'une synchro de l'environnement tenterait de remplacer.
+    uv run --no-sync --directory (Join-Path $PSScriptRoot 'mcp\campus') python -c 'from campus_coach_mcp.auth import main; main()'
+    if ($LASTEXITCODE -ne 0) { throw "campus-coach-auth a échoué (code $LASTEXITCODE)." }
     $file = Join-Path $tmp 'tokens.json'
     if (-not (Test-Path $file)) { throw 'Aucun jeton reçu.' }
     Send-Token $file 'campus' 'tokens.json'
