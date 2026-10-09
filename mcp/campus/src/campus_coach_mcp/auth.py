@@ -6,9 +6,17 @@ Campus Coach signs in through Google, which can't be scripted. Instead:
   3. Open the browser console (F12 -> Console) on that page and paste the
      snippet printed below. The tokens are sent straight to this helper and
      saved to ~/.campuscoach/tokens.json.
+
+With --paste, no local server: the snippet copies the tokens to the clipboard
+and you paste them here (input is not echoed). With --stdin, the tokens are
+read from standard input (for scripts). Use it when the browser blocks
+requests to 127.0.0.1 (Chrome's Local Network Access, always denied in a
+private window).
 """
 
 import json
+import sys
+from getpass import getpass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from .tokens import save_tokens, token_file
@@ -20,6 +28,18 @@ SNIPPET = (
     "body:JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')})})"
     ".then(r=>r.text()).then(console.log)"
 )
+
+# DevTools' copy() puts the value on the clipboard without printing it.
+COPY_SNIPPET = "copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}))"
+
+
+def _save(raw: str) -> str:
+    # PowerShell prefixes piped text with a BOM.
+    data = json.loads(raw.lstrip("﻿").strip())
+    if not data.get("rtk"):
+        raise ValueError("no refresh token (rtk) - are you signed in?")
+    save_tokens({"atk": data.get("atk"), "rtk": data["rtk"]})
+    return f"Saved Campus Coach tokens to {token_file()}"
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -39,11 +59,7 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         try:
-            data = json.loads(body)
-            if not data.get("rtk"):
-                raise ValueError("no refresh token (rtk) - are you signed in?")
-            save_tokens({"atk": data.get("atk"), "rtk": data["rtk"]})
-            status, msg = 200, f"Saved Campus Coach tokens to {token_file()}"
+            status, msg = 200, _save(body)
             _Handler.done = True
         except Exception as e:
             status, msg = 400, f"Error: {e}"
@@ -60,6 +76,21 @@ class _Handler(BaseHTTPRequestHandler):
 
 def main():
     print(__doc__)
+    if "--stdin" in sys.argv[1:]:
+        # Tokens piped by a script (reauth.ps1 reads them from the clipboard).
+        try:
+            print(_save(sys.stdin.read()))
+        except (ValueError, json.JSONDecodeError):
+            sys.exit("Error: the input does not contain Campus Coach tokens (expected {\"atk\":...,\"rtk\":...}).")
+        return
+    if "--paste" in sys.argv[1:]:
+        print("Snippet to paste in the console of https://app.campus.coach :\n")
+        print(COPY_SNIPPET + "\n")
+        try:
+            print(_save(getpass("Then paste here (nothing is shown) and press Enter: ")))
+        except (ValueError, json.JSONDecodeError) as e:
+            sys.exit(f"Error: {e}")
+        return
     print("Snippet to paste in the console of https://app.campus.coach :\n")
     print(SNIPPET + "\n")
     print(f"Waiting on http://127.0.0.1:{PORT} ... (Ctrl+C to cancel)")

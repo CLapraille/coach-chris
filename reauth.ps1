@@ -52,11 +52,30 @@ else {
   try {
     Write-Host ''
     Write-Host '1. Ouvre une fenêtre de navigation PRIVÉE et connecte-toi sur https://app.campus.coach'
-    Write-Host '2. Colle dans la console (F12) le snippet affiché ci-dessous.'
+    Write-Host '2. Colle dans la console (F12) cette ligne : elle copie les jetons dans le presse-papiers (réponse « undefined »).'
+    Write-Host ''
+    Write-Host "   copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}))"
+    Write-Host ''
     Write-Host '3. Ferme ensuite la fenêtre privée SANS te déconnecter (la déconnexion révoquerait la session).'
     Write-Host ''
+    # Chrome refuse en navigation privée les requêtes d'un site vers 127.0.0.1 (Local Network Access) et le
+    # collage dans une saisie masquée dépend du terminal : on lit le presse-papiers, sans jamais l'afficher.
+    Read-Host 'Appuie sur Entrée une fois la ligne exécutée dans la console' | Out-Null
     $env:CAMPUS_COACH_TOKEN_DIR = $tmp
-    uv run --system-certs --directory (Join-Path $PSScriptRoot 'mcp\campus') campus-coach-auth
+    try {
+      $clip = (Get-Clipboard -Raw)
+      if (-not $clip -or $clip -notmatch '"rtk"\s*:\s*"') {
+        throw 'Le presse-papiers ne contient pas les jetons Campus : relance la ligne dans la console de la fenêtre privée (connecté), puis le script.'
+      }
+      # --no-sync et module Python plutôt que l'exécutable : le MCP Campus de Claude Desktop ou du BFF local
+      # verrouille campus-coach-mcp.exe, qu'une synchro de l'environnement tenterait de remplacer.
+      $clip | uv run --no-sync --directory (Join-Path $PSScriptRoot 'mcp\campus') python -c 'from campus_coach_mcp.auth import main; main()' --stdin
+      if ($LASTEXITCODE -ne 0) { throw "campus-coach-auth a échoué (code $LASTEXITCODE)." }
+    }
+    finally {
+      Set-Clipboard -Value ' '  # les jetons ne restent pas dans le presse-papiers
+      $clip = $null
+    }
     $file = Join-Path $tmp 'tokens.json'
     if (-not (Test-Path $file)) { throw 'Aucun jeton reçu.' }
     Send-Token $file 'campus' 'tokens.json'
