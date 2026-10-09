@@ -36,7 +36,8 @@ export function Today({
         {status && <Freshness status={status} />}
       </div>
       <div className="grid">
-        <GoalCard goal={t.goal} today={t.today} />
+        {/* Ordre choisi par l'utilisateur (D138) : forme, semaine, objectif, volume, mobilité, signaux. */}
+        <FormCard form={t.form} />
         <WeekCard
           week={t.week}
           next={t.nextSession}
@@ -46,7 +47,7 @@ export function Today({
           onOpenCalendar={() => onNavigate('Calendrier')}
           onChanged={res.reload}
         />
-        <FormCard form={t.form} />
+        <GoalCard goal={t.goal} today={t.today} />
         <VolumeCard volume={t.volume} routines={t.week.routines} />
         <MobilityCard
           mobility={t.mobility}

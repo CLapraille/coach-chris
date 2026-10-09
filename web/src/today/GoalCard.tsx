@@ -5,7 +5,7 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.p
 
 export function GoalCard({ goal, today }: { goal: GoalView | null; today: string }) {
   return (
-    <article className="card s5">
+    <article className="card s6">
       <header>
         <span className="label">Objectif en cours</span>
         <span className="src campus">Campus</span>

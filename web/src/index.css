@@ -2846,3 +2846,32 @@ details.coach summary {
   border-top: 1px solid var(--line);
   padding-top: 10px;
 }
+/* Carte Forme en demi-largeur (D138) : valeurs du poids et de la récupération sur une ligne. */
+.form-card {
+  container-type: inline-size;
+}
+.fm-weight,
+.fm-big {
+  white-space: nowrap;
+}
+.fm-weight {
+  flex-wrap: nowrap;
+}
+@container (max-width: 640px) {
+  .fm-big,
+  .fm-big b {
+    font-size: 18px;
+  }
+  .fm-weight {
+    gap: 6px;
+  }
+  .fm-weight .wt {
+    font-size: 11.5px;
+  }
+  .fm-box {
+    padding: 9px 10px;
+  }
+  .fm-hrv .fm-title {
+    flex-wrap: wrap;
+  }
+}
