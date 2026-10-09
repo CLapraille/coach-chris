@@ -8,7 +8,8 @@ Campus Coach signs in through Google, which can't be scripted. Instead:
      saved to ~/.campuscoach/tokens.json.
 
 With --paste, no local server: the snippet copies the tokens to the clipboard
-and you paste them here (input is not echoed). Use it when the browser blocks
+and you paste them here (input is not echoed). With --stdin, the tokens are
+read from standard input (for scripts). Use it when the browser blocks
 requests to 127.0.0.1 (Chrome's Local Network Access, always denied in a
 private window).
 """
@@ -33,7 +34,8 @@ COPY_SNIPPET = "copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localSt
 
 
 def _save(raw: str) -> str:
-    data = json.loads(raw)
+    # PowerShell prefixes piped text with a BOM.
+    data = json.loads(raw.lstrip("﻿").strip())
     if not data.get("rtk"):
         raise ValueError("no refresh token (rtk) - are you signed in?")
     save_tokens({"atk": data.get("atk"), "rtk": data["rtk"]})
@@ -74,6 +76,13 @@ class _Handler(BaseHTTPRequestHandler):
 
 def main():
     print(__doc__)
+    if "--stdin" in sys.argv[1:]:
+        # Tokens piped by a script (reauth.ps1 reads them from the clipboard).
+        try:
+            print(_save(sys.stdin.read()))
+        except (ValueError, json.JSONDecodeError):
+            sys.exit("Error: the input does not contain Campus Coach tokens (expected {\"atk\":...,\"rtk\":...}).")
+        return
     if "--paste" in sys.argv[1:]:
         print("Snippet to paste in the console of https://app.campus.coach :\n")
         print(COPY_SNIPPET + "\n")
