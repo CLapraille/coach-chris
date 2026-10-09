@@ -58,7 +58,7 @@ export function Data({ status, onChanged }: { status: DataStatus; onChanged: () 
           />
         ))}
         <Freshness status={status} />
-        <Journal log={status.log} />
+        <Journal log={status.log} actions={status.actions} />
         <article className="card s5">
           <header>
             <span className="label">Affichage</span>
@@ -315,11 +315,11 @@ function Freshness({ status }: { status: DataStatus }) {
   );
 }
 
-function Journal({ log }: { log: DataStatus['log'] }) {
+function Journal({ log, actions }: { log: DataStatus['log']; actions: DataStatus['actions'] }) {
   return (
     <article className="card s5">
       <header>
-        <span className="label">Journal des synchros</span>
+        <span className="label">Journal</span>
         <span className="muted text-xs">{log.length ? `${log.length} dernières` : ''}</span>
       </header>
       {log.length ? (
@@ -355,7 +355,10 @@ function Journal({ log }: { log: DataStatus['log'] }) {
                           : ' : erreur'}
                     </span>
                   </td>
-                  <td className="mono muted r">{Math.max(1, Math.round(l.durationMs / 1000))} s</td>
+                  <td className="mono muted r">
+                    {Math.max(1, Math.round(l.durationMs / 1000))} s
+                    {l.attempts && <span title="Erreur passagère réessayée"> · {l.attempts} essais</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -366,6 +369,34 @@ function Journal({ log }: { log: DataStatus['log'] }) {
           <b>Aucune synchro enregistrée.</b> Le job quotidien, l'ouverture de l'app et le bouton « Actualiser
           » rempliront ce journal.
         </p>
+      )}
+      {actions.length > 0 && (
+        <div className="tbl">
+          <table className="log" aria-label="Écritures">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th colSpan={3}>Écriture</th>
+              </tr>
+            </thead>
+            <tbody>
+              {actions.map((w) => (
+                <tr key={w.at}>
+                  <td className="mono">
+                    {shortDate(parisDay(w.at))}
+                    <span className="muted"> {clock(w.at)}</span>
+                  </td>
+                  <td colSpan={3} title={w.message}>
+                    <span className={w.ok ? 'r-ok' : 'r-bad'}>
+                      {w.title}
+                      {w.ok ? ' OK' : ' : échec'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </article>
   );

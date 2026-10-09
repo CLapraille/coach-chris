@@ -136,4 +136,12 @@ export const STATUS: DataStatus = {
     },
     { at: '2026-10-08T05:00:00Z', source: 'garmin', origin: 'job', outcome: 'ok', durationMs: 16400 },
   ],
+  actions: [
+    {
+      at: '2026-10-08T19:12:00Z',
+      title: 'Envoyer sur la montre',
+      ok: true,
+      message: 'Séance envoyée dans le calendrier Garmin pour samedi 10 octobre.',
+    },
+  ],
 };

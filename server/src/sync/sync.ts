@@ -1,6 +1,7 @@
 import {
   addDays,
   mondayOf,
+  type ActivityDetail,
   type CampusSessionDetails,
   type CampusWeek,
   type Night,
@@ -20,6 +21,8 @@ export interface SyncResult {
   durationMs: number;
   /** Message lisible en cas d'échec. */
   message?: string;
+  /** Nombre d'essais quand une erreur passagère a été réessayée. */
+  attempts?: number;
 }
 
 export interface Clock {
@@ -44,6 +47,15 @@ const SCHEMA = 1;
 const NIGHT_VERSION = 2;
 /** Au plus loin, le plan est lu sur 12 semaines (un objectif Campus dure en général 8 semaines). */
 const MAX_WEEKS_AHEAD = 12;
+/** Erreur passagère (API indisponible, MCP qui démarre) : nouvel essai après 5 s puis 20 s (ARCHITECTURE §5). */
+const RETRY_DELAYS_MS = [5_000, 20_000];
+/** Version du détail d'activité en cache (résumé, tours, zones FC). */
+const DETAIL_SCHEMA = 1;
+
+export interface SyncOptions {
+  /** Délais entre les essais ; vide = aucun nouvel essai. */
+  retryDelaysMs?: number[];
+}
 
 interface SyncState extends Doc {
   lastDay: string;
@@ -57,11 +69,18 @@ export class Sync {
   private readonly mcp: Record<SourceName, McpCaller>;
   private readonly clock: Clock;
   private readonly running = new Map<SourceName, Promise<SyncResult>>();
+  private readonly retryDelaysMs: number[];
 
-  constructor(store: Store, mcp: Record<SourceName, McpCaller>, clock: Clock = parisClock) {
+  constructor(
+    store: Store,
+    mcp: Record<SourceName, McpCaller>,
+    clock: Clock = parisClock,
+    options: SyncOptions = {},
+  ) {
     this.store = store;
     this.mcp = mcp;
     this.clock = clock;
+    this.retryDelaysMs = options.retryDelaysMs ?? RETRY_DELAYS_MS;
   }
 
   /** Lance la synchro d'une source ; un appel concurrent attend le passage en cours au lieu d'en ouvrir un second. */
@@ -85,9 +104,21 @@ export class Sync {
     const startedAt = this.clock.now();
     const t0 = performance.now();
     let result: SyncResult;
+    let attempts = 1;
     try {
       const state = await this.state(source);
-      await (source === 'garmin' ? this.garmin(state) : this.campus());
+      // Un jeton refusé ne s'arrange pas en réessayant : seule une erreur passagère est réessayée.
+      for (;;) {
+        try {
+          await (source === 'garmin' ? this.garmin(state) : this.campus());
+          break;
+        } catch (e) {
+          const delay = this.retryDelaysMs[attempts - 1];
+          if (tokenExpired(e) || delay === undefined) throw e;
+          attempts++;
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
       await this.store.upsert('ops', {
         ...this.doc(`sync-state:${source}`, 'app'),
         kind: 'sync-state',
@@ -96,10 +127,12 @@ export class Sync {
         lastOkAt: this.clock.now(),
       } satisfies SyncState);
       result = { source, outcome: 'ok', durationMs: Math.round(performance.now() - t0) };
+      if (attempts > 1) result.attempts = attempts;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       result = { source, outcome: tokenExpired(e) ? 'token-expired' : 'error', message, durationMs: 0 };
       result.durationMs = Math.round(performance.now() - t0);
+      if (attempts > 1) result.attempts = attempts;
     }
     await this.store.upsert('ops', {
       ...this.doc(`${startedAt}:${source}`, 'app'),
@@ -126,9 +159,21 @@ export class Sync {
     const from = state ? addDays(state.lastDay, -1) : addDays(mondayOf(today), -7 * HISTORY_WEEKS);
     const range = { start_date: from, end_date: today };
 
-    for (const a of garmin.activities(await this.mcp.garmin.call('get_activities_by_date', range))) {
+    const acts = garmin.activities(await this.mcp.garmin.call('get_activities_by_date', range));
+    for (const a of acts) {
       const day = a.startLocal.slice(0, 10);
       await this.store.upsert('cache', { ...this.doc(a.id, 'garmin'), pk: pk('activity', day), day, ...a });
+    }
+    // Détail (tours, zones) lu d'avance : le Détail de séance s'ouvre sans attendre Garmin (ARCHITECTURE §5).
+    // Un détail illisible n'arrête pas la synchro ; il sera relu à l'ouverture du Détail.
+    for (const a of acts) {
+      await activityDetail(
+        this.store,
+        this.mcp.garmin,
+        a.id,
+        a.startLocal.slice(0, 10),
+        this.clock.now(),
+      ).catch(() => undefined);
     }
     for (const w of garmin.weighIns(await this.mcp.garmin.call('get_weigh_ins', range))) {
       await this.store.upsert('cache', { ...this.doc(w.day, 'garmin'), pk: pk('weight', w.day), ...w });
@@ -225,6 +270,39 @@ interface PlanContent {
 }
 
 const hashOf = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 16);
+
+/**
+ * Détail d'une activité : lu une fois dans Garmin (résumé, tours, zones FC) puis gardé en cache,
+ * car une activité terminée ne change plus.
+ */
+export async function activityDetail(
+  store: Store,
+  mcp: McpCaller | undefined,
+  id: string,
+  day: string,
+  now: string,
+): Promise<ActivityDetail> {
+  const cached = await store.get<Doc & { detail: ActivityDetail }>('cache', id, pk('detail', day));
+  if (cached) return cached.detail;
+  if (!mcp) throw new Error('Garmin non joignable : détail pas encore lu');
+  const args = { activity_id: Number(id) };
+  const summary = garmin.activitySummary(await mcp.call('get_activity', args));
+  if (!summary) throw new Error('Activité introuvable dans Garmin');
+  const detail: ActivityDetail = {
+    ...summary,
+    laps: garmin.laps(await mcp.call('get_activity_splits', args)),
+    zones: garmin.hrZones(await mcp.call('get_activity_hr_in_timezones', args)),
+  };
+  await store.upsert('cache', {
+    id,
+    pk: pk('detail', day),
+    source: 'garmin',
+    fetchedAt: now,
+    schemaVersion: DETAIL_SCHEMA,
+    detail,
+  });
+  return detail;
+}
 
 /** Clé de partition du cache : `<type>#<AAAA-MM>`. */
 export const pk = (type: string, day: string): string => `${type}#${day.slice(0, 7)}`;

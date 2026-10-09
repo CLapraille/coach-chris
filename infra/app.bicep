@@ -19,6 +19,9 @@ param userObjectId string
 @description('Cron UTC du job de synchro (D97) : 4 h UTC = 6 h l\'été, 5 h l\'hiver à Paris.')
 param syncCron string = '0 4 * * *'
 
+@description('Heures (heure de Paris) où le BFF garde une réplique prête, pour éviter ~30 s de démarrage à l’ouverture. Vide = jamais (0 € de plus).')
+param bffWarmHours object = { start: '0 6 * * *', end: '0 23 * * *' }
+
 // ---------------------------------------------------------------- identité, journaux, stockage
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -236,7 +239,31 @@ resource bff 'Microsoft.App/containerApps@2024-03-01' = {
           ]
         }
       ]
-      scale: { minReplicas: 0, maxReplicas: 1 }
+      // Zéro réplique hors usage ; une réplique gardée prête en journée si bffWarmHours est renseigné (règle cron KEDA).
+      // Déclarer une règle remplace la règle HTTP implicite : elle est donc redéclarée.
+      scale: {
+        minReplicas: 0
+        maxReplicas: 1
+        rules: concat(
+          [{ name: 'http', http: { metadata: { concurrentRequests: '10' } } }],
+          empty(bffWarmHours)
+            ? []
+            : [
+                {
+                  name: 'journee'
+                  custom: {
+                    type: 'cron'
+                    metadata: {
+                      timezone: 'Europe/Paris'
+                      start: bffWarmHours.start
+                      end: bffWarmHours.end
+                      desiredReplicas: '1'
+                    }
+                  }
+                }
+              ]
+        )
+      }
     }
   }
 }

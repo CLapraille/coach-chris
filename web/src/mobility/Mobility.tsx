@@ -14,6 +14,7 @@ import { Figure } from './Figure.tsx';
 import { Guide } from './Guide.tsx';
 import { TestForm } from './TestForm.tsx';
 import { formatResult, TESTS } from './tests.ts';
+import { Loading } from '../Loading.tsx';
 
 const total = (items: RoutineItemView[]) => items.reduce((s, i) => s + i.durationS * (i.perSide ? 2 : 1), 0);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
@@ -30,7 +31,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function Mobility() {
   const res = useApi<MobilityView>('/mobility');
-  if (res.state === 'loading') return <p className="muted">Chargement…</p>;
+  if (res.state === 'loading') return <Loading />;
   if (res.state === 'error') {
     return (
       <p className="empty" role="alert">

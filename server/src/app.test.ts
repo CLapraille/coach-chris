@@ -212,6 +212,67 @@ describe('synchro', () => {
     expect(details).toBe(15);
   });
 
+  it('erreur passagère → nouvel essai ; jeton refusé → aucun nouvel essai', async () => {
+    let calls = 0;
+    const flaky = fakeMcp({
+      get_active_goal: () => {
+        if (++calls === 1) throw new ToolError('Campus Coach API /goal -> 503: Service Unavailable');
+        return [];
+      },
+      get_training_plan: () => ({ weeks: [] }),
+    });
+    const store = new MemoryStore();
+    const sync = new Sync(store, { garmin, campus: flaky }, clock, { retryDelaysMs: [0, 0] });
+    expect(await sync.run('campus', 'job')).toMatchObject({ outcome: 'ok', attempts: 2 });
+
+    let refused = 0;
+    const expired = fakeMcp({
+      get_active_goal: () => {
+        refused++;
+        throw new ToolError('Campus Coach token refresh failed (401).');
+      },
+    });
+    const s2 = new Sync(new MemoryStore(), { garmin, campus: expired }, clock, { retryDelaysMs: [0, 0] });
+    expect(await s2.run('campus', 'job')).toMatchObject({ outcome: 'token-expired' });
+    expect(refused).toBe(1);
+  });
+
+  it('Garmin : le détail des activités (tours, zones) est lu d’avance, une seule fois', async () => {
+    const reads: string[] = [];
+    const withDetail = fakeMcp({
+      ...Object.fromEntries(
+        ['get_activities_by_date', 'get_weigh_ins', 'get_hrv_data', 'get_sleep_data'].map((t) => [
+          t,
+          (a: Record<string, unknown>) => garmin.call(t, a) as unknown,
+        ]),
+      ),
+      get_training_readiness: () => [],
+      get_device_last_used: () => null,
+      get_body_battery: () => [],
+      get_stress_data: () => ({}),
+      get_activity: ({ activity_id }) => {
+        reads.push(String(activity_id));
+        return {
+          id: activity_id,
+          start_time_local: '2026-10-06T20:58:51.0',
+          type: 'running',
+          duration_seconds: 1801,
+        };
+      },
+      get_activity_splits: () => ({ laps: [] }),
+      get_activity_hr_in_timezones: () => [],
+    });
+    const store = new MemoryStore();
+    const sync = new Sync(store, { garmin: withDetail, campus }, clock, { retryDelaysMs: [] });
+    await sync.run('garmin', 'job');
+    expect(reads.sort()).toEqual(['24631672339', '24636237784']);
+    expect(await store.get('cache', '24631672339', 'detail#2026-10')).toMatchObject({
+      detail: { id: '24631672339', laps: [] },
+    });
+    await sync.run('garmin', 'job');
+    expect(reads).toHaveLength(2);
+  });
+
   it('deux synchros simultanées de la même source ne font qu’un passage', async () => {
     const store = new MemoryStore();
     const sync = new Sync(store, { garmin, campus }, clock);

@@ -10,7 +10,9 @@ type LogDoc = Doc & {
   outcome: SyncOutcome;
   durationMs: number;
   message?: string;
+  attempts?: number;
 };
+type ActionLogDoc = Doc & { title: string; outcome: 'ok' | 'error'; message: string };
 
 /** Fenêtre de l'écran Données (D84). */
 const WINDOW_DAYS = 14;
@@ -18,10 +20,10 @@ const LOG_SIZE = 10;
 /** Recherche de la dernière activité et de la dernière pesée. */
 const LOOKBACK_DAYS = 90;
 
-/** État des sources (D81), fraîcheur des données (D84) et journal des synchros (D83). */
+/** État des sources (D81), fraîcheur des données (D84), journal des synchros (D83) et des écritures (D123). */
 export async function dataStatus(store: Store, today: string): Promise<DataStatus> {
   const windowDays = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i - WINDOW_DAYS + 1));
-  const [states, logs, nights, acts, weights, plan, goal, device] = await Promise.all([
+  const [states, logs, nights, acts, weights, plan, goal, device, writes] = await Promise.all([
     store.list<Doc & { lastOkAt?: string }>('ops', 'sync-state'),
     store.list<LogDoc>('ops', 'sync-log'),
     Promise.all(windowDays.map((d) => night(store, d))),
@@ -30,6 +32,7 @@ export async function dataStatus(store: Store, today: string): Promise<DataStatu
     planWeek(store, mondayOf(today)),
     activeGoal(store),
     store.get<Doc & { name: string; lastUpload?: string }>('cache', 'garmin', 'device'),
+    store.list<ActionLogDoc>('ops', 'action-log'),
   ]);
   const sorted = logs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   const source = (name: SourceName): DataStatus['sources'][SourceName] => {
@@ -98,6 +101,11 @@ export async function dataStatus(store: Store, today: string): Promise<DataStatu
       outcome: l.outcome,
       durationMs: l.durationMs,
       ...(l.message !== undefined && { message: l.message }),
+      ...(l.attempts !== undefined && { attempts: l.attempts }),
     })),
+    actions: writes
+      .sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))
+      .slice(0, LOG_SIZE)
+      .map((w) => ({ at: w.fetchedAt, title: w.title, ok: w.outcome === 'ok', message: w.message })),
   };
 }
