@@ -1,4 +1,16 @@
-import type { ActivityDetail, LapView, SessionView, StepIssue, StepResult } from '@coach-chris/domain';
+import {
+  FEEL_LABEL,
+  FEEL_VALUES,
+  type ActionRequest,
+  type ActivityDetail,
+  type Annotation,
+  type LapView,
+  type SessionView,
+  type StepIssue,
+  type StepResult,
+} from '@coach-chris/domain';
+import { useState } from 'react';
+import { ActionDialog } from '../actions/ActionDialog.tsx';
 import { useApi } from '../api.ts';
 import {
   SPORT_COLOR,
@@ -52,7 +64,7 @@ export function SessionDetail({ sessionKey, onBack }: { sessionKey: string; onBa
       </div>
     );
   }
-  return <Detail view={res.data} onBack={onBack} />;
+  return <Detail view={res.data} onBack={onBack} reload={res.reload} />;
 }
 
 function Crumb({ onBack, weekStart, day }: { onBack: () => void; weekStart?: string; day?: string | null }) {
@@ -67,8 +79,9 @@ function Crumb({ onBack, weekStart, day }: { onBack: () => void; weekStart?: str
   );
 }
 
-function Detail({ view, onBack }: { view: SessionView; onBack: () => void }) {
+function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => void; reload: () => void }) {
   const { session: s, activity: a, deviation: d } = view;
+  const [action, setAction] = useState<ActionRequest | null>(null);
   const short = sessionShort(s.name);
   const day = s.match?.day ?? s.day;
   const badge =
@@ -166,39 +179,12 @@ function Detail({ view, onBack }: { view: SessionView; onBack: () => void }) {
           <span className="label">Actions</span>
         </header>
         <div className="acts">
-          <div className="act">
-            <h3>Campus Coach</h3>
-            <p>
-              {s.status === 'done'
-                ? `Séance déjà validée${s.match ? ` le ${shortDate(s.match.day)}` : ''}.`
-                : 'La validation dans Campus, avec aperçu et confirmation, arrive avec les écritures (jalon M5).'}
-            </p>
-            <button className="btn" type="button" disabled>
-              Valider dans Campus
-            </button>
-          </div>
-          {a && (
-            <div className="act">
-              <h3>Annotation Garmin</h3>
-              <div className="kvs">
-                <span>
-                  Effort perçu <b>{a.rpe !== undefined ? `${a.rpe / 10}/10` : '—'}</b>
-                </span>
-                <span>
-                  Ressenti <b>{a.feel !== undefined ? feelLabel(a.feel) : '—'}</b>
-                </span>
-              </div>
-              <p>
-                Échelle de l'effort perçu à confirmer. L'annotation (aperçu et confirmation) arrive au jalon
-                M5.
-              </p>
-              <button className="btn" type="button" disabled>
-                Annoter dans Garmin
-              </button>
-            </div>
-          )}
+          <CampusAct view={view} onAct={setAction} />
+          {s.sport === 'run' && s.status === 'todo' && !s.match && <WatchAct view={view} onAct={setAction} />}
+          {a && <AnnotateAct activity={a} onAct={setAction} />}
         </div>
       </section>
+      {action && <ActionDialog request={action} onClose={() => setAction(null)} onDone={reload} />}
     </section>
   );
 }
@@ -574,5 +560,123 @@ function Zones({ zones }: { zones: ActivityDetail['zones'] }) {
       </div>
       <span className="muted text-xs">Temps sous la zone 1 non fourni par Garmin.</span>
     </section>
+  );
+}
+
+type OnAct = (r: ActionRequest) => void;
+
+/** Valider dans Campus (D125) : une course rattachée à une activité Garmin, pas encore validée. */
+function CampusAct({ view, onAct }: { view: SessionView; onAct: OnAct }) {
+  const s = view.session;
+  const activityId = s.match?.activityId;
+  const can = s.status === 'todo' && s.sport === 'run' && !!activityId;
+  const text =
+    s.status === 'done'
+      ? `Séance déjà validée${s.match ? ` le ${shortDate(s.match.day)}` : ''}.`
+      : s.sport !== 'run'
+        ? 'Depuis l’app, seules les courses se valident : valide cette séance dans Campus.'
+        : activityId
+          ? `La course du ${shortDate(s.match!.day)} est rattachée à cette séance. Ses chiffres (distance, durée, FC…) partiront vers Campus après aperçu.`
+          : 'Possible une fois la séance faite et son activité Garmin rattachée.';
+  return (
+    <div className="act">
+      <h3>Campus Coach</h3>
+      <p>{text}</p>
+      <button
+        className="btn"
+        type="button"
+        disabled={!can}
+        onClick={() => onAct({ type: 'campus.complete', sessionKey: s.key })}
+      >
+        Valider dans Campus
+      </button>
+    </div>
+  );
+}
+
+/** Envoyer sur la montre (D126) : workout « CC · » planifié au jour placé de la séance. */
+function WatchAct({ view, onAct }: { view: SessionView; onAct: OnAct }) {
+  const s = view.session;
+  const text = s.pushed
+    ? `Envoyée le ${shortDate(s.pushed.at.slice(0, 10))} pour le ${shortDate(s.pushed.date)}. Un nouvel envoi remplace l’ancien.`
+    : s.day
+      ? `Sera planifiée dans le calendrier Garmin pour ${longDate(s.day).toLowerCase()}, sans cible d’allure.`
+      : 'Aucun jour à venir pour cette séance dans le calendrier.';
+  return (
+    <div className="act">
+      <h3>Montre</h3>
+      <p>{text}</p>
+      <button
+        className="btn"
+        type="button"
+        disabled={!s.day}
+        onClick={() => onAct({ type: 'garmin.push', sessionKey: s.key })}
+      >
+        {s.pushed ? 'Renvoyer sur la montre' : 'Envoyer sur la montre'}
+      </button>
+    </div>
+  );
+}
+
+/** Annoter dans Garmin (D127) : seuls les champs modifiés partent, après aperçu. */
+function AnnotateAct({ activity: a, onAct }: { activity: ActivityDetail; onAct: OnAct }) {
+  const [rpe, setRpe] = useState(a.rpe !== undefined ? String(a.rpe / 10) : '');
+  const [feel, setFeel] = useState(a.feel !== undefined ? String(a.feel) : '');
+  const [description, setDescription] = useState(a.description ?? '');
+  const submit = () => {
+    const changes: Annotation = {};
+    if (rpe) changes.rpe = Number(rpe);
+    if (feel) changes.feel = Number(feel) as NonNullable<Annotation['feel']>;
+    if (description !== (a.description ?? '')) changes.description = description;
+    onAct({ type: 'garmin.annotate', activityId: a.id, changes });
+  };
+  return (
+    <div className="act">
+      <h3>Annotation Garmin</h3>
+      <div className="kvs">
+        <span>
+          Effort perçu <b>{a.rpe !== undefined ? `${a.rpe / 10}/10` : '—'}</b>
+        </span>
+        <span>
+          Ressenti <b>{a.feel !== undefined ? feelLabel(a.feel) : '—'}</b>
+        </span>
+      </div>
+      <div className="annot">
+        <label>
+          Effort perçu
+          <select value={rpe} onChange={(e) => setRpe(e.target.value)}>
+            <option value="">—</option>
+            {Array.from({ length: 10 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                {i + 1}/10
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Ressenti
+          <select value={feel} onChange={(e) => setFeel(e.target.value)}>
+            <option value="">—</option>
+            {FEEL_VALUES.map((v) => (
+              <option key={v} value={v}>
+                {FEEL_LABEL[v]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="wide">
+          Notes
+          <textarea
+            rows={2}
+            value={description}
+            maxLength={2000}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </label>
+      </div>
+      <button className="btn" type="button" onClick={submit}>
+        Annoter dans Garmin
+      </button>
+    </div>
   );
 }

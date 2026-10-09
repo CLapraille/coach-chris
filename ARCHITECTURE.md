@@ -121,7 +121,7 @@ Toutes les routes sont sous `/api`. Elles exigent un jeton Entra valide (§8), s
 | `POST /mobility/tests` · `POST /mobility/blocks/:id/accept` | Mobilité | saisir les tests ; valider le bloc proposé (validation obligatoire, D78) |
 | `GET /data/status` | Données | état par source, fraîcheur, journal (D81–D84) |
 | `POST /sync?source=` | Données, bouton Actualiser | synchro à la demande |
-| `POST /actions/preview` · `POST /actions/confirm` | Détail de séance, Calendrier | écritures externes (§7) |
+| `POST /actions/preview` · `POST /actions/confirm` | Détail de séance, Prochaine séance | écritures externes (§7) |
 | `GET /health` | — | sonde Container Apps |
 
 ## 5. Synchronisation (D35)
@@ -145,7 +145,7 @@ Toutes les routes sont sous `/api`. Elles exigent un jeton Entra valide (§8), s
 | Ingress | **interne uniquement** en V1 (D27) | interne uniquement |
 | Jetons | `/data/garmin` sur Azure Files (`GARMINTOKENS`) | `/data/campus/tokens.json` sur Azure Files (`CAMPUS_COACH_TOKEN_DIR`), session dédiée (D117) |
 | Hôte HTTP | — | protection DNS rebinding active, nom interne admis par `CAMPUS_MCP_ALLOWED_HOSTS` (D121) |
-| Outils autorisés | lecture : activités, tours, zones FC, sommeil, VFC, disponibilité, Body Battery, stress, poids, appareil ; écriture : création et planification de workout, nom, description, RPE et ressenti d'activité, suppression des seuls workouts « CC · » | les 9 outils de lecture + `complete_session` (§7) |
+| Outils autorisés | lecture : activités, tours, zones FC, sommeil, VFC, disponibilité, Body Battery, stress, poids, appareil ; écriture : création et planification de workout, nom, description, RPE et ressenti d'activité, suppression des seuls workouts « CC · » | les 9 outils de lecture + `complete_session` (§7, D125) |
 
 La liste blanche est appliquée **deux fois** :
 - côté MCP, par `GARMIN_ENABLED_TOOLS`, qui masque tout le reste dont les outils de nutrition et de suppression en masse ;
@@ -158,14 +158,14 @@ Les deux MCP **rafraîchissent eux-mêmes leurs jetons** et les réécrivent sur
 ## 7. Écritures externes (D13, D18, D39, D40)
 
 Protocole en deux temps :
-1. `POST /actions/preview` reçoit `{ type, cible }`. Le BFF **relit la source** et construit la requête exacte. Il renvoie un **aperçu lisible** (champ par champ) et un jeton d'action signé, valable 5 min, qui contient l'empreinte de la requête.
-2. `POST /actions/confirm` reçoit `{ jetonAction }`. Le BFF vérifie la signature, l'expiration et l'empreinte, appelle l'outil MCP, puis journalise la requête et la réponse dans `ops`.
+1. `POST /api/actions/preview` reçoit `{ type, … }` (`campus.complete`, `garmin.push`, `garmin.annotate`). Le BFF **relit la source** et construit les appels exacts. Il renvoie un **aperçu lisible** (champ par champ, avertissements) et un jeton d'action valable 5 min qui **contient** ces appels, signé HMAC-SHA256 avec une clé aléatoire propre au processus (D123).
+2. `POST /api/actions/confirm` reçoit `{ token }`. Le BFF vérifie la signature, l'expiration et l'usage unique, appelle les outils MCP avec le drapeau d'écriture (D124), **contrôle chaque réponse** (les erreurs Garmin arrivent en texte), puis journalise dans `ops` (`action-log`, sans jeton) et relit la source concernée.
 
 | Action | Outil | Particularités |
 |---|---|---|
 | **Valider une séance dans Campus** | nouvel outil `complete_session` dans `campus-coach-mcp` → `PUT /smart-training/session/{weekId}/{sessionIndex}/complete` | le corps est construit **uniquement à partir de l'activité Garmin** rattachée ; l'outil **relit le plan juste avant l'appel**, car les `weekId` changent, puis retrouve la séance par sa clé interne ; `_t` dépend du sport (❓ variantes route et PPG à confirmer à la première utilisation) |
 | Envoyer une séance sur la montre | création et planification du workout Garmin | nom préfixé « CC · », note courte dans la description (D39) ; jamais automatique (D40) |
-| Annoter une activité Garmin | nom, description, RPE, ressenti | ❓ l'échelle RPE reste à confirmer (Garmin renvoie `workout_rpe: 10` pour « 1/10 », AUDIT) |
+| Annoter une activité Garmin | nom, description, RPE, ressenti | seuls les champs modifiés partent ; Garmin stocke le RPE ×10 (`workout_rpe: 10` = 1/10, D127) |
 
 ## 8. Sécurité et authentification (D17, D28, D30)
 
@@ -173,8 +173,8 @@ Protocole en deux temps :
 - **BFF** : Easy Auth de Container Apps (fournisseur Entra) valide le jeton bearer. Le BFF vérifie en plus l'audience et l'identifiant objet de ton compte (défense en profondeur). Le CORS n'autorise que l'origine SWA.
 - **Local** : pas d'authentification (D17) ; le drapeau `AUTH_DISABLED` est refusé au démarrage si `NODE_ENV=production`.
 - **Secrets** : pas de Key Vault. L'accès à Cosmos passe par l'identité managée `mid-cc-9we-01` avec un rôle RBAC sur le plan de données. Les images GHCR sont publiques (D116) : aucun PAT. Il reste dans Container Apps :
-  - la clé du compte de stockage, que le montage Azure Files de Container Apps exige ;
-  - la clé de signature des jetons d'action (M5).
+  - la clé du compte de stockage, que le montage Azure Files de Container Apps exige.
+  La clé de signature des jetons d'action est tirée au hasard au démarrage du BFF (D123) : rien à stocker.
 - **Jetons Bearer** Garmin et Campus : jamais journalisés, jamais renvoyés au front.
 
 ## 9. Infrastructure Azure (Bicep, D93)
@@ -251,7 +251,7 @@ L'activation d'Azure (paiement à l'usage, budget, Azure CLI) est nécessaire **
 1. ~~Framework du BFF~~ → Fastify (D95).
 2. ~~Emplacement de `campus-coach-mcp`~~ → `mcp/campus` (D96).
 3. ~~Cron du job~~ → heure UTC fixe (D97).
-4. Variantes `_t` du corps de validation Campus pour la route et le renforcement (à confirmer au premier usage, aperçu obligatoire).
-5. Échelle RPE Garmin.
+4. Variantes `_t` du corps de validation Campus : route essayée avec `SmartRacingNoteForm` et vérifiée par relecture (D125) ; renforcement non pris en charge en V1.
+5. ~~Échelle RPE Garmin~~ → stockée ×10 (D127).
 6. ~~Certificat AVG et Node~~ → `NODE_OPTIONS=--use-system-ca`.
-7. Images GHCR privées (avec la limite de transfert) ou publiques.
+7. ~~Images GHCR privées ou publiques~~ → publiques (D116).

@@ -1,5 +1,5 @@
 import type { SessionView } from '@coach-chris/domain';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TODAY } from '../today/fixture.ts';
 import { SessionDetail } from './SessionDetail.tsx';
@@ -75,8 +75,61 @@ it('prévu vs réalisé : étapes conformes, marche courue signalée, après-sé
   expect(within(table).getByText('après la séance')).toBeTruthy();
   expect(screen.getByText(/Après la séance :/)).toBeTruthy();
   expect(screen.getByText('« On y va molo. »')).toBeTruthy();
-  // Écritures pas encore disponibles (M5) : boutons désactivés, aucune action possible.
+  // Séance déjà validée : rien à envoyer à Campus.
   expect((screen.getByRole('button', { name: 'Valider dans Campus' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
+  expect(screen.getByText('Séance déjà validée le 08/10.')).toBeTruthy();
+});
+
+/** Séance rattachée mais pas validée : l'aperçu puis la confirmation passent par l'API. */
+it('Valider dans Campus : aperçu, rien sans « Confirmer », puis résultat et relecture', async () => {
+  const pending: SessionView = { ...VIEW, session: { ...VIEW.session, status: 'todo' } };
+  const posts: { url: string; body: unknown }[] = [];
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)) as unknown;
+      posts.push({ url, body });
+      if (url.endsWith('/actions/preview')) {
+        return Response.json({
+          token: 'jeton',
+          expiresAt: '2026-10-08T05:05:00Z',
+          title: 'Valider dans Campus',
+          target: 'Campus Coach',
+          fields: [{ label: 'Distance', value: '1,20 km' }],
+          warnings: ['Formulaire « route » pas encore confirmé'],
+        });
+      }
+      return Response.json({ ok: true, message: 'Séance validée dans Campus.' });
+    }
+    return Response.json(pending);
+  });
+  render(<SessionDetail sessionKey="k2" onBack={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider dans Campus' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Valider dans Campus' });
+  expect(within(dialog).getByText('1,20 km')).toBeTruthy();
+  expect(within(dialog).getByText(/route/)).toBeTruthy();
+  expect(posts.map((p) => p.url.replace(/.*\/api/, ''))).toEqual(['/actions/preview']);
+  expect(posts[0]!.body).toEqual({ type: 'campus.complete', sessionKey: pending.session.key });
+
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmer' }));
+  expect(await screen.findByText('Séance validée dans Campus.')).toBeTruthy();
+  expect(posts[1]!.body).toEqual({ token: 'jeton' });
+});
+
+it('Annoter dans Garmin : effort et ressenti choisis, notes inchangées non envoyées', async () => {
+  const posts: unknown[] = [];
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      posts.push(JSON.parse(String(init.body)));
+      return Response.json({ error: 'Rien à modifier' }, { status: 422 });
+    }
+    return Response.json(VIEW);
+  });
+  render(<SessionDetail sessionKey="k2" onBack={() => {}} />);
+  fireEvent.change(await screen.findByLabelText('Effort perçu'), { target: { value: '4' } });
+  fireEvent.change(screen.getByLabelText('Ressenti'), { target: { value: '75' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Annoter dans Garmin' }));
+  expect(await screen.findByText('Rien à modifier')).toBeTruthy();
+  expect(posts).toEqual([{ type: 'garmin.annotate', activityId: '1', changes: { rpe: 4, feel: 75 } }]);
 });
