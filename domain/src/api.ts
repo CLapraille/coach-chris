@@ -317,7 +317,11 @@ export interface DataStatus {
     outcome: 'ok' | 'token-expired' | 'error';
     durationMs: number;
     message?: string;
+    /** Essais quand une erreur passagère a été réessayée. */
+    attempts?: number;
   }[];
+  /** 10 dernières écritures confirmées (D123), de la plus récente à la plus ancienne. */
+  actions: { at: string; title: string; ok: boolean; message: string }[];
 }
 
 const toSeconds = (d: { value: number; timeUnit: string }) =>

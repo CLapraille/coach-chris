@@ -8,6 +8,7 @@ import { NextSessionCard } from './NextSessionCard.tsx';
 import { SignalsCard } from './SignalsCard.tsx';
 import { VolumeCard } from './VolumeCard.tsx';
 import { WeekCard } from './WeekCard.tsx';
+import { Loading } from '../Loading.tsx';
 
 export function Today({
   status,
@@ -19,7 +20,7 @@ export function Today({
   onOpenSession: (key: string) => void;
 }) {
   const res = useApi<TodayView>('/today');
-  if (res.state === 'loading') return <p className="muted">Chargement…</p>;
+  if (res.state === 'loading') return <Loading />;
   if (res.state === 'error') {
     return (
       <div className="card" role="alert">

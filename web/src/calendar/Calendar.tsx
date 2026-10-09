@@ -4,6 +4,7 @@ import { useApi } from '../api.ts';
 import { parisDay } from '../format.ts';
 import { Month } from './Month.tsx';
 import { Week } from './Week.tsx';
+import { Loading } from '../Loading.tsx';
 
 const monthOf = (day: string) => day.slice(0, 7);
 function shiftMonth(m: string, n: number): string {
@@ -88,7 +89,7 @@ function WeekLoader({
   onOpenSession: (key: string) => void;
 }) {
   const res = useApi<WeekView>(`/calendar/week?start=${start}`);
-  if (res.state === 'loading') return <p className="muted">Chargement…</p>;
+  if (res.state === 'loading') return <Loading />;
   if (res.state === 'error')
     return (
       <p className="empty" role="alert">
@@ -110,7 +111,7 @@ function MonthLoader({
   onOpenWeek: (start: string) => void;
 }) {
   const res = useApi<MonthView>(`/calendar/month?m=${month}`);
-  if (res.state === 'loading') return <p className="muted">Chargement…</p>;
+  if (res.state === 'loading') return <Loading />;
   if (res.state === 'error')
     return (
       <p className="empty" role="alert">

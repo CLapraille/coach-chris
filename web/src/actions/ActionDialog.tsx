@@ -67,7 +67,12 @@ export function ActionDialog({
   return (
     <div className="confirm-bg">
       <div className="confirm card" role="dialog" aria-modal="true" aria-label={preview?.title ?? 'Écriture'}>
-        {phase.at === 'preview' && <p className="muted">Lecture des sources pour l’aperçu…</p>}
+        {phase.at === 'preview' && (
+          <p className="muted">
+            Lecture des sources pour l’aperçu… Après une pause, Garmin ou Campus peuvent mettre une trentaine
+            de secondes à répondre.
+          </p>
+        )}
         {preview && (
           <>
             <header>
