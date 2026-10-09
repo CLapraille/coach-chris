@@ -30,6 +30,9 @@ it('jeton Campus expiré : reconnexion depuis le navigateur, jetons collés envo
   const campus = screen.getByRole('heading', { name: 'Campus Coach' }).closest('article')!;
   expect(within(campus).getByText('Jeton expiré')).toBeTruthy();
   expect(within(campus).getByText(/location\.replace\('about:blank'\)/)).toBeTruthy();
+  // Téléphone : pas de console, un favori à copier ; le champ de collage reste le même.
+  fireEvent.click(within(campus).getByRole('button', { name: 'Téléphone' }));
+  expect(within(campus).getByRole('button', { name: 'Copier le code du favori' })).toBeTruthy();
   fireEvent.change(within(campus).getByLabelText('Jetons Campus copiés'), {
     target: { value: '{"atk":"a","rtk":"r"}' },
   });
