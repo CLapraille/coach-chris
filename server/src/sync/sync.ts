@@ -43,8 +43,9 @@ const HISTORY_WEEKS = 4;
 const NIGHT_DAYS = 14;
 const LOG_TTL_S = 90 * 24 * 3600;
 const SCHEMA = 1;
-/** Version du contenu d'une nuit : 2 = Body Battery, stress, temps éveillé, récupération. */
-const NIGHT_VERSION = 2;
+/** Version du contenu d'une nuit : 2 = Body Battery, stress, temps éveillé, récupération ;
+ * 3 = Body Battery au réveil, appréciation du score de sommeil. */
+const NIGHT_VERSION = 3;
 /** Au plus loin, le plan est lu sur 12 semaines (un objectif Campus dure en général 8 semaines). */
 const MAX_WEEKS_AHEAD = 12;
 /** Erreur passagère (API indisponible, MCP qui démarre) : nouvel essai après 5 s puis 20 s (ARCHITECTURE §5). */
@@ -185,11 +186,14 @@ export class Sync {
     const nightsFrom = state?.nightVersion === NIGHT_VERSION ? from : addDays(today, -(NIGHT_DAYS - 1));
     for (let day = nightsFrom; day <= today; day = addDays(day, 1)) {
       const g = (tool: string, args: Record<string, unknown>) => this.mcp.garmin.call(tool, args);
+      const sleepRaw = await g('get_sleep_data', { date: day });
+      const bodyBattery = garmin.bodyBattery(await g('get_body_battery', { start_date: day, end_date: day }));
+      const wake = garmin.wakeBodyBattery(sleepRaw);
       const night: Night = {
         hrv: garmin.hrv(await g('get_hrv_data', { date: day })),
-        sleep: garmin.sleep(await g('get_sleep_data', { date: day })),
+        sleep: garmin.sleep(sleepRaw),
         readiness: garmin.readiness(await g('get_training_readiness', { date: day })),
-        bodyBattery: garmin.bodyBattery(await g('get_body_battery', { start_date: day, end_date: day })),
+        bodyBattery: wake === undefined ? bodyBattery : { ...bodyBattery, wake },
         stress: garmin.stress(await g('get_stress_data', { date: day })),
       };
       await this.store.upsert('cache', { ...this.doc(day, 'garmin'), pk: pk('night', day), day, ...night });

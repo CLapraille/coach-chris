@@ -94,6 +94,8 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
       stressYesterday: yesterday?.stress ?? null,
       hrvHistory: nightDays.map((day, i) => ({ day, ms: nights[i]?.hrv?.lastNightMs ?? null })),
       weight: weightTrend(weights),
+      weightHistory: weights,
+      readinessYesterday: yesterday?.readiness?.score ?? null,
     },
     volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday),
     week,

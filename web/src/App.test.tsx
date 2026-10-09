@@ -45,8 +45,14 @@ it('Aujourd’hui : séance, forme et poids sur les données de l’API, absence
   expect(screen.getByText('Renforcement S2-2, 30 min')).toBeTruthy();
   expect(screen.getByText('83,4 kg')).toBeTruthy();
   expect(screen.getByRole('img', { name: 'en baisse' }).textContent).toBe('−0,7 kg');
-  // Body Battery absent : « indisponible », jamais une valeur inventée.
-  expect(screen.getAllByText('indisponible')).toHaveLength(1);
+  // Forme ce matin : Body Battery au réveil, sommeil, préparation (écart avec la veille), récupération.
+  expect(screen.getByRole('img', { name: 'Body Battery au réveil 78 sur 100' })).toBeTruthy();
+  expect(screen.getByText('+59 cette nuit')).toBeTruthy();
+  expect(screen.getByText('Bon sommeil')).toBeTruthy();
+  expect(screen.getByText('+3 vs hier')).toBeTruthy();
+  expect(screen.getByText('11,1 h')).toBeTruthy();
+  expect(screen.getByRole('img', { name: '3 pesées du 29/09 au 08/10' })).toBeTruthy();
+  expect(screen.queryAllByText('indisponible')).toHaveLength(0);
   expect(screen.getByText("Pas encore 4 semaines d'historique : pas de repère.")).toBeTruthy();
 });
 
