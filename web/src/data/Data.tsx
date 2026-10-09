@@ -55,6 +55,7 @@ export function Data({ status, onChanged }: { status: DataStatus; onChanged: () 
             status={status}
             busy={busy === s || busy === 'all'}
             onRefresh={() => void refresh(s)}
+            onRefreshed={onChanged}
           />
         ))}
         <Freshness status={status} />
@@ -76,11 +77,14 @@ function SourceCard({
   status,
   busy,
   onRefresh,
+  onRefreshed,
 }: {
   source: SourceName;
   status: DataStatus;
   busy: boolean;
   onRefresh: () => void;
+  /** Après une reconnexion réussie : relire l'état. */
+  onRefreshed: () => void;
 }) {
   const { lastOkAt, last } = status.sources[source];
   const expired = last?.outcome === 'token-expired';
@@ -96,7 +100,7 @@ function SourceCard({
     <article className="card s6">
       <header>
         <span className="label">Source</span>
-        <span className="src">MCP {source === 'garmin' ? 'garmin' : 'campus-coach'}</span>
+        <span className={`src ${source}`}>MCP {source === 'garmin' ? 'garmin' : 'campus-coach'}</span>
       </header>
       <div className="src-head">
         <h2>{NAME[source]}</h2>
@@ -167,13 +171,113 @@ function SourceCard({
         <dt>Dernière erreur</dt>
         <dd>{last && last.outcome !== 'ok' ? last.message : <small>aucune</small>}</dd>
       </dl>
-      {expired && <Reauth source={source} />}
+      {expired &&
+        (source === 'campus' ? <CampusReconnect onDone={onRefreshed} /> : <Reauth source={source} />)}
+      {!expired && source === 'campus' && (
+        <details className="reauth-more">
+          <summary>Reconnecter Campus</summary>
+          <CampusReconnect onDone={onRefreshed} />
+        </details>
+      )}
       <div className="actions">
         <button className="btn" type="button" disabled={busy} onClick={onRefresh}>
           {busy ? 'Actualisation…' : 'Actualiser maintenant'}
         </button>
       </div>
     </article>
+  );
+}
+
+/** Ligne à coller dans la console de Campus : copie les jetons, les retire de la page et quitte Campus (D133). */
+const CAMPUS_SNIPPET =
+  "copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}));" +
+  "localStorage.removeItem('atk');localStorage.removeItem('rtk');location.replace('about:blank')";
+
+/**
+ * Reconnexion Campus depuis n'importe quel navigateur, sans script (D133) : session dédiée ouverte dans une
+ * fenêtre privée (D117), jetons copiés par le snippet puis collés ici ; le serveur les vérifie avant de les garder.
+ */
+function CampusReconnect({ onDone }: { onDone: () => void }) {
+  const [pasted, setPasted] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<{ busy: boolean; ok?: boolean; message?: string }>({ busy: false });
+  const send = async () => {
+    setState({ busy: true });
+    try {
+      const r = await api<{ ok: boolean; message: string }>('/sources/campus/session', {
+        method: 'POST',
+        body: JSON.stringify({ pasted }),
+      });
+      setState({ busy: false, ...r });
+      if (r.ok) {
+        setPasted('');
+        onDone();
+      }
+    } catch (e) {
+      setState({ busy: false, ok: false, message: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  return (
+    <div className="reauth">
+      <ol>
+        <li>
+          Ouvre une <b>fenêtre de navigation privée</b> et connecte-toi sur{' '}
+          <a href="https://app.campus.coach" target="_blank" rel="noreferrer">
+            app.campus.coach
+          </a>
+          .
+        </li>
+        <li>
+          Dans cette fenêtre, ouvre la console (F12 › Console) et colles-y cette ligne. Elle copie tes jetons,
+          les retire de la page et quitte Campus (page blanche) :
+          <div className="cmd">
+            <code>{CAMPUS_SNIPPET}</code>
+            <button
+              className="btn small"
+              type="button"
+              onClick={() =>
+                void navigator.clipboard.writeText(CAMPUS_SNIPPET).then(
+                  () => setCopied(true),
+                  () => setCopied(false),
+                )
+              }
+            >
+              {copied ? 'Copié' : 'Copier'}
+            </button>
+          </div>
+        </li>
+        <li>
+          Ferme la fenêtre privée <b>sans te déconnecter</b> de Campus, puis colle ici (rien ne s’affiche) :
+          <div className="cmd">
+            <input
+              type="password"
+              aria-label="Jetons Campus copiés"
+              autoComplete="off"
+              spellCheck={false}
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+            />
+            <button
+              className="btn small primary"
+              type="button"
+              disabled={!pasted || state.busy}
+              onClick={() => void send()}
+            >
+              {state.busy ? 'Vérification…' : 'Reconnecter'}
+            </button>
+          </div>
+        </li>
+      </ol>
+      {state.message && (
+        <p className={state.ok ? 'cf-ok' : 'cf-err'} role="status">
+          {state.message}
+        </p>
+      )}
+      <small className="muted">
+        Les jetons ne sont ni affichés ni journalisés. Sur ton PC,{' '}
+        <code>{String.raw`.\reauth.ps1 -Source campus`}</code> fait la même chose.
+      </small>
+    </div>
   );
 }
 

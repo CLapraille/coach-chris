@@ -306,6 +306,27 @@ def complete_session(week_date: str, session_index: int, session_name: str, raci
 
 
 @mcp.tool()
+def save_session(atk: str | None, rtk: str) -> str:
+    """WRITE. Replace the stored Campus Coach session with tokens copied from a browser
+    (atk = access token, rtk = refresh token). They are checked with one read before
+    being kept; on failure the previous tokens are restored. Tokens are never returned."""
+    if not rtk or not rtk.strip():
+        raise ValueError("rtk (refresh token) is required.")
+    try:
+        previous = load_tokens()
+    except FileNotFoundError:
+        previous = None
+    save_tokens({"atk": atk, "rtk": rtk.strip()})
+    try:
+        client.get("/smart-training/goal/active")
+    except Exception:
+        if previous is not None:
+            save_tokens(previous)
+        raise ValueError("Campus Coach refused these tokens: sign in again and copy them again.") from None
+    return json.dumps({"status": "success"})
+
+
+@mcp.tool()
 def get_logged_sessions() -> str:
     """Get activities logged in Campus Coach (synced from a watch or entered
     manually): date, title, sport, duration, distance, elevation, heart rate,

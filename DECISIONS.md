@@ -286,6 +286,14 @@ Maquette : https://claude.ai/artifact/Be7xmuX9zrK782vmzbzCX1 (artefact privé).
 - ✅ **D131 Détail lu d'avance** : la synchro Garmin lit et met en cache le détail (résumé, tours, zones FC) des nouvelles activités ; le Détail de séance s'ouvre sans réveiller Garmin. Un détail illisible n'arrête pas la synchro.
 - ✅ **D132 Journal des écritures** : l'écran Données montre les 10 dernières écritures confirmées (titre, OK ou échec, message au survol) sous le journal des synchros.
 
+### Tour 24 — retours du test au bureau (2026-10-09)
+
+- ✅ **D133 Couleur par source** : chaque étiquette de source des cartes porte la couleur de sa source : **Garmin** bleu ciel, **Campus** rose, **CoachChris** (« Calculé », « CoachChris ») vert anis ; ce que l'utilisateur saisit (« Déclaré », tests) reste neutre. Teintes choisies hors des couleurs de sport (course, vélo, renfo, mobilité) et des statuts ; jetons `--src-*` en sombre et en clair.
+- 🔎 **Session Campus d'Azure perdue le 09/10** : rafraîchie à 04:33 puis 05:04 (UTC), refusée (« refresh 404 ») à 10:55, alors qu'aucun autre processus Azure ne l'utilise. Hypothèse la plus probable : la fenêtre privée est restée ouverte après la copie et l'application Campus a rafraîchi sa session avec le même refresh token ; Campus révoque alors toute la chaîne (détection de réutilisation d'un jeton déjà échangé). Non vérifiable sans risquer la session.
+- ✅ **D134 Reconnexion Campus sans script** (retour « impossible depuis un autre ordinateur ») : carte Campus de l'écran Données, formulaire « Reconnecter » : fenêtre privée → ligne à coller dans la console de Campus → jetons collés dans un champ masqué → `POST /api/sources/campus/session` → outil d'écriture `save_session` du MCP Campus, qui vérifie les jetons par une lecture avant de les garder (sinon il remet les anciens) → synchro Campus. Jetons ni affichés ni journalisés (seule l'issue va au journal). Disponible même quand le jeton est valide (bloc dépliable). Garmin garde `reauth.ps1` (connexion par mot de passe impossible depuis le navigateur ; ses jetons durent environ un an).
+- ✅ **Ligne de copie plus sûre** (Données et `reauth.ps1`) : après la copie, elle retire les jetons de la page et quitte Campus (`about:blank`), sans appel de déconnexion : l'application Campus ne peut plus réutiliser ce refresh token.
+- ❓ **Écran Aujourd'hui** : l'utilisateur veut revoir l'onglet et la mise en forme de certaines cartes → à préciser ensemble.
+
 ## Actions en attente côté utilisateur
 
 - ~~Installer Azure CLI~~ ✅ (2.91.0).

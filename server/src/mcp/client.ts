@@ -44,6 +44,7 @@ export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
     'get_goal_history',
     'get_running_diary',
     'complete_session',
+    'save_session',
   ]),
 };
 
@@ -57,6 +58,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   'set_perceived_effort',
   'set_activity_feel',
   'complete_session',
+  'save_session',
 ]);
 
 export class ToolNotAllowedError extends Error {}

@@ -14,7 +14,7 @@ export function FormCard({ form }: { form: TodayView['form'] }) {
     <article className="card s7">
       <header>
         <span className="label">Forme ce matin</span>
-        <span className="src">Garmin</span>
+        <span className="src garmin">Garmin</span>
       </header>
       <div className="ready">
         <Gauge score={n?.readiness?.score} level={n?.readiness?.level} />

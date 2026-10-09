@@ -20,11 +20,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('jeton Campus expiré : état, commande de reconnexion à copier', () => {
-  render(<Data status={STATUS} onChanged={() => {}} />);
+it('jeton Campus expiré : reconnexion depuis le navigateur, jetons collés envoyés au serveur', async () => {
+  const onChanged = vi.fn();
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    calls.push({ url, ...(init && { init }) });
+    return Response.json({ ok: true, message: 'Campus reconnecté : synchro faite.' });
+  });
+  render(<Data status={STATUS} onChanged={onChanged} />);
   const campus = screen.getByRole('heading', { name: 'Campus Coach' }).closest('article')!;
   expect(within(campus).getByText('Jeton expiré')).toBeTruthy();
-  expect(within(campus).getByText(String.raw`.\reauth.ps1 -Source campus`)).toBeTruthy();
+  expect(within(campus).getByText(/location\.replace\('about:blank'\)/)).toBeTruthy();
+  fireEvent.change(within(campus).getByLabelText('Jetons Campus copiés'), {
+    target: { value: '{"atk":"a","rtk":"r"}' },
+  });
+  fireEvent.click(within(campus).getByRole('button', { name: 'Reconnecter' }));
+  expect(await within(campus).findByText('Campus reconnecté : synchro faite.')).toBeTruthy();
+  expect(calls[0]!.url).toMatch(/\/api\/sources\/campus\/session$/);
+  expect(JSON.parse(String(calls[0]!.init!.body))).toEqual({ pasted: '{"atk":"a","rtk":"r"}' });
+  expect(onChanged).toHaveBeenCalled();
   const garmin = screen.getByRole('heading', { name: 'Garmin Connect' }).closest('article')!;
   expect(within(garmin).getByText('Connecté')).toBeTruthy();
   expect(within(garmin).queryByText(/reauth/)).toBeNull();

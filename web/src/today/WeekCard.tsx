@@ -22,7 +22,7 @@ export function WeekCard({
       <header>
         <span className="label">Cette semaine{week.plan ? ` · ${done}/${active.length}` : ''}</span>
         <span>
-          <span className="src">Campus</span> <span className="src">Calculé</span>
+          <span className="src campus">Campus</span> <span className="src calc">Calculé</span>
         </span>
       </header>
       {!week.plan && <p className="empty">Campus n'a pas encore fourni le plan de cette semaine.</p>}

@@ -87,7 +87,7 @@ function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
         <article className="card s7">
           <header>
             <span className="label">Aujourd'hui</span>
-            <span className="src">CoachChris</span>
+            <span className="src calc">CoachChris</span>
           </header>
           <Routine
             title="Matin"
@@ -236,7 +236,7 @@ function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
         <article className="card s6">
           <header>
             <span className="label">Régularité</span>
-            <span className="src">CoachChris</span>
+            <span className="src calc">CoachChris</span>
           </header>
           <Regularity view={view} />
         </article>

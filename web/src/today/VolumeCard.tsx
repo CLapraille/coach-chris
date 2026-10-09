@@ -14,7 +14,7 @@ export function VolumeCard({ volume }: { volume: VolumeView }) {
       <header>
         <span className="label">Volume par semaine (minutes)</span>
         <span>
-          <span className="src">Garmin</span> <span className="src">Campus</span>
+          <span className="src garmin">Garmin</span> <span className="src campus">Campus</span>
         </span>
       </header>
       <Chart volume={volume} />

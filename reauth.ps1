@@ -52,11 +52,11 @@ else {
   try {
     Write-Host ''
     Write-Host '1. Ouvre une fenêtre de navigation PRIVÉE et connecte-toi sur https://app.campus.coach'
-    Write-Host '2. Colle dans la console (F12) cette ligne : elle copie les jetons dans le presse-papiers (réponse « undefined »).'
+    Write-Host '2. Colle dans la console (F12) cette ligne : elle copie les jetons dans le presse-papiers, les retire de la page et quitte Campus (page blanche).'
     Write-Host ''
-    Write-Host "   copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}))"
+    Write-Host "   copy(JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')}));localStorage.removeItem('atk');localStorage.removeItem('rtk');location.replace('about:blank')"
     Write-Host ''
-    Write-Host '3. Ferme ensuite la fenêtre privée SANS te déconnecter (la déconnexion révoquerait la session).'
+    Write-Host '3. Ferme la fenêtre privée, SANS te déconnecter de Campus (la déconnexion révoquerait la session).'
     Write-Host ''
     # Chrome refuse en navigation privée les requêtes d'un site vers 127.0.0.1 (Local Network Access) et le
     # collage dans une saisie masquée dépend du terminal : on lit le presse-papiers, sans jamais l'afficher.

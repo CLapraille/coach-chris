@@ -24,6 +24,10 @@
   --warn: #e0b054;
   --alert: #e2806f;
   --focus: #9fc3ff;
+  /* Sources de données (étiquettes des cartes) : teintes distinctes des sports et des statuts. */
+  --src-garmin: #5ab4e5;
+  --src-campus: #e88fb4;
+  --src-app: #b5c95b;
   --font-display: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
   --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -51,6 +55,9 @@
     --warn: #a97810;
     --alert: #c0503c;
     --focus: #2c62c9;
+    --src-garmin: #1d73a8;
+    --src-campus: #b53f78;
+    --src-app: #5f7010;
     color-scheme: light;
   }
 }
@@ -74,6 +81,9 @@
   --warn: #a97810;
   --alert: #c0503c;
   --focus: #2c62c9;
+  --src-garmin: #1d73a8;
+  --src-campus: #b53f78;
+  --src-app: #5f7010;
   color-scheme: light;
 }
 
@@ -239,6 +249,22 @@ main {
   border: 1px solid var(--line);
   color: var(--faint);
   vertical-align: 2px;
+}
+.src.garmin,
+.src.campus,
+.src.calc {
+  color: var(--sc);
+  border-color: color-mix(in srgb, var(--sc) 45%, transparent);
+  background: color-mix(in srgb, var(--sc) 10%, transparent);
+}
+.src.garmin {
+  --sc: var(--src-garmin);
+}
+.src.campus {
+  --sc: var(--src-campus);
+}
+.src.calc {
+  --sc: var(--src-app);
 }
 .btn {
   display: inline-flex;
@@ -2465,4 +2491,46 @@ details.coach summary {
 .theme button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
+}
+.reauth ol {
+  margin: 0;
+  padding-left: 18px;
+  list-style: decimal;
+  display: grid;
+  gap: 8px;
+}
+.reauth ol .cmd {
+  margin-top: 6px;
+}
+.reauth .cmd code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.reauth,
+.reauth ol,
+.reauth li,
+.data-screen .card {
+  min-width: 0;
+}
+.reauth input[type='password'] {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.reauth-more {
+  font-size: 13px;
+}
+.reauth-more summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.reauth-more .reauth {
+  border-color: var(--line);
+  background: none;
 }

@@ -32,7 +32,7 @@ export function MobilityCard({
     <article className="card s6">
       <header>
         <span className="label">Mobilité</span>
-        <span className="src">CoachChris</span>
+        <span className="src calc">CoachChris</span>
       </header>
       <div className="routine">
         <Routine

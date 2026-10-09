@@ -55,7 +55,7 @@ type After =
 interface Signed {
   id: string;
   exp: number;
-  type: ActionRequest['type'];
+  type: ActionRequest['type'] | 'campus.session';
   title: string;
   steps: Step[];
   after: After;
@@ -170,6 +170,64 @@ export class Actions {
       result = { ok: false, message: `${plan.title} : échec (${why}).${partial}` };
     }
     await this.log(plan, result, done);
+    return result;
+  }
+
+  /**
+   * Reconnexion Campus depuis le navigateur (D133) : le texte collé (copié par le snippet dans une fenêtre
+   * privée) part vers le MCP, qui vérifie les jetons avant de les garder. Ni aperçu ni journal du contenu :
+   * ce sont des secrets, seule l'issue est journalisée.
+   */
+  async campusSession(pasted: string): Promise<ActionResult> {
+    let tokens: { atk?: unknown; rtk?: unknown };
+    try {
+      // trim() retire aussi le BOM (U+FEFF) éventuel.
+      tokens = JSON.parse(pasted.trim()) as typeof tokens;
+    } catch {
+      throw new ActionError(
+        'Texte collé illisible : relance la ligne dans la console de Campus, puis colle à nouveau',
+        400,
+      );
+    }
+    if (typeof tokens?.rtk !== 'string' || !tokens.rtk) {
+      throw new ActionError(
+        'Pas de jeton Campus dans le texte collé : es-tu connecté à Campus dans cette fenêtre ?',
+        400,
+      );
+    }
+    const atk = typeof tokens.atk === 'string' ? tokens.atk : null;
+    const plan: Signed = {
+      id: randomUUID(),
+      exp: 0,
+      type: 'campus.session',
+      title: 'Reconnexion Campus',
+      steps: [],
+      after: { kind: 'campus' },
+    };
+    let result: ActionResult;
+    try {
+      const res = await this.source('campus').call<{ status?: unknown }>(
+        'save_session',
+        { atk, rtk: tokens.rtk },
+        { write: true },
+      );
+      if (res?.status !== 'success') throw new Error('Réponse inattendue de Campus');
+      const sync = await this.deps.sync.run('campus', 'action');
+      result =
+        sync.outcome === 'ok'
+          ? { ok: true, message: 'Campus reconnecté : synchro faite.' }
+          : {
+              ok: true,
+              message: `Campus reconnecté, mais la synchro a échoué : ${sync.message ?? sync.outcome}`,
+            };
+    } catch (e) {
+      const why =
+        e instanceof Error
+          ? e.message.replace(/^campus\.save_session : (Error executing tool save_session: )?/, '')
+          : String(e);
+      result = { ok: false, message: `Reconnexion Campus : échec (${why}).` };
+    }
+    await this.log(plan, result, result.ok ? ['save_session'] : []);
     return result;
   }
 

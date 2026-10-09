@@ -77,7 +77,9 @@ export function ActionDialog({
           <>
             <header>
               <span className="label">{preview.title}</span>
-              <span className="src">{preview.target}</span>
+              <span className={`src ${preview.target === 'Campus Coach' ? 'campus' : 'garmin'}`}>
+                {preview.target}
+              </span>
             </header>
             <p className="muted">Voici exactement ce qui sera envoyé. Rien ne part avant « Confirmer ».</p>
             <dl className="cf-fields">

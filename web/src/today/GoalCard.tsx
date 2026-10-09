@@ -8,7 +8,7 @@ export function GoalCard({ goal, today }: { goal: GoalView | null; today: string
     <article className="card s5">
       <header>
         <span className="label">Objectif en cours</span>
-        <span className="src">Campus</span>
+        <span className="src campus">Campus</span>
       </header>
       {goal ? <Goal goal={goal} today={today} /> : <p className="empty">Aucun objectif actif dans Campus.</p>}
     </article>

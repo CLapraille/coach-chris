@@ -2,7 +2,7 @@ import { S1_3_BLOCKS } from '@coach-chris/domain/fixtures/run-s1-3';
 import { S2_DETAILS, S2_WEEK } from '@coach-chris/domain/fixtures/campus-s2';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../app.ts';
-import { mcpFromEnv, ToolNotAllowedError, type McpCaller } from '../mcp/client.ts';
+import { mcpFromEnv, ToolError, ToolNotAllowedError, type McpCaller } from '../mcp/client.ts';
 import { MemoryStore } from '../store/store.ts';
 import { Sync, type Clock } from '../sync/sync.ts';
 
@@ -313,5 +313,49 @@ describe('client MCP', () => {
     await expect(g.call('upload_workout', {})).rejects.toBeInstanceOf(ToolNotAllowedError);
     await expect(g.call('get_activity', {}, { write: true })).rejects.toBeInstanceOf(ToolNotAllowedError);
     await expect(g.call('delete_workouts', {}, { write: true })).rejects.toBeInstanceOf(ToolNotAllowedError);
+  });
+});
+
+describe('reconnexion Campus depuis le navigateur', () => {
+  const pasted = '﻿{"atk":"jeton-court","rtk":"jeton-long-secret"}\n';
+
+  it('jetons transmis au MCP, synchro relancée, rien de secret dans le journal', async () => {
+    const t = setup({ campus: { save_session: () => ({ status: 'success' }) } });
+    await t.ready();
+    const r = await t.app.inject({ method: 'POST', url: '/api/sources/campus/session', payload: { pasted } });
+    expect(r.json()).toEqual({ ok: true, message: 'Campus reconnecté : synchro faite.' });
+    expect(t.campus.writes()).toEqual([
+      { tool: 'save_session', write: true, args: { atk: 'jeton-court', rtk: 'jeton-long-secret' } },
+    ]);
+    const ops = JSON.stringify([
+      ...(await t.store.list('ops', 'action-log')),
+      ...(await t.store.list('ops', 'sync-log')),
+    ]);
+    expect(ops).toContain('Reconnexion Campus');
+    expect(ops).not.toContain('jeton-long-secret');
+  });
+
+  it('texte illisible ou sans jeton → 400 sans appel ; jetons refusés → échec lisible', async () => {
+    const t = setup({
+      campus: {
+        save_session: () => {
+          throw new ToolError(
+            'campus.save_session : Error executing tool save_session: Campus Coach refused these tokens: sign in again and copy them again.',
+          );
+        },
+      },
+    });
+    await t.ready();
+    const post = (p: string) =>
+      t.app.inject({ method: 'POST', url: '/api/sources/campus/session', payload: { pasted: p } });
+    expect((await post('undefined')).statusCode).toBe(400);
+    expect((await post('{"atk":null,"rtk":null}')).statusCode).toBe(400);
+    expect(t.campus.writes()).toEqual([]);
+    const r = (await post(pasted)).json();
+    expect(r).toEqual({
+      ok: false,
+      message:
+        'Reconnexion Campus : échec (Campus Coach refused these tokens: sign in again and copy them again.).',
+    });
   });
 });

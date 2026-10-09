@@ -5,7 +5,7 @@ export function SignalsCard({ signals }: { signals: Signal[] }) {
     <article className="card s12">
       <header>
         <span className="label">Signaux</span>
-        <span className="src">Calculé</span>
+        <span className="src calc">Calculé</span>
       </header>
       {signals.length ? (
         <div className="insights">

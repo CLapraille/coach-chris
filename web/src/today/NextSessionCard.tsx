@@ -25,7 +25,7 @@ export function NextSessionCard({
         <span className="label">
           Prochaine séance{next?.day && next.day !== today ? ` · ${longDate(next.day)}` : ''}
         </span>
-        <span className="src">Campus</span>
+        <span className="src campus">Campus</span>
       </header>
       {next ? (
         <>
