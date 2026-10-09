@@ -194,12 +194,45 @@ const CAMPUS_SNIPPET =
   "localStorage.removeItem('atk');localStorage.removeItem('rtk');location.replace('about:blank')";
 
 /**
- * Reconnexion Campus depuis n'importe quel navigateur, sans script (D133) : session dédiée ouverte dans une
- * fenêtre privée (D117), jetons copiés par le snippet puis collés ici ; le serveur les vérifie avant de les garder.
+ * Même chose en favori pour un téléphone, qui n'a pas de console (D141) : le favori se lance depuis la barre
+ * d'adresse. Pas de copy() hors console : presse-papiers, sinon fenêtre où copier le texte à la main.
+ */
+const CAMPUS_BOOKMARKLET =
+  'javascript:(()=>{' +
+  "const t=JSON.stringify({atk:localStorage.getItem('atk'),rtk:localStorage.getItem('rtk')});" +
+  "if(!localStorage.getItem('atk')){alert('Connecte-toi d’abord à Campus sur cette page.');return}" +
+  "const fin=()=>{localStorage.removeItem('atk');localStorage.removeItem('rtk');location.replace('about:blank')};" +
+  "navigator.clipboard.writeText(t).then(()=>{alert('Jetons copiés : colle-les dans CoachChris.');fin()}," +
+  "()=>{prompt('Copie ce texte puis colle-le dans CoachChris :',t);fin()})})()";
+
+const isPhone = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
+function CopyButton({ text, label = 'Copier' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="btn small"
+      type="button"
+      onClick={() =>
+        void navigator.clipboard.writeText(text).then(
+          () => setCopied(true),
+          () => setCopied(false),
+        )
+      }
+    >
+      {copied ? 'Copié' : label}
+    </button>
+  );
+}
+
+/**
+ * Reconnexion Campus depuis n'importe quel navigateur, sans script (D133) : session dédiée (D117), jetons copiés
+ * par le snippet (ordinateur) ou le favori (téléphone, D141) puis collés ici ; le serveur les vérifie avant de
+ * les garder.
  */
 function CampusReconnect({ onDone }: { onDone: () => void }) {
   const [pasted, setPasted] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [phone, setPhone] = useState(isPhone);
   const [state, setState] = useState<{ busy: boolean; ok?: boolean; message?: string }>({ busy: false });
   const send = async () => {
     setState({ busy: true });
@@ -217,66 +250,103 @@ function CampusReconnect({ onDone }: { onDone: () => void }) {
       setState({ busy: false, ok: false, message: e instanceof Error ? e.message : String(e) });
     }
   };
+  const campus = (
+    <a href="https://app.campus.coach" target="_blank" rel="noreferrer">
+      app.campus.coach
+    </a>
+  );
   return (
     <div className="reauth">
-      <ol>
-        <li>
-          Ouvre une <b>fenêtre de navigation privée</b> et connecte-toi sur{' '}
-          <a href="https://app.campus.coach" target="_blank" rel="noreferrer">
-            app.campus.coach
-          </a>
-          .
-        </li>
-        <li>
-          Dans cette fenêtre, ouvre la console (F12 › Console) et colles-y cette ligne. Elle copie tes jetons,
-          les retire de la page et quitte Campus (page blanche) :
-          <div className="cmd">
-            <code>{CAMPUS_SNIPPET}</code>
-            <button
-              className="btn small"
-              type="button"
-              onClick={() =>
-                void navigator.clipboard.writeText(CAMPUS_SNIPPET).then(
-                  () => setCopied(true),
-                  () => setCopied(false),
-                )
-              }
-            >
-              {copied ? 'Copié' : 'Copier'}
-            </button>
-          </div>
-        </li>
-        <li>
-          Ferme la fenêtre privée <b>sans te déconnecter</b> de Campus, puis colle ici (rien ne s’affiche) :
-          <div className="cmd">
-            <input
-              type="password"
-              aria-label="Jetons Campus copiés"
-              autoComplete="off"
-              spellCheck={false}
-              value={pasted}
-              onChange={(e) => setPasted(e.target.value)}
-            />
-            <button
-              className="btn small primary"
-              type="button"
-              disabled={!pasted || state.busy}
-              onClick={() => void send()}
-            >
-              {state.busy ? 'Vérification…' : 'Reconnecter'}
-            </button>
-          </div>
-        </li>
-      </ol>
+      <div className="seg" role="group" aria-label="Appareil">
+        <button type="button" aria-pressed={!phone} onClick={() => setPhone(false)}>
+          Ordinateur
+        </button>
+        <button type="button" aria-pressed={phone} onClick={() => setPhone(true)}>
+          Téléphone
+        </button>
+      </div>
+      {phone ? (
+        <ol>
+          <li>
+            <b>Une seule fois</b> : crée un favori « cc-campus » dont l’adresse est ce code. Copie-le, puis
+            dans Chrome : ⋮ › ☆ (sur n’importe quelle page) › Modifier › nom <code>cc-campus</code>, adresse :
+            colle le code.
+            <div>
+              <CopyButton text={CAMPUS_BOOKMARKLET} label="Copier le code du favori" />
+            </div>
+          </li>
+          <li>Dans Chrome (onglet privé de préférence), ouvre {campus} et connecte-toi.</li>
+          <li>
+            Sur la page Campus, tape <code>cc-campus</code> dans la barre d’adresse et touche le favori
+            proposé. Il copie tes jetons, les retire de la page et quitte Campus.
+          </li>
+          <li>
+            Reviens ici, appuie longuement dans le champ › Coller (rien ne s’affiche) :
+            <PasteField pasted={pasted} setPasted={setPasted} busy={state.busy} onSend={() => void send()} />
+          </li>
+        </ol>
+      ) : (
+        <ol>
+          <li>
+            Ouvre une <b>fenêtre de navigation privée</b> et connecte-toi sur {campus}.
+          </li>
+          <li>
+            Dans cette fenêtre, ouvre la console (F12 › Console) et colles-y cette ligne. Elle copie tes
+            jetons, les retire de la page et quitte Campus (page blanche) :
+            <div className="cmd">
+              <code>{CAMPUS_SNIPPET}</code>
+              <CopyButton text={CAMPUS_SNIPPET} />
+            </div>
+          </li>
+          <li>
+            Ferme la fenêtre privée <b>sans te déconnecter</b> de Campus, puis colle ici (rien ne s’affiche) :
+            <PasteField pasted={pasted} setPasted={setPasted} busy={state.busy} onSend={() => void send()} />
+          </li>
+        </ol>
+      )}
       {state.message && (
         <p className={state.ok ? 'cf-ok' : 'cf-err'} role="status">
           {state.message}
         </p>
       )}
       <small className="muted">
-        Les jetons ne sont ni affichés ni journalisés. Sur ton PC,{' '}
-        <code>{String.raw`.\reauth.ps1 -Source campus`}</code> fait la même chose.
+        Les jetons ne sont ni affichés ni journalisés. Ne te déconnecte pas de Campus sur cette page : cela
+        révoquerait les jetons copiés.
+        {!phone && (
+          <>
+            {' '}
+            Sur ton PC, <code>{String.raw`.\reauth.ps1 -Source campus`}</code> fait la même chose.
+          </>
+        )}
       </small>
+    </div>
+  );
+}
+
+function PasteField({
+  pasted,
+  setPasted,
+  busy,
+  onSend,
+}: {
+  pasted: string;
+  setPasted: (v: string) => void;
+  busy: boolean;
+  onSend: () => void;
+}) {
+  return (
+    <div className="cmd">
+      <input
+        type="password"
+        aria-label="Jetons Campus copiés"
+        autoComplete="off"
+        spellCheck={false}
+        value={pasted}
+        onChange={(e) => setPasted(e.target.value)}
+      />
+      <button className="btn small primary" type="button" disabled={!pasted || busy} onClick={onSend}>
+        {busy ? 'Vérification…' : 'Reconnecter'}
+      </button>
     </div>
   );
 }

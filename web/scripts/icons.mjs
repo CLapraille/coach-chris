@@ -1,10 +1,10 @@
-// Génère les icônes de l'app (écran d'accueil du téléphone) : jauge verte ouverte et coche, sur fond sombre.
+// Génère les icônes de l'app (écran d'accueil du téléphone) : coureur vert en pleine foulée, sur fond sombre.
 // Usage : node web/scripts/icons.mjs — écrit web/public/icon-*.png et apple-touch-icon.png.
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
 const BG = [13, 17, 23];
-const RING = [42, 52, 64];
+const RING = [74, 88, 104];
 const GOOD = [108, 192, 139];
 
 function crc32(buf) {
@@ -51,20 +51,61 @@ function seg(x, y, ax, ay, bx, by) {
   const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
   return Math.hypot(x - ax - t * dx, y - ay - t * dy);
 }
+// Coureur dessiné sur une grille 24 × 24 (traits arrondis), centré avec la marge des icônes « maskable ».
+const HEAD = [15.4, 4.9, 2.3];
+const LIMBS = [
+  [
+    [13.6, 8],
+    [11, 13.4],
+  ], // buste
+  [
+    [12.9, 9.4],
+    [9.4, 11.2],
+    [7, 9.6],
+  ], // bras arrière
+  [
+    [12.9, 9.4],
+    [15.6, 12],
+    [18.6, 10.8],
+  ], // bras avant
+  [
+    [11, 13.4],
+    [14.4, 15.8],
+    [13.4, 21],
+  ], // jambe avant
+  [
+    [11, 13.4],
+    [8.6, 17.4],
+    [4.6, 18.2],
+  ], // jambe arrière
+];
+const SPEED = [
+  [
+    [2.2, 8.6],
+    [4.6, 8.6],
+  ],
+  [
+    [1.4, 12],
+    [5.2, 12],
+  ],
+  [
+    [2.2, 15.4],
+    [4.6, 15.4],
+  ],
+];
+const STROKE = 1.25; // demi-épaisseur, en unités de la grille
 
-/** Couleur d'un point en coordonnées unitaires (0..1) : fond, anneau, arc de jauge (75 %), coche. */
+/** Couleur d'un point en coordonnées unitaires (0..1). */
 function shade(u, v) {
-  const x = u - 0.5,
-    y = v - 0.5;
-  const r = Math.hypot(x, y);
-  const ringR = 0.27,
-    ringW = 0.05;
-  const onRing = Math.abs(r - ringR) < ringW / 2;
-  // Angle depuis le haut, sens horaire, 0..1.
-  const a = (Math.atan2(x, -y) / (2 * Math.PI) + 1) % 1;
-  const check = Math.min(seg(u, v, 0.4, 0.51, 0.47, 0.58), seg(u, v, 0.47, 0.58, 0.61, 0.43)) < 0.027;
-  if (check) return GOOD;
-  if (onRing) return a < 0.75 ? GOOD : RING;
+  // Zone sûre des icônes « maskable » : le dessin tient dans les 66 % centraux.
+  const k = 0.66,
+    x = ((u - 0.5) / k + 0.5) * 24,
+    y = ((v - 0.5) / k + 0.5) * 24;
+  if (Math.hypot(x - HEAD[0], y - HEAD[1]) < HEAD[2]) return GOOD;
+  const near = (lines, w) =>
+    lines.some((pts) => pts.slice(1).some((p, i) => seg(x, y, pts[i][0], pts[i][1], p[0], p[1]) < w));
+  if (near(LIMBS, STROKE)) return GOOD;
+  if (near(SPEED, 0.55)) return RING;
   return BG;
 }
 
