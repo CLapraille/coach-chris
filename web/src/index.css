@@ -2837,8 +2837,36 @@ details.coach summary {
   display: grid;
   gap: 8px;
 }
-.wk-next .nx-acts {
-  align-items: center;
+/* Prochaine séance : étapes à gauche, montre et détail en pictogrammes à droite (retours du 09/10). */
+.wk-next {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+.wk-next-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.wk-next-acts {
+  display: grid;
+  gap: 6px;
+}
+.btn.icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.btn.icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .wk-next-out {
   display: grid;
@@ -2856,6 +2884,64 @@ details.coach summary {
 }
 .fm-weight {
   flex-wrap: nowrap;
+}
+/* Poids et récupération : valeurs centrées sous leur titre (retours du 09/10). */
+.fm-stat {
+  text-align: center;
+}
+.fm-stat .fm-title {
+  justify-content: center;
+}
+.fm-weight {
+  justify-content: center;
+}
+
+/* ===== Signaux : points surveillés ===== */
+.sig-checks {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: auto;
+}
+.sig-checks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.sig-checks li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.sig-checks i {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+.sig-checks li.ok i {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 15%, transparent);
+}
+.sig-checks li.warn i {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+}
+.sig-checks small {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
 }
 @container (max-width: 640px) {
   .fm-big,

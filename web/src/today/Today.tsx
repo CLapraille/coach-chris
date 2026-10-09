@@ -55,7 +55,7 @@ export function Today({
           onChanged={res.reload}
           onOpenMobility={() => onNavigate('Mobilité')}
         />
-        <SignalsCard signals={t.signals} />
+        <SignalsCard signals={t.signals} today={t} />
       </div>
       <footer className="note">
         Sources : Garmin Connect (disponibilité, VFC, sommeil, Body Battery, stress, activités, poids) et

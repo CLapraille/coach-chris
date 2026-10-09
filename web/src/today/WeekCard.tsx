@@ -39,9 +39,7 @@ export function WeekCard({
   const unplaced = active.filter((s) => s.status === 'todo' && !s.day);
   // La prochaine séance peut tomber la semaine suivante : elle s'affiche alors sous la liste.
   const nextInWeek = !!next?.day && week.days.some((d) => d.day === next.day);
-  const nextPanel = next && (
-    <NextPanel next={next} today={today} onOpen={onOpen} onPush={(r) => setAction(r)} />
-  );
+  const nextPanel = next && <NextPanel next={next} onOpen={onOpen} onPush={(r) => setAction(r)} />;
   return (
     <article className="card s5">
       <header>
@@ -144,46 +142,74 @@ function SessionLine({
   );
 }
 
-/** Prochaine séance dépliée : étapes, description, envoi sur la montre (D126) et détail. */
+/** Prochaine séance dépliée : étapes et description ; à droite, envoi sur la montre (D126) et détail en pictogrammes. */
 function NextPanel({
   next,
-  today,
   onOpen,
   onPush,
 }: {
   next: NextSession;
-  today: string;
   onOpen: (key: string) => void;
   onPush: (r: ActionRequest) => void;
 }) {
   const canPush = next.sport === 'run' && next.status === 'todo' && !next.match && !!next.day;
   return (
     <div className="nx wk-next" aria-label={`Prochaine séance : ${sessionLabel(next)}`}>
-      {next.blocks.map((b, i) => (
-        <Block key={i} block={b} color={SPORT_COLOR[next.sport]} />
-      ))}
-      {next.description && <p className="nx-sub">{next.description}</p>}
-      <span className="nx-acts">
+      <div className="wk-next-body">
+        {next.blocks.map((b, i) => (
+          <Block key={i} block={b} color={SPORT_COLOR[next.sport]} />
+        ))}
+        {next.description && <p className="nx-sub">{next.description}</p>}
+      </div>
+      <span className="wk-next-acts">
         {canPush && (
           <button
-            className="btn"
+            className="btn icon"
             type="button"
-            title={next.pushed ? `Envoyée le ${shortDate(next.pushed.at.slice(0, 10))}` : undefined}
+            aria-label={next.pushed ? 'Renvoyer sur la montre' : 'Envoyer sur la montre'}
+            title={
+              next.pushed
+                ? `Renvoyer sur la montre (envoyée le ${shortDate(next.pushed.at.slice(0, 10))})`
+                : 'Envoyer sur la montre'
+            }
             onClick={() => onPush({ type: 'garmin.push', sessionKey: next.key })}
           >
-            {next.pushed ? 'Renvoyer sur la montre' : 'Envoyer sur la montre'}
+            <WatchIcon />
           </button>
         )}
-        <button className="btn primary" type="button" onClick={() => onOpen(next.key)}>
-          Détail
+        <button
+          className="btn icon primary"
+          type="button"
+          aria-label="Détail"
+          title="Détail"
+          onClick={() => onOpen(next.key)}
+        >
+          <DetailIcon />
         </button>
-        {next.day && next.day !== today && (
-          <span className="muted text-xs">prévue {longDate(next.day).toLowerCase()}</span>
-        )}
       </span>
     </div>
   );
 }
+
+const icon = (path: React.ReactNode) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    {path}
+  </svg>
+);
+const WatchIcon = () =>
+  icon(
+    <>
+      <rect x="6" y="6.5" width="12" height="11" rx="3" />
+      <path d="M9 6.5l.7-3.5h4.6l.7 3.5M9 17.5l.7 3.5h4.6l.7-3.5M12 9.5V12l1.5 1" />
+    </>,
+  );
+const DetailIcon = () =>
+  icon(
+    <>
+      <path d="M5 4h10l4 4v12H5z" />
+      <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4" />
+    </>,
+  );
 
 function Block({ block, color }: { block: SessionBlock; color: string }) {
   const label = block.steps.map((s) => `${s.name} ${stepDuration(s.seconds)}`).join(', ');

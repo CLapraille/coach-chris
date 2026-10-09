@@ -55,6 +55,11 @@ it('Aujourd’hui : séance, forme et poids sur les données de l’API, absence
   expect(screen.getByText('11,1 h')).toBeTruthy();
   expect(screen.queryAllByText('indisponible')).toHaveLength(0);
   expect(screen.getByText("Pas encore 4 semaines d'historique : pas de repère.")).toBeTruthy();
+  // Signaux : points surveillés, une absence de repère reste dite.
+  const watched = screen.getByLabelText('Points surveillés');
+  expect(within(watched).getByText('sous la plage')).toBeTruthy();
+  expect(within(watched).getByText('pas encore de repère')).toBeTruthy();
+  expect(within(watched).getByText('règles respectées')).toBeTruthy();
 });
 
 it('barre latérale : jeton Campus expiré et nuit manquante', async () => {
