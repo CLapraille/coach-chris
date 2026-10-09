@@ -2885,12 +2885,12 @@ details.coach summary {
 .fm-weight {
   flex-wrap: nowrap;
 }
-/* Poids et récupération : valeurs centrées sous leur titre (retours du 09/10). */
+/* Poids et récupération : valeurs centrées, titres alignés à gauche comme les autres encadrés (retours du 09/10). */
 .fm-stat {
   text-align: center;
 }
 .fm-stat .fm-title {
-  justify-content: center;
+  text-align: left;
 }
 .fm-weight {
   justify-content: center;
