@@ -2724,7 +2724,9 @@ details.coach summary {
 .fm-stat {
   align-content: start;
 }
-.fm-stat .fm-sub {
-  display: grid;
-  gap: 2px;
+.fm-weight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
 }

@@ -101,10 +101,10 @@ export function FormCard({ form }: { form: TodayView['form'] }) {
               <span>Récupération</span>
             </div>
             {ready?.recoveryHours !== undefined ? (
-              <>
-                <b className="num fm-big">{decimal(ready.recoveryHours)} h</b>
-                <span className="fm-sub muted">restante</span>
-              </>
+              <div className="fm-big">
+                <b className="num">{decimal(ready.recoveryHours)} h</b>{' '}
+                <span className="muted">restante</span>
+              </div>
             ) : (
               NA
             )}
@@ -193,26 +193,24 @@ function Weight({ form }: { form: TodayView['form'] }) {
       </div>
       {w ? (
         <>
-          <b className="num fm-big">{decimal(w.latest.kg)} kg</b>
-          <span className="fm-sub">
+          <div className="fm-weight">
+            <b className="num fm-big">{decimal(w.latest.kg)} kg</b>
             {w.deltaKg !== undefined && w.direction && w.direction !== 'flat' && (
-              <>
-                <span
-                  className={`wt ${w.direction}`}
-                  role="img"
-                  aria-label={w.direction === 'down' ? 'en baisse' : 'en hausse'}
-                >
-                  <svg viewBox="0 0 10 10" aria-hidden="true">
-                    <path d="M5 9 L1 3 H9 Z" />
-                  </svg>
-                  {signed(w.deltaKg)} kg
-                </span>
-              </>
+              <span
+                className={`wt ${w.direction}`}
+                role="img"
+                aria-label={w.direction === 'down' ? 'en baisse' : 'en hausse'}
+              >
+                <svg viewBox="0 0 10 10" aria-hidden="true">
+                  <path d="M5 9 L1 3 H9 Z" />
+                </svg>
+                {signed(w.deltaKg)} kg
+              </span>
             )}
-            <span className="muted">
-              pesée du {shortDate(w.latest.day)}
-              {w.previous && ` · vs ${shortDate(w.previous.day)}`}
-            </span>
+          </div>
+          <span className="fm-sub muted">
+            pesée du {shortDate(w.latest.day)}
+            {w.previous && ` · vs ${shortDate(w.previous.day)}`}
           </span>
         </>
       ) : (
