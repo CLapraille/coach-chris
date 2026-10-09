@@ -2799,3 +2799,50 @@ details.coach summary {
 .vol-rule summary {
   cursor: pointer;
 }
+
+/* ===== Cette semaine + prochaine séance (fusion du 09/10) ===== */
+.wk-open {
+  all: unset;
+  cursor: pointer;
+}
+.wk-open:hover {
+  text-decoration: underline;
+}
+.wk-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.wk-s.next {
+  font-weight: 600;
+}
+.wk-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--src-campus);
+  border: 1px solid color-mix(in srgb, var(--src-campus) 45%, transparent);
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.wk-next {
+  margin: 8px 0 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: grid;
+  gap: 8px;
+}
+.wk-next .nx-acts {
+  align-items: center;
+}
+.wk-next-out {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}

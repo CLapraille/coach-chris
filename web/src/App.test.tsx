@@ -40,9 +40,11 @@ it('affiche les 4 onglets de la V1 et change d’onglet', async () => {
 it('Aujourd’hui : séance, forme et poids sur les données de l’API, absences signalées', async () => {
   render(<App />);
   await screen.findByRole('heading', { name: 'Jeudi 8 octobre' });
-  expect(screen.getByRole('heading', { name: 'Course S2-2' })).toBeTruthy();
-  expect(screen.getByRole('img', { name: /Lent 2′, Marche 1′\. À répéter 12 fois/ })).toBeTruthy();
-  expect(screen.getByText('Renforcement S2-2, 30 min')).toBeTruthy();
+  // Prochaine séance dépliée dans « Cette semaine » : étapes et accès au détail.
+  const next = screen.getByLabelText('Prochaine séance : Course S2-2');
+  expect(within(next).getByRole('img', { name: /Lent 2′, Marche 1′\. À répéter 12 fois/ })).toBeTruthy();
+  expect(within(next).getByRole('button', { name: 'Détail' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Renforcement S2-2' })).toBeTruthy();
   expect(screen.getByText('83,4 kg')).toBeTruthy();
   expect(screen.getByRole('img', { name: 'en baisse' }).textContent).toBe('−0,7 kg');
   // Forme ce matin : Body Battery au réveil, sommeil, préparation (écart avec la veille), récupération.

@@ -2,7 +2,7 @@ import type { Signal } from '@coach-chris/domain';
 
 export function SignalsCard({ signals }: { signals: Signal[] }) {
   return (
-    <article className="card s12">
+    <article className="card s6">
       <header>
         <span className="label">Signaux</span>
         <span className="src calc">Calculé</span>

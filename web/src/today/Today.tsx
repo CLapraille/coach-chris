@@ -4,7 +4,6 @@ import { clock, longDate } from '../format.ts';
 import { FormCard } from './FormCard.tsx';
 import { GoalCard } from './GoalCard.tsx';
 import { MobilityCard } from './MobilityCard.tsx';
-import { NextSessionCard } from './NextSessionCard.tsx';
 import { SignalsCard } from './SignalsCard.tsx';
 import { VolumeCard } from './VolumeCard.tsx';
 import { WeekCard } from './WeekCard.tsx';
@@ -38,21 +37,17 @@ export function Today({
       </div>
       <div className="grid">
         <GoalCard goal={t.goal} today={t.today} />
-        <NextSessionCard
+        <WeekCard
+          week={t.week}
           next={t.nextSession}
-          then={t.thenSession}
+          evenings={t.evenings}
           today={t.today}
           onOpen={onOpenSession}
+          onOpenCalendar={() => onNavigate('Calendrier')}
           onChanged={res.reload}
         />
         <FormCard form={t.form} />
         <VolumeCard volume={t.volume} routines={t.week.routines} />
-        <WeekCard
-          week={t.week}
-          evenings={t.evenings}
-          today={t.today}
-          onOpenCalendar={() => onNavigate('Calendrier')}
-        />
         <MobilityCard
           mobility={t.mobility}
           today={t.today}
