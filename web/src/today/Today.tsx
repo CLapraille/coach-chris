@@ -1,5 +1,6 @@
 import type { DataStatus, TodayView } from '@coach-chris/domain';
 import { useApi } from '../api.ts';
+import { needsSignIn, signIn } from '../auth.ts';
 import { clock, longDate } from '../format.ts';
 import { FormCard } from './FormCard.tsx';
 import { GoalCard } from './GoalCard.tsx';
@@ -21,10 +22,22 @@ export function Today({
   const res = useApi<TodayView>('/today');
   if (res.state === 'loading') return <Loading />;
   if (res.state === 'error') {
+    const auth = needsSignIn(res.error);
     return (
       <div className="card" role="alert">
-        <h2 className="text-lg">Le serveur ne répond pas</h2>
-        <p className="empty">{res.error.message}</p>
+        <h2 className="text-lg">{auth ? 'Connexion à renouveler' : 'Le serveur ne répond pas'}</h2>
+        <p className="empty">
+          {auth ? 'Ta session Microsoft a expiré (elle dure 24 h).' : res.error.message}
+        </p>
+        <div>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => void (auth ? signIn() : location.reload())}
+          >
+            {auth ? 'Se reconnecter' : 'Réessayer'}
+          </button>
+        </div>
       </div>
     );
   }
