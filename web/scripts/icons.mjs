@@ -1,10 +1,9 @@
-// Génère les icônes de l'app (écran d'accueil du téléphone) : monogramme « CC » (Coach Chris) en italique sportive, sur fond sombre.
+// Génère les icônes de l'app (écran d'accueil du téléphone) : monogramme « CC » (Coach Chris) en lettrage de maillot, sur fond sombre.
 // Usage : node web/scripts/icons.mjs — écrit web/public/icon-*.png et apple-touch-icon.png.
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
 const BG = [13, 17, 23];
-const RING = [74, 88, 104];
 const GOOD = [108, 192, 139];
 const FG = [229, 233, 239];
 
@@ -52,51 +51,51 @@ function seg(x, y, ax, ay, bx, by) {
   const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
   return Math.hypot(x - ax - t * dx, y - ay - t * dy);
 }
-// Monogramme sur une grille 24 × 24 : deux « C » épais penchés vers l'avant (italique sportive), le second
-// entrelacé dans l'ouverture du premier, avec des traits de vitesse. Marge des icônes « maskable » respectée.
-const SLANT = 0.22; // inclinaison vers la droite
-const C_R = 4.9; // rayon de la lettre
-const C_W = 1.4; // demi-épaisseur du trait
-const C_GAP = (48 * Math.PI) / 180; // demi-ouverture du C, côté droit
-const C1 = [8.2, 12];
-const C2 = [16.6, 12];
-const KNOCK = 0.75; // liseré de fond autour du second C, là où il passe sur le premier
-const SPEED = [
-  [
-    [0.4, 8.6],
-    [2.2, 8.6],
-  ],
-  [
-    [0, 12],
-    [2.2, 12],
-  ],
-  [
-    [0.4, 15.4],
-    [2.2, 15.4],
-  ],
-];
+// Monogramme sur une grille 24 × 24, lettrage de maillot : deux « C » anguleux (octogones ouverts à droite)
+// très penchés vers l'avant ; le premier, vert, est tranché par des entailles de vitesse qui se prolongent
+// en traînées à gauche ; le second, clair, est détouré d'un liseré là où il passe devant. Marge « maskable ».
+const SLANT = 0.38; // inclinaison vers la droite
+const HALF = 4.6; // demi-hauteur d'une lettre
+const CHAMFER = 2.2; // pan coupé des angles
+const STROKE = 1.65; // demi-épaisseur du trait
+const KNOCK = 2.4; // rayon du liseré de fond autour du second C
+const C1 = [8.4, 12];
+const C2 = [16.8, 12];
+const CUTS = [8.4, 11.9, 15.4]; // entailles horizontales (y)
+const CUT_W = 0.3;
+const TRAIL_START = [0.8, -0.4, 0.8]; // début des traînées, par entaille
 
-/** Distance au tracé d'un « C » (arc ouvert à droite, bouts arrondis). */
-function cDist(x, y, [cx, cy]) {
-  const dx = x - cx,
-    dy = y - cy;
-  const ang = Math.abs(Math.atan2(dy, dx)); // 0 = droite
-  if (ang > C_GAP) return Math.abs(Math.hypot(dx, dy) - C_R);
-  const ex = cx + C_R * Math.cos(C_GAP),
-    ey = C_R * Math.sin(C_GAP);
-  return Math.min(Math.hypot(x - ex, y - (cy - ey)), Math.hypot(x - ex, y - (cy + ey)));
+/** Tracé d'un « C » de maillot : octogone ouvert à droite. */
+function blockC([cx, cy]) {
+  const h = HALF,
+    c = CHAMFER;
+  return [
+    [cx + h, cy - h],
+    [cx - h + c, cy - h],
+    [cx - h, cy - h + c],
+    [cx - h, cy + h - c],
+    [cx - h + c, cy + h],
+    [cx + h, cy + h],
+  ];
 }
+const poly = (x, y, pts) =>
+  Math.min(...pts.slice(1).map((p, i) => seg(x, y, pts[i][0], pts[i][1], p[0], p[1])));
+const C1_PATH = blockC(C1);
+const C2_PATH = blockC(C2);
 
 /** Couleur d'un point en coordonnées unitaires (0..1). */
 function shade(u, v) {
-  const k = 0.7,
+  const k = 0.72,
     y = ((v - 0.5) / k + 0.5) * 24,
-    x = ((u - 0.5) / k + 0.5) * 24 + SLANT * (y - 12) - 0.8; // redresse l'italique, recentre
-  const d2 = cDist(x, y, C2);
-  if (d2 < C_W) return FG;
-  if (cDist(x, y, C1) < C_W) return d2 < C_W + KNOCK ? BG : GOOD;
-  const near = SPEED.some(([p, q]) => seg(x - SLANT * (y - 12), y, p[0], p[1], q[0], q[1]) < 0.55);
-  return near ? RING : BG;
+    x = ((u - 0.5) / k + 0.5) * 24 + SLANT * (y - 12) - 0.2; // redresse l'italique, recentre
+  const inCut = CUTS.some((b) => Math.abs(y - b) < CUT_W);
+  const d2 = poly(x, y, C2_PATH);
+  const d1 = poly(x, y, C1_PATH);
+  if (inCut && x < 7.2 && (d1 < STROKE || d2 < STROKE)) return BG;
+  if (d2 < STROKE) return FG;
+  if (d1 < STROKE) return d2 < KNOCK ? BG : GOOD;
+  if (CUTS.some((b, i) => Math.abs(y - b) < CUT_W && x > TRAIL_START[i] && x < 2.8)) return GOOD;
+  return BG;
 }
 
 function render(size) {
