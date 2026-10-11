@@ -1,11 +1,11 @@
-// Génère les icônes de l'app (écran d'accueil du téléphone) : coureur vert en pleine foulée, sur fond sombre.
+// Génère les icônes de l'app (écran d'accueil du téléphone) : monogramme « CC » (Coach Chris) en lettrage de maillot, sur fond sombre.
 // Usage : node web/scripts/icons.mjs — écrit web/public/icon-*.png et apple-touch-icon.png.
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
 const BG = [13, 17, 23];
-const RING = [74, 88, 104];
 const GOOD = [108, 192, 139];
+const FG = [229, 233, 239];
 
 function crc32(buf) {
   let c,
@@ -51,61 +51,50 @@ function seg(x, y, ax, ay, bx, by) {
   const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
   return Math.hypot(x - ax - t * dx, y - ay - t * dy);
 }
-// Coureur dessiné sur une grille 24 × 24 (traits arrondis), centré avec la marge des icônes « maskable ».
-const HEAD = [15.4, 4.9, 2.3];
-const LIMBS = [
-  [
-    [13.6, 8],
-    [11, 13.4],
-  ], // buste
-  [
-    [12.9, 9.4],
-    [9.4, 11.2],
-    [7, 9.6],
-  ], // bras arrière
-  [
-    [12.9, 9.4],
-    [15.6, 12],
-    [18.6, 10.8],
-  ], // bras avant
-  [
-    [11, 13.4],
-    [14.4, 15.8],
-    [13.4, 21],
-  ], // jambe avant
-  [
-    [11, 13.4],
-    [8.6, 17.4],
-    [4.6, 18.2],
-  ], // jambe arrière
-];
-const SPEED = [
-  [
-    [2.2, 8.6],
-    [4.6, 8.6],
-  ],
-  [
-    [1.4, 12],
-    [5.2, 12],
-  ],
-  [
-    [2.2, 15.4],
-    [4.6, 15.4],
-  ],
-];
-const STROKE = 1.25; // demi-épaisseur, en unités de la grille
+// Monogramme sur une grille 24 × 24, lettrage de maillot : deux « C » anguleux (octogones ouverts à droite)
+// très penchés vers l'avant ; le premier, vert, est tranché par des entailles de vitesse qui se prolongent
+// en traînées à gauche ; le second, clair, est détouré d'un liseré là où il passe devant. Marge « maskable ».
+const SLANT = 0.38; // inclinaison vers la droite
+const HALF = 4.6; // demi-hauteur d'une lettre
+const CHAMFER = 2.2; // pan coupé des angles
+const STROKE = 1.65; // demi-épaisseur du trait
+const KNOCK = 2.4; // rayon du liseré de fond autour du second C
+const C1 = [8.4, 12];
+const C2 = [16.8, 12];
+const CUTS = [8.4, 11.9, 15.4]; // entailles horizontales (y)
+const CUT_W = 0.3;
+const TRAIL_START = [0.8, -0.4, 0.8]; // début des traînées, par entaille
+
+/** Tracé d'un « C » de maillot : octogone ouvert à droite. */
+function blockC([cx, cy]) {
+  const h = HALF,
+    c = CHAMFER;
+  return [
+    [cx + h, cy - h],
+    [cx - h + c, cy - h],
+    [cx - h, cy - h + c],
+    [cx - h, cy + h - c],
+    [cx - h + c, cy + h],
+    [cx + h, cy + h],
+  ];
+}
+const poly = (x, y, pts) =>
+  Math.min(...pts.slice(1).map((p, i) => seg(x, y, pts[i][0], pts[i][1], p[0], p[1])));
+const C1_PATH = blockC(C1);
+const C2_PATH = blockC(C2);
 
 /** Couleur d'un point en coordonnées unitaires (0..1). */
 function shade(u, v) {
-  // Zone sûre des icônes « maskable » : le dessin tient dans les 66 % centraux.
-  const k = 0.66,
-    x = ((u - 0.5) / k + 0.5) * 24,
-    y = ((v - 0.5) / k + 0.5) * 24;
-  if (Math.hypot(x - HEAD[0], y - HEAD[1]) < HEAD[2]) return GOOD;
-  const near = (lines, w) =>
-    lines.some((pts) => pts.slice(1).some((p, i) => seg(x, y, pts[i][0], pts[i][1], p[0], p[1]) < w));
-  if (near(LIMBS, STROKE)) return GOOD;
-  if (near(SPEED, 0.55)) return RING;
+  const k = 0.72,
+    y = ((v - 0.5) / k + 0.5) * 24,
+    x = ((u - 0.5) / k + 0.5) * 24 + SLANT * (y - 12) - 0.2; // redresse l'italique, recentre
+  const inCut = CUTS.some((b) => Math.abs(y - b) < CUT_W);
+  const d2 = poly(x, y, C2_PATH);
+  const d1 = poly(x, y, C1_PATH);
+  if (inCut && x < 7.2 && (d1 < STROKE || d2 < STROKE)) return BG;
+  if (d2 < STROKE) return FG;
+  if (d1 < STROKE) return d2 < KNOCK ? BG : GOOD;
+  if (CUTS.some((b, i) => Math.abs(y - b) < CUT_W && x > TRAIL_START[i] && x < 2.8)) return GOOD;
   return BG;
 }
 
