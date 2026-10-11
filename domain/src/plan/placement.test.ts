@@ -93,3 +93,32 @@ describe('moveSession', () => {
     expect(moveSession(p, c2!.key, '2026-10-11', new Set([c2!.key]))).toBe(p);
   });
 });
+
+describe('veille du lundi (D145)', () => {
+  // Retour du 11/10 : course faite le dimanche, la semaine suivante plaçait une course le lundi.
+  const todo = sessions.map((s) => ({ ...s, status: 'todo' as const }));
+  const eve = { day: '2026-10-04', run: true, legs: false };
+
+  it('ne place pas de course le lundi après une course le dimanche', () => {
+    const p = proposePlacement({ days, from: days[0]!, sessions: todo, fixed: {}, eve });
+    const monday = todo.filter((s) => p[s.key] === days[0]);
+    expect(monday.some((s) => s.sport === 'run')).toBe(false);
+    expect(checkPlacement(p, todo, days, new Set(), eve)).toEqual([]);
+  });
+
+  it('signale une course placée à la main le lundi', () => {
+    const p = { [c1!.key]: days[0]! };
+    expect(checkPlacement(p, [c1!], days, new Set(), eve)).toEqual([
+      {
+        rule: 'consecutive-runs',
+        days: ['2026-10-04', '2026-10-05'],
+        message: expect.stringMatching(/^Deux courses d'affilée/),
+      },
+    ]);
+  });
+
+  it('ne dit rien si le lundi est déjà joué', () => {
+    const p = { [c1!.key]: days[0]! };
+    expect(checkPlacement(p, [c1!], days, new Set([c1!.key]), eve)).toEqual([]);
+  });
+});

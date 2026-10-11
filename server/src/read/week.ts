@@ -1,4 +1,6 @@
 import {
+  activitySport,
+  addDays,
   checkPlacement,
   dayLabel,
   matchWeek,
@@ -6,6 +8,7 @@ import {
   proposePlacement,
   weekDays,
   type CachedActivity,
+  type Eve,
   type Placement,
   type PushRecord,
   type WeekSession,
@@ -39,15 +42,21 @@ export async function weekView(store: Store, start: string, today: string): Prom
 }
 
 /** Semaine et plan source (détails Campus) pour les écrans qui en ont besoin. */
-export async function weekData(store: Store, start: string, today: string): Promise<WeekData> {
+export async function weekData(
+  store: Store,
+  start: string,
+  today: string,
+  withEve = true,
+): Promise<WeekData> {
   const days = weekDays(start);
-  const [plan, acts, saved, nights, logs, pushes] = await Promise.all([
+  const [plan, acts, saved, nights, logs, pushes, eve] = await Promise.all([
     planWeek(store, start),
     activities(store, start, days[6]!),
     store.get<PlacementDoc>('user', start, KIND),
     Promise.all(days.map((d) => night(store, d))),
     routineLogs(store),
     store.list<PushDoc>('ops', PUSH_KIND),
+    withEve ? eveOf(store, start, today) : undefined,
   ]);
   const pushByKey = new Map(pushes.map((p) => [p.sessionKey, p]));
   const sessions = plan?.sessions ?? [];
@@ -62,7 +71,13 @@ export async function weekData(store: Store, start: string, today: string): Prom
   const manual = Object.fromEntries(
     Object.entries(saved?.placement ?? {}).filter(([k, d]) => todo.has(k) && days.includes(d) && d >= from),
   );
-  const placement = proposePlacement({ days, from, sessions, fixed: { ...done, ...manual } });
+  const placement = proposePlacement({
+    days,
+    from,
+    sessions,
+    fixed: { ...done, ...manual },
+    ...(eve && { eve }),
+  });
   const fixedKeys = new Set(Object.keys(done));
 
   const view: WeekView = {
@@ -97,7 +112,7 @@ export async function weekData(store: Store, start: string, today: string): Prom
     activities: acts,
     // matchWeek renvoie les objets reçus : ce sont bien des activités du cache.
     offPlan: offPlan as CachedActivity[],
-    warnings: checkPlacement(placement, sessions, days, fixedKeys),
+    warnings: checkPlacement(placement, sessions, days, fixedKeys, eve),
     manual: Object.keys(manual).length > 0,
     readiness: Object.fromEntries(days.map((d, i) => [d, nights[i]?.readiness?.score ?? null])),
     routines: Object.fromEntries(
@@ -111,6 +126,23 @@ export async function weekData(store: Store, start: string, today: string): Prom
     ),
   };
   return { view, plan };
+}
+
+/**
+ * Veille du lundi (D145) : le dimanche précédent tel que la semaine précédente le montre (séance faite ou
+ * placée, activité Garmin hors plan). Cette semaine-là est lue sans sa propre veille, pour ne pas remonter le temps.
+ */
+async function eveOf(store: Store, start: string, today: string): Promise<Eve> {
+  const day = addDays(start, -1);
+  const { view } = await weekData(store, addDays(start, -7), today, false);
+  const sessions = view.sessions.filter((s) => s.day === day && s.status !== 'skipped');
+  return {
+    day,
+    run:
+      sessions.some((s) => s.sport === 'run') ||
+      view.activities.some((a) => a.startLocal.slice(0, 10) === day && activitySport(a.type) === 'run'),
+    legs: sessions.some((s) => s.legs),
+  };
 }
 
 export class PlacementError extends Error {}
