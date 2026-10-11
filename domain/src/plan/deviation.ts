@@ -69,13 +69,53 @@ export function plannedSteps(blocks: CampusBlock[]): PlannedStep[] {
   );
 }
 
+type Figures = Lap & { maxHr?: number; distanceM?: number; speedMps?: number; powerW?: number };
+const SUMMED = ['durationS', 'movingS', 'distanceM'] as const;
+const AVERAGED = ['avgHr', 'avgCadence', 'speedMps', 'powerW'] as const;
+
+/**
+ * Regroupe les tours consécutifs d'une même étape du programme. Le tour automatique de la montre (tous les
+ * 500 m par exemple) coupe une étape en plusieurs tours qui portent le même `workoutStepIndex` : sans ce
+ * regroupement, tout le reste de la séance était décalé d'un cran (S2-3 du 10/10).
+ */
+export function stepLaps<T extends Lap>(laps: T[]): T[] {
+  const groups: T[][] = [];
+  for (const lap of laps) {
+    const last = groups.at(-1);
+    if (last && last[0]!.workoutStepIndex === lap.workoutStepIndex) last.push(lap);
+    else groups.push([lap]);
+  }
+  return groups.map((g) => (g.length === 1 ? g[0]! : mergeLaps(g)));
+}
+
+/** FC, cadence et puissance en entiers, comme les tours de Garmin ; la vitesse garde ses décimales. */
+const round = (k: (typeof AVERAGED)[number], v: number) => (k === 'speedMps' ? v : Math.round(v));
+
+/** Un tour pour plusieurs : durées et distances additionnées, moyennes pondérées par la durée, FC max. */
+function mergeLaps<T extends Lap>(group: T[]): T {
+  const out: Figures = { ...group[0]! };
+  const total = group.reduce((n, l) => n + l.durationS, 0);
+  for (const k of SUMMED) {
+    const v = group.map((l) => (l as Figures)[k]);
+    if (v.every((x) => x !== undefined)) out[k] = v.reduce((a, b) => a! + b!, 0)!;
+  }
+  for (const k of AVERAGED) {
+    const v = group.map((l) => (l as Figures)[k]);
+    if (v.every((x) => x !== undefined) && total > 0)
+      out[k] = round(k, group.reduce((a, l, i) => a + v[i]! * l.durationS, 0) / total);
+  }
+  const max = group.map((l) => (l as Figures).maxHr);
+  if (max.every((x) => x !== undefined)) out.maxHr = Math.max(...(max as number[]));
+  return out as T;
+}
+
 /** Compare, étape par étape, les tours du programme aux étapes prévues (D66, D67). */
 export function compareSteps(
   planned: PlannedStep[],
   laps: Lap[],
   rules: DeviationRules = DEFAULT_RULES,
 ): Deviation {
-  const inWorkout = laps.filter((l) => l.workoutStepIndex !== undefined);
+  const inWorkout = stepLaps(laps.filter((l) => l.workoutStepIndex !== undefined));
   const lastIndexed = laps.findLastIndex((l) => l.workoutStepIndex !== undefined);
   const afterLaps = laps.slice(lastIndexed + 1);
 
