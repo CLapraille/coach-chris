@@ -76,7 +76,7 @@ const AVERAGED = ['avgHr', 'avgCadence', 'speedMps', 'powerW'] as const;
 /**
  * Regroupe les tours consécutifs d'une même étape du programme. Le tour automatique de la montre (tous les
  * 500 m par exemple) coupe une étape en plusieurs tours qui portent le même `workoutStepIndex` : sans ce
- * regroupement, tout le reste de la séance était décalé d'un cran (S2-3 du 10/10).
+ * regroupement, tout le reste de la séance était décalé d'un cran (S2-3 du 11/10).
  */
 export function stepLaps<T extends Lap>(laps: T[]): T[] {
   const groups: T[][] = [];

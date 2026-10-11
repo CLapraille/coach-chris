@@ -55,7 +55,7 @@ describe('compareSteps, règles', () => {
   });
 });
 
-describe('compareSteps, tour automatique de la montre (S2-3 du 10/10)', () => {
+describe('compareSteps, tour automatique de la montre (S2-3 du 11/10)', () => {
   // 4 × (4′ course + 1′ marche) faite à la lettre ; la montre coupe chaque course en un tour de 500 m
   // (~197 s) et un reste (~43 s), tous deux sur l'étape 0 du programme.
   const run = { kind: 'run' as const, durationS: 240, zone: 'Z1' };
