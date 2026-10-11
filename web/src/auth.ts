@@ -1,4 +1,4 @@
-import { InteractionRequiredAuthError, PublicClientApplication } from '@azure/msal-browser';
+import { BrowserAuthError, InteractionRequiredAuthError, PublicClientApplication } from '@azure/msal-browser';
 
 /**
  * Connexion Entra (D30) : en ligne, le front obtient un jeton pour l'API du BFF (portée access_as_user).
@@ -21,6 +21,8 @@ const msal =
           redirectUri: window.location.origin,
         },
         cache: { cacheLocation: 'localStorage' },
+        // Renouvellement caché (iframe) : souvent bloqué par le navigateur, inutile d'attendre 10 s pour le savoir.
+        system: { iframeBridgeTimeout: 6000 },
       })
     : null;
 
@@ -41,7 +43,21 @@ export async function authHeader(): Promise<Record<string, string>> {
     const { accessToken } = await msal.acquireTokenSilent({ scopes });
     return { authorization: `Bearer ${accessToken}` };
   } catch (e) {
-    if (e instanceof InteractionRequiredAuthError) await msal.acquireTokenRedirect({ scopes });
+    // 24 h après la connexion, Entra exige de se reconnecter (jeton de rafraîchissement des SPA). MSAL tente
+    // d'abord un renouvellement caché dans une iframe ; quand le navigateur la bloque (Chrome, app installée),
+    // l'échec arrive en « timed_out » et non en « interaction required » : dans les deux cas, page de connexion.
+    if (needsSignIn(e)) await msal.acquireTokenRedirect({ scopes });
     throw e;
   }
+}
+
+/** Erreur de connexion (session expirée ou renouvellement bloqué), et non panne du serveur. */
+export function needsSignIn(e: unknown): boolean {
+  if (e instanceof BrowserAuthError) return e.errorCode !== 'no_network_connectivity';
+  return e instanceof InteractionRequiredAuthError;
+}
+
+/** Relance la connexion Microsoft à la demande (bouton de l'écran d'erreur). */
+export async function signIn(): Promise<void> {
+  if (msal) await msal.acquireTokenRedirect({ scopes });
 }
