@@ -13,6 +13,17 @@ export interface RuleWarning {
 }
 
 /**
+ * Veille du lundi (dimanche de la semaine précédente), déjà jouée ou placée : une course ce jour-là interdit
+ * une course le lundi, un renforcement jambes une intensité le lundi (D145). Sans elle, les règles s'arrêtaient
+ * aux bornes de la semaine.
+ */
+export interface Eve {
+  day: string;
+  run: boolean;
+  legs: boolean;
+}
+
+/**
  * Avertissements des règles D60 (ils n'empêchent jamais un déplacement) :
  * (1) pas deux courses consécutives, (3) pas de renforcement jambes la veille d'une intensité,
  * (4) au moins un jour sans séance, et pas deux séances le même jour.
@@ -24,10 +35,27 @@ export function checkPlacement(
   sessions: PlannedSession[],
   days: string[],
   fixed: ReadonlySet<string> = new Set(),
+  eve?: Eve,
 ): RuleWarning[] {
   const onDay = groupByDay(placement, sessions, days);
   const movable = (list: PlannedSession[]) => list.some((s) => !fixed.has(s.key));
   const warnings: RuleWarning[] = [];
+
+  const monday = onDay[0] ?? [];
+  if (eve && movable(monday)) {
+    if (eve.run && monday.some((s) => s.sport === 'run'))
+      warnings.push({
+        rule: 'consecutive-runs',
+        days: [eve.day, days[0]!],
+        message: `Deux courses d'affilée (${dayLabel(eve.day)} et ${dayLabel(days[0]!)})`,
+      });
+    if (eve.legs && monday.some((s) => s.intense))
+      warnings.push({
+        rule: 'legs-before-intensity',
+        days: [eve.day, days[0]!],
+        message: `Renforcement jambes la veille d'une intensité (${dayLabel(eve.day)})`,
+      });
+  }
 
   days.forEach((day, i) => {
     const today = onDay[i] ?? [];
@@ -95,13 +123,15 @@ export interface ProposeInput {
   sessions: PlannedSession[];
   /** Jours déjà connus (séances faites, ou placées à la main) : ils ne bougent pas. */
   fixed: Placement;
+  /** Veille du lundi, pour les règles qui enjambent deux semaines. */
+  eve?: Eve;
 }
 
 /**
  * Propose un jour pour chaque séance à faire (D50, D60). Recherche exhaustive (au plus ~6 séances sur 7 jours) qui minimise,
  * dans cet ordre : les avertissements, la préférence (2), l'écart à l'ordre de la source, puis un placement au plus tôt.
  */
-export function proposePlacement({ days, from, sessions, fixed }: ProposeInput): Placement {
+export function proposePlacement({ days, from, sessions, fixed, eve }: ProposeInput): Placement {
   const active = sessions.filter((s) => s.status !== 'skipped');
   const toPlace = active.filter((s) => !(s.key in fixed) && s.status !== 'done');
   const open = days.filter((d) => d >= from);
@@ -115,7 +145,7 @@ export function proposePlacement({ days, from, sessions, fixed }: ProposeInput):
     if (i === toPlace.length) {
       const all = [...placed, ...toPlace];
       const cost =
-        checkPlacement(current, all, days, fixedKeys).length * 1000 +
+        checkPlacement(current, all, days, fixedKeys, eve).length * 1000 +
         runsWithoutStrengthBetween(current, all, days) * 10 +
         inversions(current, toPlace) * 3 +
         toPlace.reduce((sum, s) => sum + days.indexOf(current[s.key]!), 0) * 0.01;
