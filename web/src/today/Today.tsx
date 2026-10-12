@@ -13,10 +13,13 @@ import { Loading } from '../Loading.tsx';
 export function Today({
   status,
   onNavigate,
+  onOpenTests,
   onOpenSession,
 }: {
   status: DataStatus | null;
   onNavigate: (tab: 'Calendrier' | 'Mobilité') => void;
+  /** Onglet Mobilité, formulaire des auto-tests ouvert. */
+  onOpenTests: () => void;
   onOpenSession: (key: string) => void;
 }) {
   const res = useApi<TodayView>('/today');
@@ -66,7 +69,7 @@ export function Today({
           mobility={t.mobility}
           today={t.today}
           onChanged={res.reload}
-          onOpenMobility={() => onNavigate('Mobilité')}
+          onOpenTests={onOpenTests}
         />
         <SignalsCard signals={t.signals} today={t} />
       </div>
