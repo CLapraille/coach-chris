@@ -61,6 +61,18 @@ it('sans tests : invitation à faire les tests, zones déclarées, pas de régul
   expect(screen.getAllByText('pas encore fait')).toHaveLength(6);
 });
 
+it('« Faire les tests » ouvre le formulaire et l’amène à l’écran ; ouvert d’emblée depuis Aujourd’hui', async () => {
+  const scroll = vi.fn();
+  Element.prototype.scrollIntoView = scroll;
+  const { unmount } = render(<Mobility />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Faire les tests' }));
+  expect(screen.getByRole('form', { name: 'Saisie des auto-tests' })).toBeTruthy();
+  expect(scroll).toHaveBeenCalled();
+  unmount();
+  render(<Mobility startTesting />);
+  expect(await screen.findByRole('form', { name: 'Saisie des auto-tests' })).toBeTruthy();
+});
+
 it('saisie des tests : seuls les tests remplis des deux côtés sont envoyés', async () => {
   render(<Mobility />);
   fireEvent.click(await screen.findByRole('button', { name: 'Faire les 6 tests · 10 min' }));

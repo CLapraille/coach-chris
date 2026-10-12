@@ -10,12 +10,12 @@ export function MobilityCard({
   mobility,
   today,
   onChanged,
-  onOpenMobility,
+  onOpenTests,
 }: {
   mobility: MobilityToday;
   today: string;
   onChanged: () => void;
-  onOpenMobility: () => void;
+  onOpenTests: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const toggle = async (slot: Slot, done: boolean) => {
@@ -54,7 +54,7 @@ export function MobilityCard({
               <li>
                 <small>
                   Routine du soir complète après les tests de mobilité.{' '}
-                  <button type="button" className="linkbtn" onClick={onOpenMobility}>
+                  <button type="button" className="linkbtn" onClick={onOpenTests}>
                     Faire les tests
                   </button>
                 </small>

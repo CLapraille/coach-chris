@@ -17,8 +17,11 @@ export function App() {
   const [tab, setTab] = useState<Tab>("Aujourd'hui");
   // Détail de séance ouvert par-dessus l'onglet courant ; « Retour » y ramène.
   const [session, setSession] = useState<string | null>(null);
-  const select = (t: Tab) => {
+  // « Faire les tests » depuis Aujourd'hui : Mobilité s'ouvre sur le formulaire des auto-tests.
+  const [openTests, setOpenTests] = useState(false);
+  const select = (t: Tab, tests = false) => {
     setSession(null);
+    setOpenTests(tests);
     setTab(t);
   };
   const status = useApi<DataStatus>('/data/status');
@@ -40,11 +43,16 @@ export function App() {
           {session ? (
             <SessionDetail key={session} sessionKey={session} onBack={() => setSession(null)} />
           ) : tab === "Aujourd'hui" ? (
-            <Today status={st} onNavigate={select} onOpenSession={setSession} />
+            <Today
+              status={st}
+              onNavigate={select}
+              onOpenTests={() => select('Mobilité', true)}
+              onOpenSession={setSession}
+            />
           ) : tab === 'Calendrier' ? (
             <Calendar onOpenSession={setSession} />
           ) : tab === 'Mobilité' ? (
-            <Mobility />
+            <Mobility startTesting={openTests} />
           ) : st && status.state === 'ready' ? (
             <Data status={st} onChanged={status.reload} />
           ) : status.state === 'error' ? (

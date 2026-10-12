@@ -7,7 +7,7 @@ import {
   type Side,
   type Slot,
 } from '@coach-chris/domain';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, useApi } from '../api.ts';
 import { longDate, mmss, shortDate } from '../format.ts';
 import { Figure } from './Figure.tsx';
@@ -29,7 +29,8 @@ const STATUS_LABEL: Record<string, string> = {
   untested: 'non testé',
 };
 
-export function Mobility() {
+/** `startTesting` : ouvert depuis le lien « Faire les tests » d'Aujourd'hui, le formulaire est déjà affiché. */
+export function Mobility({ startTesting = false }: { startTesting?: boolean }) {
   const res = useApi<MobilityView>('/mobility');
   if (res.state === 'loading') return <Loading />;
   if (res.state === 'error') {
@@ -39,12 +40,26 @@ export function Mobility() {
       </p>
     );
   }
-  return <Screen view={res.data} reload={res.reload} />;
+  return <Screen view={res.data} reload={res.reload} startTesting={startTesting} />;
 }
 
-function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
+function Screen({
+  view,
+  reload,
+  startTesting,
+}: {
+  view: MobilityView;
+  reload: () => void;
+  startTesting: boolean;
+}) {
   const [guide, setGuide] = useState<Slot | null>(null);
-  const [testing, setTesting] = useState(false);
+  const [testing, setTesting] = useState(startTesting);
+  // Le formulaire s'ouvre dans la carte Auto-tests, plus bas dans la page : on l'amène à l'écran,
+  // sinon le bouton semble ne rien faire (retour du 12/10).
+  const testsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (testing) testsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [testing]);
   const [error, setError] = useState<string | null>(null);
   const b = view.block;
 
@@ -167,7 +182,7 @@ function Screen({ view, reload }: { view: MobilityView; reload: () => void }) {
           </ul>
         </article>
 
-        <article className="card s6">
+        <article className="card s6" ref={testsRef}>
           <header>
             <span className="label">Auto-tests</span>
             <span className="muted text-xs">
