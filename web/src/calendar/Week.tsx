@@ -61,7 +61,7 @@ export function Week({
             <span className="src calc">Calculé</span>
             <span>
               {week.manual
-                ? 'Placement ajusté à la main.'
+                ? 'Séance déplacée à la main ; le reste de la semaine est replacé autour.'
                 : 'Placement proposé par CoachChris, à ajuster librement.'}
             </span>
             {week.warnings.length ? (

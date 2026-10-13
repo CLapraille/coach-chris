@@ -4,7 +4,6 @@ import {
   checkPlacement,
   dayLabel,
   matchWeek,
-  moveSession,
   proposePlacement,
   weekDays,
   type CachedActivity,
@@ -29,7 +28,12 @@ export type PushDoc = Doc & PushRecord & { sessionKey: string };
 /** Les clés de séance contiennent « # », interdit dans un identifiant Cosmos. */
 export const pushId = (sessionKey: string) => sessionKey.replace(/[#/\\?]/g, ':');
 
-/** Placement ajusté à la main (D50) : partition `placement` du conteneur `user`, un document par semaine. */
+/**
+ * Séances épinglées à la main (D50, D147) : partition `placement` du conteneur `user`, un document par semaine.
+ * Version 2 : seules les séances déplacées par l'utilisateur ; les autres sont replacées autour à chaque lecture.
+ * Version 1 (avant le 13/10) : toutes les séances à faire, figées ; remplacée au premier déplacement.
+ */
+const PINS_VERSION = 2;
 const KIND = 'placement';
 type PlacementDoc = Doc & { placement: Placement };
 
@@ -147,7 +151,10 @@ async function eveOf(store: Store, start: string, today: string): Promise<Eve> {
 
 export class PlacementError extends Error {}
 
-/** Déplace une séance à faire (échange si le jour cible porte une autre séance modifiable) et garde le résultat. */
+/**
+ * Déplace une séance à faire : elle est épinglée sur ce jour et le reste de la semaine est replacé autour,
+ * selon les règles (D147). Les séances déplacées auparavant restent épinglées.
+ */
 export async function moveInWeek(
   store: Store,
   start: string,
@@ -163,16 +170,15 @@ export async function moveInWeek(
   if (!view.days.some((d) => d.day === day) || day < today) {
     throw new PlacementError('Jour hors de la semaine ou déjà passé');
   }
-  const movable = view.sessions.filter((x) => !x.fixed && x.status === 'todo' && x.day);
-  const current = Object.fromEntries(movable.map((x) => [x.key, x.day!]));
-  const next = moveSession(current, key, day);
+  const saved = await store.get<PlacementDoc>('user', start, KIND);
+  const pins = saved?.schemaVersion === PINS_VERSION ? saved.placement : {};
   await store.upsert('user', {
     id: start,
     kind: KIND,
     source: 'app',
     fetchedAt: now,
-    schemaVersion: 1,
-    placement: next,
+    schemaVersion: PINS_VERSION,
+    placement: { ...pins, [key]: day },
   });
   return weekView(store, start, today);
 }

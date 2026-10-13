@@ -161,18 +161,3 @@ export function proposePlacement({ days, from, sessions, fixed, eve }: ProposeIn
   visit(0);
   return best?.placement ?? { ...fixed };
 }
-
-/** Déplace une séance ; si le jour cible contient une seule autre séance modifiable, les deux sont échangées. */
-export function moveSession(
-  placement: Placement,
-  key: string,
-  day: string,
-  fixed: ReadonlySet<string> = new Set(),
-): Placement {
-  if (fixed.has(key)) return placement;
-  const from = placement[key];
-  const others = Object.keys(placement).filter((k) => k !== key && placement[k] === day);
-  const next = { ...placement, [key]: day };
-  if (from && others.length === 1 && !fixed.has(others[0]!)) next[others[0]!] = from;
-  return next;
-}

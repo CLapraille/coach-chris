@@ -329,20 +329,31 @@ describe('Calendrier', () => {
   const dayOf = (w: { sessions: { name: string; day: string }[] }, name: string) =>
     w.sessions.find((s) => s.name === name)?.day;
 
-  it('déplacer une séance : gardé, avertissement si deux courses se suivent', async () => {
+  it('déplacer une séance : elle reste sur ce jour et le reste de la semaine est replacé autour (D147)', async () => {
     const { app } = await syncedApp();
     const before = await week(app);
     const c3 = before.sessions.find((s: { name: string }) => s.name === 'Retour_Blessure_S2_3');
     const res = await move(app, c3.key, '2026-10-09');
     expect(res.statusCode).toBe(200);
-    // Vendredi portait le renfo S2-2 : les deux séances sont échangées.
+    // Course S2-3 épinglée vendredi : le renfo passe samedi, la course S2-2 dimanche ; jeudi reste libre.
     const after = res.json();
     expect(dayOf(after, 'Retour_Blessure_S2_3')).toBe('2026-10-09');
     expect(dayOf(after, 'MIX - MID - BLESSURE - SEMAINE 2 SEANCE 2')).toBe('2026-10-10');
+    expect(dayOf(after, 'Retour_Blessure_S2_2')).toBe('2026-10-11');
     expect(after.manual).toBe(true);
-    expect(after.warnings.map((w: { rule: string }) => w.rule)).toContain('consecutive-runs');
+    expect(after.warnings).toEqual([]);
     // Relu depuis le stockage.
     expect(dayOf(await week(app), 'Retour_Blessure_S2_3')).toBe('2026-10-09');
+  });
+
+  it('un second déplacement garde le premier épinglé', async () => {
+    const { app } = await syncedApp();
+    const w = await week(app);
+    const key = (name: string) => w.sessions.find((s: { name: string }) => s.name === name).key;
+    await move(app, key('Retour_Blessure_S2_3'), '2026-10-09');
+    const after = (await move(app, key('Retour_Blessure_S2_2'), '2026-10-11')).json();
+    expect(dayOf(after, 'Retour_Blessure_S2_3')).toBe('2026-10-09');
+    expect(dayOf(after, 'Retour_Blessure_S2_2')).toBe('2026-10-11');
   });
 
   it('une séance faite ne se déplace pas ; un jour passé est refusé', async () => {
