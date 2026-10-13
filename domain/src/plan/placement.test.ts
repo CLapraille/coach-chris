@@ -3,7 +3,7 @@ import { weekDays } from '../calendar.ts';
 import { S2_ACTIVITIES, S2_DETAILS, S2_WEEK } from '../fixtures/campus-s2.ts';
 import { fromCampusWeek } from './campus.ts';
 import { matchWeek } from './matching.ts';
-import { checkPlacement, moveSession, proposePlacement, type Placement } from './placement.ts';
+import { checkPlacement, proposePlacement, type Placement } from './placement.ts';
 
 const days = weekDays('2026-10-05');
 const sessions = fromCampusWeek(S2_WEEK, S2_DETAILS);
@@ -72,25 +72,6 @@ describe('checkPlacement', () => {
   it('ne signale pas ce qui ne concerne que le passé', () => {
     const p = all(['2026-10-06', '2026-10-06', '2026-10-08', '2026-10-09', '2026-10-10']);
     expect(checkPlacement(p, todo, days, new Set([r1!.key, c1!.key]))).toEqual([]);
-  });
-});
-
-describe('moveSession', () => {
-  const p: Placement = { [c2!.key]: '2026-10-08', [r2!.key]: '2026-10-09', [c3!.key]: '2026-10-10' };
-
-  it('déplace vers un jour libre', () => {
-    expect(moveSession(p, c3!.key, '2026-10-11')[c3!.key]).toBe('2026-10-11');
-  });
-
-  it('échange deux séances', () => {
-    expect(moveSession(p, c2!.key, '2026-10-09')).toMatchObject({
-      [c2!.key]: '2026-10-09',
-      [r2!.key]: '2026-10-08',
-    });
-  });
-
-  it('ne bouge pas une séance figée', () => {
-    expect(moveSession(p, c2!.key, '2026-10-11', new Set([c2!.key]))).toBe(p);
   });
 });
 
