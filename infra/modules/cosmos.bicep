@@ -1,4 +1,4 @@
-// Cosmos DB NoSQL en offre gratuite (D14, ARCHITECTURE §3) : une base, 1000 RU/s partagés, 5 conteneurs.
+// Cosmos DB NoSQL en offre gratuite (D14, ARCHITECTURE §3) : une base, 600 RU/s partagés (400 laissés à HealthMoneyTracker), 5 conteneurs.
 param location string
 
 @description('Object IDs Entra autorisés en lecture/écriture sur les données (rôle intégré Data Contributor).')
@@ -41,8 +41,8 @@ resource db 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
   name: 'coachchris'
   properties: {
     resource: { id: 'coachchris' }
-    // Le maximum couvert par l'offre gratuite, partagé entre les conteneurs.
-    options: { throughput: 1000 }
+    // 600 des 1000 RU/s gratuits du compte ; les 400 autres vont à la base hmt de HealthMoneyTracker.
+    options: { throughput: 600 }
   }
 }
 
