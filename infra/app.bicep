@@ -139,6 +139,7 @@ var garminTools = join([
   'set_activity_description'
   'set_perceived_effort'
   'set_activity_feel'
+  'create_manual_activity'
 ], ',')
 
 // Volume des jetons : propriétaire 1000 (utilisateur des images MCP), lecture réservée.

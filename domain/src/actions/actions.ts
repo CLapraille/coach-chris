@@ -162,3 +162,51 @@ export function annotationChanges(
   if (wanted.feel !== undefined && wanted.feel !== current.feel) out.feel = wanted.feel;
   return out;
 }
+
+/** Activité Garmin « Musculation » saisie à la main pour une séance de renforcement faite sans la montre (D148). */
+export interface ManualStrength {
+  type_key: 'strength_training';
+  /** Jour et heure de début, à Paris. */
+  date: string;
+  start_time: string;
+  duration_minutes: number;
+  activity_name: string;
+  time_zone: 'Europe/Paris';
+}
+
+/**
+ * La séance se termine à l'instant où elle a été validée dans Campus ; elle a duré le temps prévu (Campus ne
+ * donne pas la durée réelle). Sans instant de validation ou sans durée, rien n'est créé : on n'invente pas.
+ */
+export function manualStrength(s: {
+  name: string;
+  displayName: string;
+  durationMin: number;
+  completedAtUtc?: string;
+}): ManualStrength | null {
+  if (!s.completedAtUtc || s.durationMin <= 0) return null;
+  const end = new Date(`${s.completedAtUtc.replace(' ', 'T')}:00Z`);
+  if (Number.isNaN(end.getTime())) return null;
+  const start = new Date(end.getTime() - s.durationMin * 60_000);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Paris',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(start)
+      .map((p) => [p.type, p.value]),
+  );
+  return {
+    type_key: 'strength_training',
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    start_time: `${parts.hour}:${parts.minute}`,
+    duration_minutes: s.durationMin,
+    activity_name: `${APP_PREFIX}Renfo ${sessionShort(s.name) ?? s.displayName}`,
+    time_zone: 'Europe/Paris',
+  };
+}

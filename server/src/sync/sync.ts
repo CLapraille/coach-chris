@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { ToolError, type McpCaller, type SourceName } from '../mcp/client.ts';
 import type { Doc, Store } from '../store/store.ts';
 import * as garmin from './garmin.ts';
+import { logStrengthToGarmin } from '../actions/autolog.ts';
 
 /** `action` : relecture après une écriture confirmée (D123). */
 export type SyncOrigin = 'job' | 'open' | 'button' | 'action';
@@ -128,6 +129,8 @@ export class Sync {
         lastOkAt: this.clock.now(),
       } satisfies SyncState);
       result = { source, outcome: 'ok', durationMs: Math.round(performance.now() - t0) };
+      // Renforcement fait sans la montre → activité Garmin (D148). Ne fait jamais échouer la synchro.
+      await logStrengthToGarmin(this.store, this.mcp.garmin, this.clock).catch(() => undefined);
       if (attempts > 1) result.attempts = attempts;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

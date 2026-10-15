@@ -32,6 +32,7 @@ export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
     'set_activity_description',
     'set_perceived_effort',
     'set_activity_feel',
+    'create_manual_activity',
   ]),
   campus: new Set([
     'get_active_goal',
@@ -57,6 +58,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   'set_activity_description',
   'set_perceived_effort',
   'set_activity_feel',
+  'create_manual_activity',
   'complete_session',
   'save_session',
 ]);
