@@ -15,8 +15,11 @@ type StrengthLogDoc = Doc & { sessionKey: string; activityId?: string; attempts:
 
 /** Séances validées à partir de ce jour seulement : pas de rattrapage de l'historique. */
 export const STRENGTH_LOG_SINCE = '2026-10-15';
-/** Laisse à une activité faite avec la montre le temps d'arriver dans Garmin avant de conclure qu'il n'y en a pas. */
-const GRACE_MS = 3 * 3600_000;
+/**
+ * Laisse à une activité faite avec la montre le temps d'arriver dans Garmin avant de conclure qu'il n'y en a pas :
+ * 1 h suffit, la montre synchronise en quelques minutes quand le téléphone est à côté (D148, réduit de 3 h le 15/10).
+ */
+const GRACE_MS = 3600_000;
 const MAX_ATTEMPTS = 3;
 const LOG_TTL_S = 90 * 24 * 3600;
 
@@ -29,13 +32,20 @@ export function logStrengthToGarmin(
   garmin: McpCaller,
   clock: Clock,
   since = STRENGTH_LOG_SINCE,
+  graceMs = GRACE_MS,
 ): Promise<void> {
-  const run = queue.then(() => pass(store, garmin, clock, since));
+  const run = queue.then(() => pass(store, garmin, clock, since, graceMs));
   queue = run.catch(() => undefined);
   return run;
 }
 
-async function pass(store: Store, garmin: McpCaller, clock: Clock, since: string): Promise<void> {
+async function pass(
+  store: Store,
+  garmin: McpCaller,
+  clock: Clock,
+  since: string,
+  graceMs: number,
+): Promise<void> {
   const today = clock.today();
   const now = Date.parse(clock.now());
   const monday = mondayOf(today);
@@ -46,7 +56,7 @@ async function pass(store: Store, garmin: McpCaller, clock: Clock, since: string
       if (s.sport !== 'strength' || s.status !== 'done' || !s.completedAtUtc || ws?.match?.activityId)
         continue;
       const done = Date.parse(`${s.completedAtUtc.replace(' ', 'T')}:00Z`);
-      if (s.completedAtUtc.slice(0, 10) < since || now - done < GRACE_MS) continue;
+      if (s.completedAtUtc.slice(0, 10) < since || now - done < graceMs) continue;
       const req = manualStrength(s);
       if (!req) continue;
       // Une activité de renforcement existe déjà ce jour-là (montre) : rien à créer.
