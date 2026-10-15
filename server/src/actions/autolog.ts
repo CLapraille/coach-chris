@@ -29,13 +29,20 @@ export function logStrengthToGarmin(
   garmin: McpCaller,
   clock: Clock,
   since = STRENGTH_LOG_SINCE,
+  graceMs = GRACE_MS,
 ): Promise<void> {
-  const run = queue.then(() => pass(store, garmin, clock, since));
+  const run = queue.then(() => pass(store, garmin, clock, since, graceMs));
   queue = run.catch(() => undefined);
   return run;
 }
 
-async function pass(store: Store, garmin: McpCaller, clock: Clock, since: string): Promise<void> {
+async function pass(
+  store: Store,
+  garmin: McpCaller,
+  clock: Clock,
+  since: string,
+  graceMs: number,
+): Promise<void> {
   const today = clock.today();
   const now = Date.parse(clock.now());
   const monday = mondayOf(today);
@@ -46,7 +53,7 @@ async function pass(store: Store, garmin: McpCaller, clock: Clock, since: string
       if (s.sport !== 'strength' || s.status !== 'done' || !s.completedAtUtc || ws?.match?.activityId)
         continue;
       const done = Date.parse(`${s.completedAtUtc.replace(' ', 'T')}:00Z`);
-      if (s.completedAtUtc.slice(0, 10) < since || now - done < GRACE_MS) continue;
+      if (s.completedAtUtc.slice(0, 10) < since || now - done < graceMs) continue;
       const req = manualStrength(s);
       if (!req) continue;
       // Une activité de renforcement existe déjà ce jour-là (montre) : rien à créer.
