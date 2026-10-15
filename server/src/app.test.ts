@@ -2,7 +2,7 @@ import { S2_DETAILS, S2_WEEK } from '@coach-chris/domain/fixtures/campus-s2';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from './app.ts';
 import { ToolError, type McpCaller } from './mcp/client.ts';
-import { MemoryStore } from './store/store.ts';
+import { MemoryStore, type Doc } from './store/store.ts';
 import { Sync, type Clock } from './sync/sync.ts';
 
 it('répond à la sonde de santé', async () => {
@@ -597,5 +597,53 @@ describe('Authentification (Azure)', () => {
     );
     const me = { 'x-ms-client-principal-id': 'oid-chris' };
     expect((await app.inject({ method: 'GET', url: '/api/data/status', headers: me })).statusCode).toBe(200);
+  });
+});
+
+describe('Renforcement sans montre → activité Garmin (D148)', () => {
+  it('crée une fois l’activité « Musculation » à l’heure de validation Campus, puis plus jamais', async () => {
+    const { store } = await syncedApp();
+    // Pendant la synchro, rien : la séance (validée le 07/10) précède la mise en service.
+    expect(await store.list('ops', 'strength-log')).toEqual([]);
+    const calls: Record<string, unknown>[] = [];
+    const writer = fakeMcp({
+      create_manual_activity: (args) => {
+        calls.push(args);
+        return JSON.stringify({ success: true, activity: { activityId: 999 } });
+      },
+    });
+    const { logStrengthToGarmin } = await import('./actions/autolog.ts');
+    await logStrengthToGarmin(store, writer, clock, '2026-10-01');
+    // Validée le 07/10 à 18:40 UTC = 20:40 à Paris ; 30 min prévues → début 20:10.
+    expect(calls).toEqual([
+      {
+        type_key: 'strength_training',
+        date: '2026-10-07',
+        start_time: '20:10',
+        duration_minutes: 30,
+        activity_name: 'CC · Renfo S2-1',
+        time_zone: 'Europe/Paris',
+      },
+    ]);
+    await logStrengthToGarmin(store, writer, clock, '2026-10-01');
+    expect(calls).toHaveLength(1);
+    const log = await store.list<Doc & { outcome: string; title: string }>('ops', 'action-log');
+    expect(log).toMatchObject([{ outcome: 'ok', title: expect.stringContaining('CC · Renfo S2-1') }]);
+  });
+
+  it('échec Garmin : journalisé, réessayé au plus 3 fois', async () => {
+    const { store } = await syncedApp();
+    let n = 0;
+    const writer = fakeMcp({
+      create_manual_activity: () => {
+        n++;
+        return 'Error creating manual activity: 500';
+      },
+    });
+    const { logStrengthToGarmin } = await import('./actions/autolog.ts');
+    for (let i = 0; i < 5; i++) await logStrengthToGarmin(store, writer, clock, '2026-10-01');
+    expect(n).toBe(3);
+    const log = await store.list<Doc & { outcome: string; message: string }>('ops', 'action-log');
+    expect(log.every((l) => l.outcome === 'error' && l.message.includes('500'))).toBe(true);
   });
 });

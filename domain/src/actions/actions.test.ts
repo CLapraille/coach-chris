@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { S1_3_BLOCKS } from '../fixtures/run-s1-3.ts';
 import {
+  manualStrength,
   annotationChanges,
   campusRacingNote,
   garminWorkout,
@@ -109,5 +110,33 @@ describe('annotationChanges', () => {
 
   it('ignore un nom vide', () => {
     expect(annotationChanges(current, { name: '  ' })).toEqual({});
+  });
+});
+
+describe('manualStrength (D148)', () => {
+  const s = { name: 'MIX - MID - BLESSURE - SEMAINE 3 SEANCE 1', displayName: 'Renfo', durationMin: 30 };
+
+  it('fin = validation Campus (UTC → Paris), début = fin − durée prévue', () => {
+    expect(manualStrength({ ...s, completedAtUtc: '2026-10-14 17:05' })).toEqual({
+      type_key: 'strength_training',
+      date: '2026-10-14',
+      start_time: '18:35',
+      duration_minutes: 30,
+      activity_name: 'CC · Renfo S3-1',
+      time_zone: 'Europe/Paris',
+    });
+  });
+
+  it('heure d’hiver, début la veille quand la validation suit minuit de peu', () => {
+    // 23:10 UTC le 02/11 = 00:10 à Paris le 03/11 (UTC+1) ; 30 min avant : 23:40 le 02/11.
+    expect(manualStrength({ ...s, completedAtUtc: '2026-11-02 23:10' })).toMatchObject({
+      date: '2026-11-02',
+      start_time: '23:40',
+    });
+  });
+
+  it('sans instant de validation ou sans durée : rien (on n’invente pas)', () => {
+    expect(manualStrength(s)).toBeNull();
+    expect(manualStrength({ ...s, completedAtUtc: '2026-10-14 17:05', durationMin: 0 })).toBeNull();
   });
 });
