@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Un déploiement à la fois : deux fusions rapprochées se mettaient à modifier les mêmes Container Apps en
+# même temps (« ContainerAppOperationInProgress », 15/10). Le suivant attend, aucun n'est annulé.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   IMAGE_REPO: ghcr.io/clapraille/coach-chris
   RESOURCE_GROUP: rg-coach-chris
