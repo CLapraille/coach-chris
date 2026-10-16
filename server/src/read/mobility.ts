@@ -1,5 +1,6 @@
 import {
   addDays,
+  mondayOf,
   assessZones,
   chooseDailySlot,
   chooseSocle,
@@ -187,8 +188,8 @@ export async function mobilityToday(
       morning: regularity(logs, 'morning', today, 7),
       evening: regularity(logs, 'evening', today, 7),
     },
-    last7: Array.from({ length: 7 }, (_, i) => {
-      const day = addDays(today, i - 6);
+    week: Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(mondayOf(today), i);
       return { day, morning: has(logs, day, 'morning'), evening: has(logs, day, 'evening') };
     }),
   };

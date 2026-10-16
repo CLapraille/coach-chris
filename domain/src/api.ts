@@ -260,8 +260,8 @@ export interface MobilityToday {
   testsMissing: boolean;
   checked: Record<Slot, boolean>;
   regularity: Record<Slot, Regularity>;
-  /** 7 derniers jours, du plus ancien à aujourd'hui. */
-  last7: { day: string; morning: boolean; evening: boolean }[];
+  /** Semaine en cours, lundi → dimanche (D150) : repart de zéro chaque lundi ; les jours à venir sont vides. */
+  week: { day: string; morning: boolean; evening: boolean }[];
 }
 
 export interface TodayView {

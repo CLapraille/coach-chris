@@ -767,6 +767,11 @@ svg text {
   background: color-mix(in srgb, var(--mobility) 45%, transparent);
   border-color: var(--mobility);
 }
+/* Jours à venir de la semaine (D150) : en pointillé, à ne pas confondre avec un jour sans routine. */
+.rt-streak .dots i.future {
+  border-style: dashed;
+  opacity: 0.45;
+}
 
 /* Signaux */
 .insights {

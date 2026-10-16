@@ -55,6 +55,10 @@ it('Aujourd’hui : séance, forme et poids sur les données de l’API, absence
   expect(screen.getByText('11,1 h')).toBeTruthy();
   expect(screen.queryAllByText('indisponible')).toHaveLength(0);
   expect(screen.getByText("Pas encore 4 semaines d'historique : pas de repère.")).toBeTruthy();
+  // Mobilité : la semaine lun → dim (D150), jours à venir à part (jeudi 08/10 : ven., sam., dim.).
+  const week = screen.getByRole('img', { name: /cette semaine avec au moins une routine/ });
+  expect(week.querySelectorAll('i')).toHaveLength(7);
+  expect(week.querySelectorAll('i.future')).toHaveLength(3);
   // Signaux : points surveillés, une absence de repère reste dite.
   const watched = screen.getByLabelText('Points surveillés');
   expect(within(watched).getByText('sous la plage')).toBeTruthy();
