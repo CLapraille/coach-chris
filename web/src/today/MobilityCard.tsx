@@ -27,7 +27,7 @@ export function MobilityCard({
       setError(e instanceof Error ? e.message : String(e));
     }
   };
-  const done7 = mobility.last7.filter((d) => d.morning || d.evening).length;
+  const doneWeek = mobility.week.filter((d) => d.morning || d.evening).length;
   return (
     <article className="card s7">
       <header>
@@ -65,21 +65,29 @@ export function MobilityCard({
       </div>
       {error && <p className="empty text-alert">{error}</p>}
       <div className="rt-streak">
-        <span>Régularité 7 j</span>
+        <span>Cette semaine</span>
         <span
           className="dots"
           role="img"
-          aria-label={`${done7} jours sur 7 avec au moins une routine cochée`}
+          aria-label={`${doneWeek} jours sur 7 cette semaine avec au moins une routine cochée`}
         >
-          {mobility.last7.map((d) => (
+          {mobility.week.map((d) => (
             <i
               key={d.day}
-              className={d.morning && d.evening ? 'on' : d.morning || d.evening ? 'half' : ''}
-              title={`${shortDate(d.day)} : ${[d.morning && 'matin', d.evening && 'soir'].filter(Boolean).join(' + ') || 'non renseigné'}`}
+              className={
+                d.morning && d.evening
+                  ? 'on'
+                  : d.morning || d.evening
+                    ? 'half'
+                    : d.day > today
+                      ? 'future'
+                      : ''
+              }
+              title={`${shortDate(d.day)} : ${d.day > today ? 'à venir' : [d.morning && 'matin', d.evening && 'soir'].filter(Boolean).join(' + ') || 'non renseigné'}`}
             />
           ))}
         </span>
-        <span className="muted">{done7 ? `${done7}/7 jours` : 'aucune donnée'}</span>
+        <span className="muted">{doneWeek ? `${doneWeek}/7 jours` : 'rien cette semaine'}</span>
       </div>
     </article>
   );

@@ -104,7 +104,7 @@ export const TODAY: TodayView = {
     testsMissing: true,
     checked: { morning: false, evening: false },
     regularity: { morning: { done: 0, days: 7, streak: 0 }, evening: { done: 0, days: 7, streak: 0 } },
-    last7: days.map((day) => ({ day, morning: false, evening: false })),
+    week: days.map((day) => ({ day, morning: false, evening: false })),
   },
   signals: [],
 };
