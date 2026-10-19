@@ -77,7 +77,7 @@ export interface McpCaller {
  * Connexion à un MCP : en local, processus lancé en stdio (`<SOURCE>_MCP_CMD`) ;
  * sur Azure, URL streamable-http interne (`<SOURCE>_MCP_URL`).
  */
-export function mcpFromEnv(source: SourceName, env = process.env): McpCaller {
+export function mcpFromEnv(source: SourceName, env = process.env, idleMs = IDLE_CLOSE_MS): McpCaller {
   const prefix = source.toUpperCase();
   const url = env[`${prefix}_MCP_URL`];
   const cmd = env[`${prefix}_MCP_CMD`];
@@ -87,17 +87,29 @@ export function mcpFromEnv(source: SourceName, env = process.env): McpCaller {
       ? // Le SDK déclare ses propriétés optionnelles sans `undefined` : incompatible avec exactOptionalPropertyTypes.
         (new StreamableHTTPClientTransport(new URL(url)) as Transport)
       : new StdioClientTransport({ command: cmd!, stderr: 'ignore' }),
+    idleMs,
   );
 }
 
-class McpSource implements McpCaller {
+/**
+ * Fermeture après inactivité (D151) : une connexion streamable-http ouverte garde la Container App du MCP
+ * « en service » ; tant que le BFF restait éveillé (6 h → 23 h), les deux MCP ne descendaient jamais à zéro
+ * (≈ 1 €/jour à eux deux, octobre 2026). Fermée 60 s après le dernier appel, elle laisse le MCP s'arrêter.
+ */
+export const IDLE_CLOSE_MS = 60_000;
+
+export class McpSource implements McpCaller {
   private client: Promise<Client> | undefined;
   readonly source: SourceName;
   private readonly transport: () => Transport;
+  private readonly idleMs: number;
+  private idle: ReturnType<typeof setTimeout> | undefined;
+  private inFlight = 0;
 
-  constructor(source: SourceName, transport: () => Transport) {
+  constructor(source: SourceName, transport: () => Transport, idleMs = IDLE_CLOSE_MS) {
     this.source = source;
     this.transport = transport;
+    this.idleMs = idleMs;
   }
 
   private connect(): Promise<Client> {
@@ -119,8 +131,16 @@ class McpSource implements McpCaller {
     if (WRITE_TOOLS.has(tool) !== (opts.write === true)) {
       throw new ToolNotAllowedError(`${this.source}.${tool} : écriture hors du protocole de confirmation`);
     }
-    const client = await this.connect();
-    const res = await client.callTool({ name: tool, arguments: args });
+    clearTimeout(this.idle);
+    this.inFlight++;
+    let res: Awaited<ReturnType<Client['callTool']>>;
+    try {
+      const client = await this.connect();
+      res = await client.callTool({ name: tool, arguments: args });
+    } finally {
+      this.inFlight--;
+      this.scheduleClose();
+    }
     const text = (res.content as { type: string; text?: string }[])
       .filter((c) => c.type === 'text')
       .map((c) => c.text ?? '')
@@ -129,7 +149,16 @@ class McpSource implements McpCaller {
     return parse(text) as T;
   }
 
+  /** Ferme la connexion une fois tous les appels finis et `idleMs` écoulées sans nouvel appel. */
+  private scheduleClose(): void {
+    if (this.inFlight > 0 || !this.client) return;
+    clearTimeout(this.idle);
+    this.idle = setTimeout(() => void this.close().catch(() => undefined), this.idleMs);
+    this.idle.unref?.();
+  }
+
   async close(): Promise<void> {
+    clearTimeout(this.idle);
     const c = await this.client?.catch(() => undefined);
     this.client = undefined;
     await c?.close();
