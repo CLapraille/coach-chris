@@ -168,7 +168,20 @@ export interface SessionView {
   /** Écart étape par étape, pour une course programmée sur la montre (tours indexés). */
   deviation: Deviation | null;
   rules: DeviationRules;
+  /** Renforcement : où en est l'activité « Musculation » créée dans Garmin (D148, D152). */
+  garminLog?: GarminLogStatus;
 }
+
+/**
+ * `planned` : pas encore validée ; `waiting` : créée à la première synchro après `after` ; `created` : créée ;
+ * `linked` : une activité de renforcement (montre ou créée) est rattachée ; `failed` : 3 essais échoués ;
+ * `before` : validée avant la mise en service, rien n'est créé.
+ */
+export type GarminLogStatus =
+  | { state: 'planned' | 'linked' | 'before' }
+  | { state: 'waiting'; after: string }
+  | { state: 'created'; name: string }
+  | { state: 'failed'; message: string };
 
 /** Vue mois : les semaines (lundi → dimanche) qui recouvrent le mois. */
 export interface MonthView {
