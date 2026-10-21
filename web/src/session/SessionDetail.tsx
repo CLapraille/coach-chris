@@ -15,6 +15,7 @@ import { useApi } from '../api.ts';
 import {
   SPORT_COLOR,
   SPORT_LABEL,
+  clock,
   decimal,
   longDate,
   sessionShort,
@@ -181,6 +182,7 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
         </header>
         <div className="acts">
           <CampusAct view={view} onAct={setAction} />
+          {view.garminLog && <GarminLog status={view.garminLog} />}
           {s.sport === 'run' && s.status === 'todo' && !s.match && <WatchAct view={view} onAct={setAction} />}
           {a && <AnnotateAct activity={a} onAct={setAction} />}
         </div>
@@ -591,6 +593,28 @@ function CampusAct({ view, onAct }: { view: SessionView; onAct: OnAct }) {
       >
         Valider dans Campus
       </button>
+    </div>
+  );
+}
+
+/** Renforcement → activité « Musculation » dans Garmin (D148) : où en est la création automatique (D152). */
+function GarminLog({ status }: { status: NonNullable<SessionView['garminLog']> }) {
+  const text =
+    status.state === 'planned'
+      ? 'Une fois la séance validée dans Campus, une activité « Musculation » est créée dans Garmin (1 h après, si la montre n’en a pas enregistré).'
+      : status.state === 'waiting'
+        ? `Activité « Musculation » créée dans Garmin à la première ouverture de l’app après ${clock(status.after)} (délai laissé à une activité de la montre).`
+        : status.state === 'created'
+          ? `Activité « ${status.name} » créée dans Garmin.`
+          : status.state === 'linked'
+            ? 'Activité de renforcement présente dans Garmin et rattachée à la séance.'
+            : status.state === 'failed'
+              ? `Création dans Garmin abandonnée après 3 essais : ${status.message}`
+              : 'Validée avant la mise en service de la création automatique : rien n’est créé dans Garmin.';
+  return (
+    <div className="act">
+      <h3>Garmin</h3>
+      <p className={status.state === 'failed' ? 'text-alert' : undefined}>{text}</p>
     </div>
   );
 }

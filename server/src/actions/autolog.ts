@@ -1,4 +1,12 @@
-import { activitySport, addDays, manualStrength, mondayOf } from '@coach-chris/domain';
+import {
+  activitySport,
+  addDays,
+  manualStrength,
+  mondayOf,
+  type GarminLogStatus,
+  type PlannedSession,
+  type WeekSession,
+} from '@coach-chris/domain';
 import type { McpCaller } from '../mcp/client.ts';
 import { pushId, weekData } from '../read/week.ts';
 import type { Doc, Store } from '../store/store.ts';
@@ -11,7 +19,14 @@ import type { Clock } from '../sync/sync.ts';
  * journalisée comme les autres écritures.
  */
 export const STRENGTH_LOG_KIND = 'strength-log';
-type StrengthLogDoc = Doc & { sessionKey: string; activityId?: string; attempts: number; at: string };
+type StrengthLogDoc = Doc & {
+  sessionKey: string;
+  activityId?: string;
+  attempts: number;
+  at: string;
+  name?: string;
+  message?: string;
+};
 
 /** Séances validées à partir de ce jour seulement : pas de rattrapage de l'historique. */
 export const STRENGTH_LOG_SINCE = '2026-10-15';
@@ -19,7 +34,7 @@ export const STRENGTH_LOG_SINCE = '2026-10-15';
  * Laisse à une activité faite avec la montre le temps d'arriver dans Garmin avant de conclure qu'il n'y en a pas :
  * 1 h suffit, la montre synchronise en quelques minutes quand le téléphone est à côté (D148, réduit de 3 h le 15/10).
  */
-const GRACE_MS = 3600_000;
+export const GRACE_MS = 3600_000;
 const MAX_ATTEMPTS = 3;
 const LOG_TTL_S = 90 * 24 * 3600;
 
@@ -103,6 +118,8 @@ async function create(
     ...(activityId && { activityId }),
     attempts: failure ? attempts + 1 : attempts,
     at,
+    name: req.activity_name,
+    ...(failure && { message: failure }),
   } satisfies StrengthLogDoc);
   // Le journal des écritures de l'écran Données (D123).
   await store.upsert('ops', {
@@ -118,4 +135,22 @@ async function create(
     tools: ['create_manual_activity'],
     ttl: LOG_TTL_S,
   });
+}
+
+/** État affiché dans le détail d'une séance de renforcement (D152) : la création n'est plus silencieuse. */
+export async function garminLogStatus(
+  store: Store,
+  planned: PlannedSession,
+  session: WeekSession,
+): Promise<GarminLogStatus | undefined> {
+  if (planned.sport !== 'strength' || planned.status === 'skipped') return undefined;
+  if (session.match?.activityId) return { state: 'linked' };
+  if (planned.status !== 'done' || !planned.completedAtUtc) return { state: 'planned' };
+  const doc = await store.get<StrengthLogDoc>('ops', pushId(planned.key), STRENGTH_LOG_KIND);
+  if (doc?.activityId) return { state: 'created', name: doc.name ?? 'Musculation' };
+  if (doc && doc.attempts >= MAX_ATTEMPTS)
+    return { state: 'failed', message: doc.message ?? 'Garmin a refusé la création' };
+  if (planned.completedAtUtc.slice(0, 10) < STRENGTH_LOG_SINCE) return { state: 'before' };
+  const done = Date.parse(`${planned.completedAtUtc.replace(' ', 'T')}:00Z`);
+  return { state: 'waiting', after: new Date(done + GRACE_MS).toISOString() };
 }
