@@ -4,8 +4,10 @@ import type {
   ClaudeItem,
   ClaudeRoutine,
   ClaudeSport,
+  SessionCheckin,
 } from '@coach-chris/domain';
 import { useState } from 'react';
+import { api } from '../api.ts';
 
 const SPORT: Record<ClaudeSport, string> = {
   course: 'Course',
@@ -26,9 +28,40 @@ const COLOR: Record<ClaudeSport, string> = {
  * Contenu d'une séance du plan Claude (D156) : pourquoi, échauffement, corps de séance, retour au calme.
  * La séance flexible montre ses autres sports possibles ; le choix enregistré du jour arrivera avec les check-ins.
  */
-export function ClaudePlan({ content }: { content: ClaudeContent }) {
+export function ClaudePlan({
+  content,
+  checkin,
+  today,
+  onChanged,
+}: {
+  content: ClaudeContent;
+  checkin?: SessionCheckin | undefined;
+  today: string;
+  onChanged: () => void;
+}) {
   const [shown, setShown] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const v = content.variants[shown] ?? content.variants[0]!;
+  // Check-in de la séance (D159) : le choix du sport est enregistré ; tibia et effort une fois le jour venu.
+  const save = async (patch: Record<string, unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/checkins/${content.date}/sessions/${content.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      });
+      setShown(0);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const flexible = content.role === 'flexible' && content.variants.length > 1;
+  const done = today >= content.date;
   return (
     <section
       className="card cl-plan"
@@ -42,7 +75,7 @@ export function ClaudePlan({ content }: { content: ClaudeContent }) {
       {content.pourquoi && <p className="cl-why">{content.pourquoi}</p>}
       {content.variants.length > 1 && (
         <div className="cl-swap">
-          <span className="label">Version</span>
+          <span className="label">{flexible ? 'Aujourd’hui en' : 'Version'}</span>
           <div className="theme" role="radiogroup" aria-label="Sport de la séance">
             {content.variants.map((x, i) => (
               <button
@@ -50,7 +83,8 @@ export function ClaudePlan({ content }: { content: ClaudeContent }) {
                 type="button"
                 role="radio"
                 aria-checked={i === shown}
-                onClick={() => setShown(i)}
+                disabled={busy}
+                onClick={() => (flexible && i !== 0 ? void save({ swap: x.sport }) : setShown(i))}
               >
                 {SPORT[x.sport]} · {x.dureeMin} min
               </button>
@@ -59,6 +93,33 @@ export function ClaudePlan({ content }: { content: ClaudeContent }) {
         </div>
       )}
       <Variant v={v} />
+      {done && (
+        <div className="cl-log">
+          <span className="label">Après la séance</span>
+          {v.sport === 'course' && (
+            <Score
+              label="Tibia /10"
+              value={checkin?.shin}
+              disabled={busy}
+              onChange={(n) => void save({ shin: n })}
+            />
+          )}
+          <Score
+            label="Effort ressenti /10"
+            value={checkin?.rpe}
+            disabled={busy}
+            onChange={(n) => void save({ rpe: n })}
+          />
+          {checkin?.shin !== undefined && checkin.shin > 3 && (
+            <span className="warn">Tibia au-dessus de 3/10 : on en tient compte à la revue du dimanche.</span>
+          )}
+        </div>
+      )}
+      {error && (
+        <p className="text-alert" role="alert">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
@@ -126,5 +187,35 @@ function Routine({ label, r }: { label: string; r: ClaudeRoutine }) {
         </ul>
       )}
     </details>
+  );
+}
+
+function Score({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number | undefined;
+  disabled: boolean;
+  onChange: (n: number | null) => void;
+}) {
+  return (
+    <label className="cl-score">
+      {label}
+      <select
+        value={value ?? ''}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      >
+        <option value="">–</option>
+        {Array.from({ length: 11 }, (_, n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

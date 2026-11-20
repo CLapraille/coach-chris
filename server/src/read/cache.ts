@@ -2,6 +2,7 @@ import {
   addDays,
   fromCampusWeek,
   fromClaudeWeek,
+  swapsOf,
   type PlanSource,
   type CampusSessionDetails,
   type CachedActivity,
@@ -18,6 +19,7 @@ import {
   type ClaudePlanDoc,
   type PlanSourceDoc,
 } from '../plan/claude.ts';
+import { readCheckins } from './checkin.ts';
 import type { Doc, Store } from '../store/store.ts';
 import { pk } from '../sync/sync.ts';
 
@@ -87,7 +89,7 @@ export interface PlanWeek {
   goalWeek?: { index: number; durationInWeeks: number };
   cycleDescription?: string;
   /** Plan Claude de la semaine (contenu des séances, routines), quand il est la source active (D153). */
-  claude?: Pick<ClaudePlanDoc, 'block' | 'week' | 'routines'>;
+  claude?: Pick<ClaudePlanDoc, 'block' | 'week' | 'routines' | 'athlete'>;
 }
 
 /**
@@ -97,17 +99,23 @@ export interface PlanWeek {
 export async function planWeek(store: Store, weekStart: string): Promise<PlanWeek | undefined> {
   const active = await store.get<PlanSourceDoc>('plan', SOURCE_ID, weekStart);
   if (active?.active === 'claude') {
-    const [c, settings] = await Promise.all([
+    const [c, settings, checkins] = await Promise.all([
       store.get<ClaudePlanDoc>('plan', CLAUDE_ID, weekStart),
       readSettings(store),
+      readCheckins(store, weekStart, addDays(weekStart, 6)),
     ]);
     if (c) {
       return {
         source: 'claude',
-        sessions: fromClaudeWeek(c.week, settings.flexDefault),
+        sessions: fromClaudeWeek(c.week, settings.flexDefault, swapsOf(checkins)),
         details: new Map(),
         fetchedAt: c.fetchedAt,
-        claude: { block: c.block, week: c.week, routines: c.routines },
+        claude: {
+          block: c.block,
+          week: c.week,
+          routines: c.routines,
+          ...(c.athlete && { athlete: c.athlete }),
+        },
       };
     }
   }

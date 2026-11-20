@@ -21,7 +21,9 @@ import {
   type VolumeView,
   type WeekSession,
   type WeekVolume,
+  suggestLowImpact,
 } from '@coach-chris/domain';
+import { readCheckin } from './checkin.ts';
 import type { Store } from '../store/store.ts';
 import { activeGoal, activities, night, planWeek, weighIns, type PlanWeek } from './cache.ts';
 import { eveningSlots, mobilityToday } from './mobility.ts';
@@ -101,6 +103,7 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
     evenings: await eveningSlots(store, week.sessions, weekDays(monday), today),
     mobility: await mobilityToday(store, week.sessions, today),
     signals,
+    checkin: await footCheckin(store, today),
   };
 }
 
@@ -161,4 +164,10 @@ function volume(
     },
     planned,
   };
+}
+
+/** Douleur du pied au premier pas du jour (D159). */
+async function footCheckin(store: Store, today: string): Promise<TodayView['checkin']> {
+  const foot = (await readCheckin(store, today))?.foot;
+  return { foot: foot ?? null, suggestLowImpact: suggestLowImpact(foot) };
 }

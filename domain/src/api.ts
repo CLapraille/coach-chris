@@ -5,6 +5,7 @@
 import type { Annotation } from './actions/actions.ts';
 import type { CampusBlock } from './plan/campus.ts';
 import type { ClaudeContent, ClaudeRoutine } from './plan/claude.ts';
+import type { SessionCheckin } from './checkin/checkin.ts';
 import type { Match, Activity } from './plan/matching.ts';
 import type { Deviation, DeviationRules, Lap } from './plan/deviation.ts';
 import type { RuleWarning } from './plan/placement.ts';
@@ -96,6 +97,7 @@ export interface PushRecord {
 export type ActionRequest =
   | { type: 'campus.complete'; sessionKey: string }
   | { type: 'garmin.push'; sessionKey: string }
+  | { type: 'mywhoosh.upload'; sessionKey: string }
   | { type: 'garmin.annotate'; activityId: string; changes: Annotation };
 
 /** Aperçu lisible d'une écriture ; `token` est à renvoyer tel quel pour confirmer (valable 5 min, une fois). */
@@ -103,7 +105,7 @@ export interface ActionPreview {
   token: string;
   expiresAt: string;
   title: string;
-  target: 'Campus Coach' | 'Garmin Connect';
+  target: 'Campus Coach' | 'Garmin Connect' | 'MyWhoosh';
   fields: { label: string; value: string }[];
   warnings: string[];
 }
@@ -180,6 +182,8 @@ export interface SessionView {
   garminLog?: GarminLogStatus;
   /** Séance d'un plan Claude : contenu complet (échauffement, corps, retour au calme, variantes), D156. */
   claude?: ClaudeContent;
+  /** Check-in de la séance (tibia, effort, sport choisi), D159. */
+  checkin?: SessionCheckin;
 }
 
 /**
@@ -321,6 +325,8 @@ export interface TodayView {
   evenings: Record<string, RoutineItemView | null>;
   mobility: MobilityToday;
   signals: Signal[];
+  /** Douleur du pied au premier pas (D159) ; `null` si pas encore saisie aujourd'hui. */
+  checkin: { foot: number | null; suggestLowImpact: boolean };
 }
 
 export interface DataStatus {

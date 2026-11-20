@@ -3493,3 +3493,65 @@ ul.cl-items {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Check-ins (D159) */
+.score {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.score button {
+  all: unset;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.score button:focus-visible {
+  outline: 2px solid var(--focus);
+}
+.score button[aria-checked='true'] {
+  color: var(--bg);
+  border-color: transparent;
+}
+.score button[data-z='ok'][aria-checked='true'] {
+  background: var(--good);
+}
+.score button[data-z='warn'][aria-checked='true'] {
+  background: var(--warn);
+}
+.score button[data-z='alert'][aria-checked='true'] {
+  background: var(--alert);
+}
+.cl-log {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  font-size: 13px;
+}
+.cl-log .warn {
+  color: var(--warn);
+}
+.cl-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cl-score select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+}

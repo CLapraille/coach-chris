@@ -114,18 +114,27 @@ export const ROLE_LABEL: Record<ClaudeRole, string> = {
 export function resolveVariant(
   s: ClaudeSession,
   flexDefault: FlexDefault,
+  swap?: ClaudeSport,
 ): ClaudeVariant & { sport: ClaudeSport } {
-  if (s.role === 'flexible' && s.sport !== flexDefault) {
-    const alt = s.alternatives?.[flexDefault];
-    if (alt) return { ...alt, sport: flexDefault };
+  if (s.role !== 'flexible') return { ...s, sport: s.sport };
+  // Choix du jour (D159) d'abord, puis réglage par défaut ; un sport sans variante dans le plan est ignoré.
+  for (const want of [swap, flexDefault]) {
+    if (!want) continue;
+    if (want === s.sport) return { ...s, sport: s.sport };
+    const alt = s.alternatives?.[want];
+    if (alt) return { ...alt, sport: want };
   }
   return { ...s, sport: s.sport };
 }
 
 /** Convertit une semaine du plan Claude en séances planifiées, dans l'ordre du plan. */
-export function fromClaudeWeek(week: ClaudeWeek, flexDefault: FlexDefault = 'velo'): PlannedSession[] {
+export function fromClaudeWeek(
+  week: ClaudeWeek,
+  flexDefault: FlexDefault = 'velo',
+  swaps: Record<string, ClaudeSport> = {},
+): PlannedSession[] {
   return week.sessions.map((s, index) => {
-    const v = resolveVariant(s, flexDefault);
+    const v = resolveVariant(s, flexDefault, swaps[s.id]);
     const sport = SPORTS[v.sport];
     const exercises = v.corps.flatMap((c) => (c.exo ? [c.exo] : []));
     return {
@@ -197,6 +206,10 @@ export interface ClaudeContentVariant {
 
 /** Contenu d'une séance Claude pour le détail de séance (D156). */
 export interface ClaudeContent {
+  /** Identifiant de la séance dans le plan, pour les check-ins (D159). */
+  id: string;
+  /** Jour prévu par le plan. */
+  date: string;
   role: ClaudeRole;
   pourquoi?: string;
   /** Variantes, celle affichée au Calendrier en premier (séance flexible : les autres sports possibles). */
@@ -207,6 +220,7 @@ export function claudeContent(
   s: ClaudeSession,
   routines: Record<string, ClaudeRoutine>,
   flexDefault: FlexDefault = 'velo',
+  swap?: ClaudeSport,
 ): ClaudeContent {
   const routine = (id: string | null | undefined) =>
     id && routines[id] ? { ...routines[id], id } : undefined;
@@ -219,7 +233,7 @@ export function claudeContent(
     if (v.kinomap) out.kinomap = v.kinomap;
     return out;
   };
-  const first = resolveVariant(s, flexDefault);
+  const first = resolveVariant(s, flexDefault, swap);
   const others = (
     [
       [s.sport, s] as const,
@@ -227,6 +241,8 @@ export function claudeContent(
     ] as const
   ).filter(([k]) => k !== first.sport);
   return {
+    id: s.id,
+    date: s.date,
     role: s.role,
     ...(s.pourquoi && { pourquoi: s.pourquoi }),
     variants: [toVariant(first, first.sport), ...others.map(([k, v]) => toVariant(v, k))],

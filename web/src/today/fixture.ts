@@ -107,6 +107,7 @@ export const TODAY: TodayView = {
     week: days.map((day) => ({ day, morning: false, evening: false })),
   },
   signals: [],
+  checkin: { foot: null, suggestLowImpact: false },
 };
 
 export const STATUS: DataStatus = {

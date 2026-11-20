@@ -1,17 +1,21 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { SourceName } from '@coach-chris/domain';
 
 export type { SourceName };
+/** Sources de données (synchro) plus MyWhoosh, utilisé seulement pour écrire (D160). */
+export type McpName = SourceName | 'mywhoosh';
 
 /**
  * Liste blanche côté BFF (ARCHITECTURE §6) : seuls ces outils peuvent être appelés.
  * Les écritures (WRITE_TOOLS) exigent en plus le drapeau `write`, que seul le module actions passe (D124).
  */
-export const ALLOWED_TOOLS: Record<SourceName, ReadonlySet<string>> = {
+export const ALLOWED_TOOLS: Record<McpName, ReadonlySet<string>> = {
+  // Serveur communautaire mywhoosh-mcp-server (commit figé, D160) : envoi et suppression des workouts « CC · ».
+  mywhoosh: new Set(['uploadCustomWorkout', 'deleteCustomWorkout']),
   garmin: new Set([
     'get_activities_by_date',
     'get_activity_splits',
@@ -61,6 +65,8 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   'create_manual_activity',
   'complete_session',
   'save_session',
+  'uploadCustomWorkout',
+  'deleteCustomWorkout',
 ]);
 
 export class ToolNotAllowedError extends Error {}
@@ -77,18 +83,39 @@ export interface McpCaller {
  * Connexion à un MCP : en local, processus lancé en stdio (`<SOURCE>_MCP_CMD`) ;
  * sur Azure, URL streamable-http interne (`<SOURCE>_MCP_URL`).
  */
-export function mcpFromEnv(source: SourceName, env = process.env, idleMs = IDLE_CLOSE_MS): McpCaller {
+export function mcpFromEnv(source: McpName, env = process.env, idleMs = IDLE_CLOSE_MS): McpCaller {
   const prefix = source.toUpperCase();
   const url = env[`${prefix}_MCP_URL`];
   const cmd = env[`${prefix}_MCP_CMD`];
   if (!url && !cmd) throw new Error(`${prefix}_MCP_URL ou ${prefix}_MCP_CMD doit être défini`);
+  // Arguments séparés (`<SOURCE>_MCP_ARGS`, ex. le chemin du script node) ; variables transmises au processus
+  // en plus de l'environnement minimal du SDK (`<SOURCE>_MCP_ENV`, noms séparés par des virgules).
+  const args = env[`${prefix}_MCP_ARGS`]?.split(' ').filter(Boolean) ?? [];
+  const passed = Object.fromEntries(
+    (env[`${prefix}_MCP_ENV`] ?? '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k && env[k] !== undefined)
+      .map((k) => [k, env[k]!]),
+  );
   return new McpSource(source, () =>
     url
       ? // Le SDK déclare ses propriétés optionnelles sans `undefined` : incompatible avec exactOptionalPropertyTypes.
         (new StreamableHTTPClientTransport(new URL(url)) as Transport)
-      : new StdioClientTransport({ command: cmd!, stderr: 'ignore' }),
+      : new StdioClientTransport({
+          command: cmd!,
+          args,
+          env: { ...getDefaultEnvironment(), ...passed },
+          stderr: 'ignore',
+        }),
     idleMs,
   );
+}
+
+/** MCP optionnel : `undefined` quand rien n'est configuré (MyWhoosh n'est pas indispensable). */
+export function optionalMcpFromEnv(source: McpName, env = process.env): McpCaller | undefined {
+  const prefix = source.toUpperCase();
+  return env[`${prefix}_MCP_URL`] || env[`${prefix}_MCP_CMD`] ? mcpFromEnv(source, env) : undefined;
 }
 
 /**
@@ -100,13 +127,13 @@ export const IDLE_CLOSE_MS = 60_000;
 
 export class McpSource implements McpCaller {
   private client: Promise<Client> | undefined;
-  readonly source: SourceName;
+  readonly source: McpName;
   private readonly transport: () => Transport;
   private readonly idleMs: number;
   private idle: ReturnType<typeof setTimeout> | undefined;
   private inFlight = 0;
 
-  constructor(source: SourceName, transport: () => Transport, idleMs = IDLE_CLOSE_MS) {
+  constructor(source: McpName, transport: () => Transport, idleMs = IDLE_CLOSE_MS) {
     this.source = source;
     this.transport = transport;
     this.idleMs = idleMs;

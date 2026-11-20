@@ -148,6 +148,8 @@ export type ClaudePlanDoc = Doc & {
   week: ClaudeWeek;
   /** Seulement les routines citées par la semaine. */
   routines: Record<string, ClaudeRoutine>;
+  /** Repères de l'athlète du plan (FC max, plafond FC facile, FTP…), D160. */
+  athlete?: Record<string, unknown>;
 };
 
 /** Source qui alimente une semaine : partition `weekDate`, id `source`. Absent = Campus. */
@@ -194,9 +196,17 @@ export async function importPlan(
   for (const week of plan.weeks) {
     const weekDate = week.start;
     const routines = routinesOf(week, plan.routines);
-    const hash = hashOf({ block: plan.block, week, routines });
+    const hash = hashOf({ block: plan.block, week, routines, athlete: plan.athlete });
     const latest = await store.get<ClaudePlanDoc>('plan', CLAUDE_ID, weekDate);
-    const content = { kind: 'claude' as const, weekDate, hash, block: plan.block, week, routines };
+    const content = {
+      kind: 'claude' as const,
+      weekDate,
+      hash,
+      block: plan.block,
+      week,
+      routines,
+      ...(plan.athlete && { athlete: plan.athlete }),
+    };
     const changed = latest?.hash !== hash;
     if (changed)
       await store.upsert('plan', { ...base(`claude-v:${opts.now}`), ...content, kind: 'claude-version' });

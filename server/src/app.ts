@@ -13,6 +13,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
 import { readSeason, readSettings, saveSettings } from './plan/claude.ts';
+import { readCheckins, setFoot, setSessionCheckin } from './read/checkin.ts';
 import { addToInbox, listInbox, removeFromInbox } from './read/inbox.ts';
 import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
 import { sessionView } from './read/session.ts';
@@ -30,6 +31,8 @@ export interface AppDeps {
   garmin?: McpCaller;
   /** Campus, pour les écritures (valider une séance). */
   campus?: McpCaller;
+  /** MyWhoosh, facultatif : envoi des séances vélo du plan Claude (D160). */
+  mywhoosh?: McpCaller;
   clock?: Clock;
   /**
    * Seul compte autorisé (ARCHITECTURE §8). Sur Azure, Easy Auth valide déjà le jeton ; le BFF vérifie en plus
@@ -55,6 +58,7 @@ const testResults = z
 const actionRequest = z.discriminatedUnion('type', [
   z.object({ type: z.literal('campus.complete'), sessionKey: z.string().min(1) }),
   z.object({ type: z.literal('garmin.push'), sessionKey: z.string().min(1) }),
+  z.object({ type: z.literal('mywhoosh.upload'), sessionKey: z.string().min(1) }),
   z.object({
     type: z.literal('garmin.annotate'),
     activityId: z.string().regex(/^\d+$/),
@@ -83,12 +87,12 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   if (!deps) return app;
-  const { store, sync, garmin, campus, clock = parisClock, allowedOid } = deps;
+  const { store, sync, garmin, campus, mywhoosh, clock = parisClock, allowedOid } = deps;
   const actions = new Actions({
     store,
     sync,
     clock,
-    mcp: { ...(garmin && { garmin }), ...(campus && { campus }) },
+    mcp: { ...(garmin && { garmin }), ...(campus && { campus }), ...(mywhoosh && { mywhoosh }) },
   });
 
   if (allowedOid) {
@@ -168,6 +172,51 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
   });
 
   app.get('/api/data/status', async () => dataStatus(store, clock.today()));
+
+  // Check-ins (D159) : jamais dans le futur, sauf le choix du sport d'une séance à venir.
+  const score = z.number().int().min(0).max(10);
+  app.get('/api/checkins', async (req, reply) => {
+    const q = z.object({ from: day.optional(), to: day.optional() }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'from et to doivent être des dates AAAA-MM-JJ' });
+    return readCheckins(store, q.data.from, q.data.to);
+  });
+
+  app.put('/api/checkins/:date', async (req, reply) => {
+    const p = z.object({ date: day }).safeParse(req.params);
+    const b = z.object({ foot: score.nullable() }).strict().safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'date ou score invalide (0 à 10)' });
+    if (p.data.date > clock.today()) return reply.code(409).send({ error: 'Pas de check-in dans le futur' });
+    return setFoot(store, p.data.date, b.data.foot, clock.now());
+  });
+
+  app.put('/api/checkins/:date/sessions/:id', async (req, reply) => {
+    const p = z.object({ date: day, id: z.string().regex(/^[\w-]+$/) }).safeParse(req.params);
+    const b = z
+      .object({
+        shin: score.nullable().optional(),
+        rpe: score.nullable().optional(),
+        swap: z.enum(['course', 'velo', 'rameur']).nullable().optional(),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'séance, score ou sport invalide' });
+    const scores = b.data.shin != null || b.data.rpe != null;
+    if (scores && p.data.date > clock.today()) {
+      return reply.code(409).send({ error: 'Tibia et effort se notent une fois la séance faite' });
+    }
+    const { shin, rpe, swap } = b.data;
+    return setSessionCheckin(
+      store,
+      p.data.date,
+      p.data.id,
+      {
+        ...(shin !== undefined && { shin }),
+        ...(rpe !== undefined && { rpe }),
+        ...(swap !== undefined && { swap }),
+      },
+      clock.now(),
+    );
+  });
 
   // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).
   app.get('/api/inbox', async () => listInbox(store));

@@ -77,7 +77,9 @@ export function ActionDialog({
           <>
             <header>
               <span className="label">{preview.title}</span>
-              <span className={`src ${preview.target === 'Campus Coach' ? 'campus' : 'garmin'}`}>
+              <span
+                className={`src ${preview.target === 'Campus Coach' ? 'campus' : preview.target === 'MyWhoosh' ? 'claude' : 'garmin'}`}
+              >
                 {preview.target}
               </span>
             </header>
