@@ -5,6 +5,8 @@ import {
   FEEL_VALUES,
   mondayOf,
   seasonView,
+  comparePlans,
+  summarize,
   type ActionRequest,
   type SourceName,
   type TestResults,
@@ -12,7 +14,8 @@ import {
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
-import { readSeason, readSettings, saveSettings } from './plan/claude.ts';
+import { readSeason, readSettings, saveSettings, setWeekSource } from './plan/claude.ts';
+import { planWeek } from './read/cache.ts';
 import { readCheckins, setFoot, setSessionCheckin } from './read/checkin.ts';
 import { addToInbox, listInbox, removeFromInbox } from './read/inbox.ts';
 import { acceptReview, cancelReview, ReviewError, reviewView, reviewWeekFor } from './read/review.ts';
@@ -258,6 +261,41 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     if (!p.success) return reply.code(400).send({ error: 'semaine invalide' });
     await cancelReview(store, mondayOf(p.data.week));
     return { cancelled: mondayOf(p.data.week) };
+  });
+
+  // Plans Campus et Claude côte à côte (D162) ; un seul actif par semaine, choisi ici.
+  app.get('/api/plans/compare', async (req, reply) => {
+    const q = z.object({ week: day.optional() }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'week doit être une date AAAA-MM-JJ' });
+    const week = mondayOf(q.data.week ?? clock.today());
+    const [current, campusPlan, claudePlan] = await Promise.all([
+      planWeek(store, week),
+      planWeek(store, week, 'campus'),
+      planWeek(store, week, 'claude'),
+    ]);
+    return comparePlans(
+      week,
+      current?.source ?? 'campus',
+      campusPlan ? summarize('campus', campusPlan.sessions) : null,
+      claudePlan ? summarize('claude', claudePlan.sessions) : null,
+    );
+  });
+
+  app.put('/api/plans/:week/source', async (req, reply) => {
+    const p = z.object({ week: day }).safeParse(req.params);
+    const b = z
+      .object({ active: z.enum(['campus', 'claude']) })
+      .strict()
+      .safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'semaine ou source invalide' });
+    const week = mondayOf(p.data.week);
+    if (!(await planWeek(store, week, b.data.active))) {
+      return reply.code(409).send({
+        error: `Pas de plan ${b.data.active === 'claude' ? 'Claude' : 'Campus'} pour cette semaine`,
+      });
+    }
+    await setWeekSource(store, week, b.data.active, clock.now());
+    return { week, active: b.data.active };
   });
 
   // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).

@@ -97,8 +97,13 @@ export interface PlanWeek {
  * Dernière version connue du plan d'une semaine, depuis la source active (Campus par défaut, Claude si un plan
  * importé l'a activée, D153) ; `undefined` si cette source ne l'a jamais fournie.
  */
-export async function planWeek(store: Store, weekStart: string): Promise<PlanWeek | undefined> {
-  const active = await store.get<PlanSourceDoc>('plan', SOURCE_ID, weekStart);
+export async function planWeek(
+  store: Store,
+  weekStart: string,
+  /** Lire ce plan-là quelle que soit la source active (comparaison, D162). */
+  force?: 'campus' | 'claude',
+): Promise<PlanWeek | undefined> {
+  const active = force ? { active: force } : await store.get<PlanSourceDoc>('plan', SOURCE_ID, weekStart);
   if (active?.active === 'claude') {
     const [c, settings, checkins, review] = await Promise.all([
       store.get<ClaudePlanDoc>('plan', CLAUDE_ID, weekStart),
@@ -127,6 +132,7 @@ export async function planWeek(store: Store, weekStart: string): Promise<PlanWee
       };
     }
   }
+  if (force === 'claude') return undefined;
   const d = await store.get<
     Doc & {
       week: CampusWeek & { goalWeek?: PlanWeek['goalWeek']; cycleDescription?: string };

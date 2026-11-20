@@ -3608,3 +3608,83 @@ ul.cl-items {
   color: var(--alert);
   background: color-mix(in srgb, var(--alert) 12%, var(--surface));
 }
+
+/* Plans Campus et Claude côte à côte (D162) */
+.pc {
+  margin-top: 14px;
+}
+.pc-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.pc-col {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+.pc-col.on {
+  border-color: var(--good);
+}
+.pc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.pc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 6px 10px;
+  margin: 0;
+}
+.pc-stats div {
+  display: grid;
+  gap: 1px;
+}
+.pc-stats dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.pc-stats dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.pc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.pc-list li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 5px;
+}
+.pc-int {
+  color: var(--warn);
+}
+.pc-diff {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+}
+@media (max-width: 760px) {
+  .pc-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
