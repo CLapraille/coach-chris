@@ -132,9 +132,12 @@ export function fromClaudeWeek(
   week: ClaudeWeek,
   flexDefault: FlexDefault = 'velo',
   swaps: Record<string, ClaudeSport> = {},
+  /** Durées retenues à la revue du dimanche (D161), par identifiant de séance. */
+  durations: Record<string, number> = {},
 ): PlannedSession[] {
   return week.sessions.map((s, index) => {
-    const v = resolveVariant(s, flexDefault, swaps[s.id]);
+    const resolved = resolveVariant(s, flexDefault, swaps[s.id]);
+    const v = durations[s.id] ? { ...resolved, dureeMin: durations[s.id]! } : resolved;
     const sport = SPORTS[v.sport];
     const exercises = v.corps.flatMap((c) => (c.exo ? [c.exo] : []));
     return {

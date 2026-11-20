@@ -3,6 +3,7 @@ import { useApi } from '../api.ts';
 import { needsSignIn, signIn } from '../auth.ts';
 import { clock, longDate } from '../format.ts';
 import { FootCard } from './FootCard.tsx';
+import { ReviewCard } from './ReviewCard.tsx';
 import { FormCard } from './FormCard.tsx';
 import { GoalCard } from './GoalCard.tsx';
 import { MobilityCard } from './MobilityCard.tsx';
@@ -55,6 +56,7 @@ export function Today({
       <div className="grid">
         {/* Check-in du matin d'abord (D159), puis l'ordre choisi par l'utilisateur (D138). */}
         <FootCard key={t.today} today={t.today} foot={t.checkin.foot} onChanged={res.reload} />
+        <ReviewCard today={t.today} onChanged={res.reload} />
         <FormCard form={t.form} />
         <WeekCard
           week={t.week}

@@ -3555,3 +3555,56 @@ ul.cl-items {
   border-radius: 6px;
   padding: 3px 6px;
 }
+
+/* Revue du dimanche (D161) */
+.rv-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+.rv-reasons {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.rv-reasons .ok::marker {
+  color: var(--good);
+}
+.rv-reasons .warn::marker {
+  color: var(--warn);
+}
+.rv-reasons .alert::marker {
+  color: var(--alert);
+}
+.rv-adj {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  font-size: 13px;
+}
+.rv-adj label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rv-adj input {
+  width: 64px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.review .ok {
+  color: var(--good);
+}
+.badge.alert {
+  color: var(--alert);
+  background: color-mix(in srgb, var(--alert) 12%, var(--surface));
+}

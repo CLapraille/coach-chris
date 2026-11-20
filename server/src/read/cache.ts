@@ -20,6 +20,7 @@ import {
   type PlanSourceDoc,
 } from '../plan/claude.ts';
 import { readCheckins } from './checkin.ts';
+import { readAccepted } from './review.ts';
 import type { Doc, Store } from '../store/store.ts';
 import { pk } from '../sync/sync.ts';
 
@@ -99,15 +100,22 @@ export interface PlanWeek {
 export async function planWeek(store: Store, weekStart: string): Promise<PlanWeek | undefined> {
   const active = await store.get<PlanSourceDoc>('plan', SOURCE_ID, weekStart);
   if (active?.active === 'claude') {
-    const [c, settings, checkins] = await Promise.all([
+    const [c, settings, checkins, review] = await Promise.all([
       store.get<ClaudePlanDoc>('plan', CLAUDE_ID, weekStart),
       readSettings(store),
       readCheckins(store, weekStart, addDays(weekStart, 6)),
+      // Revue acceptée de la semaine précédente (D161) : durées et sport de la séance flexible.
+      readAccepted(store, addDays(weekStart, -7)),
     ]);
     if (c) {
       return {
         source: 'claude',
-        sessions: fromClaudeWeek(c.week, settings.flexDefault, swapsOf(checkins)),
+        sessions: fromClaudeWeek(
+          c.week,
+          review?.flex ?? settings.flexDefault,
+          swapsOf(checkins),
+          review?.durations,
+        ),
         details: new Map(),
         fetchedAt: c.fetchedAt,
         claude: {
