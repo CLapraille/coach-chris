@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch src/main.ts",
     "start": "node --env-file-if-exists=.env src/main.ts",
-    "sync": "node --env-file-if-exists=.env src/sync-cli.ts"
+    "sync": "node --env-file-if-exists=.env src/sync-cli.ts",
+    "plan": "node --env-file-if-exists=.env src/plan-cli.ts"
   },
   "dependencies": {
     "@azure/cosmos": "^4.10.1",

@@ -4,6 +4,7 @@ import {
   canCheck,
   FEEL_VALUES,
   mondayOf,
+  seasonView,
   type ActionRequest,
   type SourceName,
   type TestResults,
@@ -11,6 +12,7 @@ import {
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
+import { readSeason, readSettings, saveSettings } from './plan/claude.ts';
 import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
 import { sessionView } from './read/session.ts';
 import { dataStatus } from './read/status.ts';
@@ -165,6 +167,22 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
   });
 
   app.get('/api/data/status', async () => dataStatus(store, clock.today()));
+
+  // Saison (D154) : courses importées, compte à rebours et réglage de la séance flexible (D153).
+  app.get('/api/season', async () => {
+    const [file, settings] = await Promise.all([readSeason(store), readSettings(store)]);
+    return seasonView(file, settings, clock.today());
+  });
+
+  app.put('/api/season/settings', async (req, reply) => {
+    const b = z
+      .object({ flexDefault: z.enum(['velo', 'course']) })
+      .strict()
+      .safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'flexDefault doit valoir velo ou course' });
+    await saveSettings(store, b.data, clock.now());
+    return b.data;
+  });
 
   // Cocher ou décocher une routine (D38) : rattrapage jusqu'à J-3, rien dans le futur.
   app.put('/api/mobility/log/:date/:slot', async (req, reply) => {

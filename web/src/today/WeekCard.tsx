@@ -8,6 +8,7 @@ import type {
 } from '@coach-chris/domain';
 import { useState } from 'react';
 import { ActionDialog } from '../actions/ActionDialog.tsx';
+import { PlanSourceTag } from '../PlanSource.tsx';
 import { SPORT_COLOR, longDate, sessionLabel, shortDate, stepDuration, weekdayShort } from '../format.ts';
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -45,10 +46,11 @@ export function WeekCard({
       <header>
         <span className="label">Cette semaine{week.plan ? ` · ${done}/${active.length}` : ''}</span>
         <span>
-          <span className="src campus">Campus</span> <span className="src calc">Calculé</span>
+          <PlanSourceTag source={week.plan?.source} /> <span className="src calc">Calculé</span>
         </span>
       </header>
-      {!week.plan && <p className="empty">Campus n'a pas encore fourni le plan de cette semaine.</p>}
+      {week.plan?.focus && <p className="empty">Thème de la semaine : {week.plan.focus}</p>}
+      {!week.plan && <p className="empty">Pas encore de plan pour cette semaine.</p>}
       <ol className="wk">
         {week.days.map(({ day }) => {
           const sessions = active.filter((s) => s.day === day);

@@ -75,11 +75,17 @@ export async function weekData(
   const manual = Object.fromEntries(
     Object.entries(saved?.placement ?? {}).filter(([k, d]) => todo.has(k) && days.includes(d) && d >= from),
   );
+  // Plan Claude (D153) : le jour prévu par le plan tient lieu d'épingle tant que l'utilisateur ne l'a pas déplacée.
+  const planned = Object.fromEntries(
+    sessions.flatMap((s) =>
+      s.day && todo.has(s.key) && days.includes(s.day) && s.day >= from ? [[s.key, s.day]] : [],
+    ),
+  );
   const placement = proposePlacement({
     days,
     from,
     sessions,
-    fixed: { ...done, ...manual },
+    fixed: { ...done, ...planned, ...manual },
     ...(eve && { eve }),
   });
   const fixedKeys = new Set(Object.keys(done));
@@ -87,7 +93,15 @@ export async function weekData(
   const view: WeekView = {
     start,
     days: days.map((day) => ({ day, label: dayLabel(day) })),
-    plan: plan ? { fetchedAt: plan.fetchedAt, ...(plan.goalWeek && { goalWeek: plan.goalWeek }) } : null,
+    plan: plan
+      ? {
+          source: plan.source,
+          fetchedAt: plan.fetchedAt,
+          ...(plan.goalWeek && { goalWeek: plan.goalWeek }),
+          ...(plan.claude && { block: plan.claude.block.name }),
+          ...(plan.claude?.week.focus && { focus: plan.claude.week.focus }),
+        }
+      : null,
     sessions: sessions.map((s) => {
       const m = matchByKey.get(s.key);
       const out: WeekSession = {

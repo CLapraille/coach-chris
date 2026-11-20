@@ -8,6 +8,7 @@ import {
 } from '@coach-chris/domain';
 import { useState } from 'react';
 import { api } from '../api.ts';
+import { PlanSourceTag } from '../PlanSource.tsx';
 import { SPORT_COLOR, SPORT_LABEL, decimal, sessionLabel, weekdayShort } from '../format.ts';
 
 /** Écart de durée au-delà duquel une séance faite est signalée (D67 : ±10 %). */
@@ -82,7 +83,7 @@ export function Week({
         ) : week.plan ? (
           <>
             <span className="src garmin">Garmin</span>
-            <span className="src campus">Campus</span>
+            <PlanSourceTag source={week.plan.source} />
             <span>
               {end < today
                 ? 'Semaine terminée : séances rattachées aux activités Garmin.'
@@ -90,7 +91,7 @@ export function Week({
             </span>
           </>
         ) : (
-          <span>Campus n'a pas de plan pour cette semaine.</span>
+          <span>Aucun plan pour cette semaine.</span>
         )}
         {unplaced.length > 0 && (
           <span className="warn">

@@ -7,7 +7,7 @@ import type { CampusBlock } from './plan/campus.ts';
 import type { Match, Activity } from './plan/matching.ts';
 import type { Deviation, DeviationRules, Lap } from './plan/deviation.ts';
 import type { RuleWarning } from './plan/placement.ts';
-import type { PlannedSession } from './plan/types.ts';
+import type { PlannedSession, PlanSource } from './plan/types.ts';
 import type { CapStatus, VolumeCap } from './load/volume.ts';
 import type { ZoneId } from './mobility/library.ts';
 import type { Regularity, Slot } from './mobility/regularity.ts';
@@ -115,8 +115,15 @@ export interface ActionResult {
 export interface WeekView {
   start: string;
   days: { day: string; label: string }[];
-  /** `null` quand Campus n'a pas (encore) fourni cette semaine. */
-  plan: { fetchedAt: string; goalWeek?: { index: number; durationInWeeks: number } } | null;
+  /** `null` quand la source active (Campus par défaut, Claude si importé, D153) n'a pas fourni cette semaine. */
+  plan: {
+    source: PlanSource;
+    fetchedAt: string;
+    goalWeek?: { index: number; durationInWeeks: number };
+    /** Plan Claude : nom du bloc et thème de la semaine. */
+    block?: string;
+    focus?: string;
+  } | null;
   sessions: WeekSession[];
   activities: CachedActivity[];
   offPlan: CachedActivity[];

@@ -1,6 +1,8 @@
 import {
   addDays,
   fromCampusWeek,
+  fromClaudeWeek,
+  type PlanSource,
   type CampusSessionDetails,
   type CachedActivity,
   type CampusWeek,
@@ -9,6 +11,13 @@ import {
   type PlannedSession,
   type WeighIn,
 } from '@coach-chris/domain';
+import {
+  CLAUDE_ID,
+  readSettings,
+  SOURCE_ID,
+  type ClaudePlanDoc,
+  type PlanSourceDoc,
+} from '../plan/claude.ts';
 import type { Doc, Store } from '../store/store.ts';
 import { pk } from '../sync/sync.ts';
 
@@ -71,15 +80,37 @@ export async function night(
 }
 
 export interface PlanWeek {
+  source: PlanSource;
   sessions: PlannedSession[];
   details: Map<number, CampusSessionDetails & { description?: string; coachAdvice?: string }>;
   fetchedAt: string;
   goalWeek?: { index: number; durationInWeeks: number };
   cycleDescription?: string;
+  /** Plan Claude de la semaine (contenu des séances, routines), quand il est la source active (D153). */
+  claude?: Pick<ClaudePlanDoc, 'block' | 'week' | 'routines'>;
 }
 
-/** Dernière version connue du plan d'une semaine ; `undefined` si la source ne l'a jamais fournie. */
+/**
+ * Dernière version connue du plan d'une semaine, depuis la source active (Campus par défaut, Claude si un plan
+ * importé l'a activée, D153) ; `undefined` si cette source ne l'a jamais fournie.
+ */
 export async function planWeek(store: Store, weekStart: string): Promise<PlanWeek | undefined> {
+  const active = await store.get<PlanSourceDoc>('plan', SOURCE_ID, weekStart);
+  if (active?.active === 'claude') {
+    const [c, settings] = await Promise.all([
+      store.get<ClaudePlanDoc>('plan', CLAUDE_ID, weekStart),
+      readSettings(store),
+    ]);
+    if (c) {
+      return {
+        source: 'claude',
+        sessions: fromClaudeWeek(c.week, settings.flexDefault),
+        details: new Map(),
+        fetchedAt: c.fetchedAt,
+        claude: { block: c.block, week: c.week, routines: c.routines },
+      };
+    }
+  }
   const d = await store.get<
     Doc & {
       week: CampusWeek & { goalWeek?: PlanWeek['goalWeek']; cycleDescription?: string };
@@ -88,7 +119,12 @@ export async function planWeek(store: Store, weekStart: string): Promise<PlanWee
   >('plan', 'latest', weekStart);
   if (!d) return undefined;
   const details = new Map(Object.entries(d.details).map(([k, v]) => [Number(k), v]));
-  const out: PlanWeek = { sessions: fromCampusWeek(d.week, details), details, fetchedAt: d.fetchedAt };
+  const out: PlanWeek = {
+    source: 'campus',
+    sessions: fromCampusWeek(d.week, details),
+    details,
+    fetchedAt: d.fetchedAt,
+  };
   if (d.week.goalWeek) out.goalWeek = d.week.goalWeek;
   if (d.week.cycleDescription) out.cycleDescription = d.week.cycleDescription;
   return out;
