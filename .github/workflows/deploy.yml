@@ -77,9 +77,14 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
       - id: deploy
         name: Bicep (resource group)
+        # Identifiants MyWhoosh (D160) : secrets GitHub facultatifs ; absents, l'intégration reste désactivée.
+        env:
+          MYWHOOSH_USERNAME: ${{ secrets.MYWHOOSH_USERNAME }}
+          MYWHOOSH_PASSWORD: ${{ secrets.MYWHOOSH_PASSWORD }}
         run: |
           url=$(az deployment group create -g "$RESOURCE_GROUP" -n "app-${GITHUB_SHA::7}" \
             -p infra/app.bicepparam -p imageTag="$GITHUB_SHA" \
+            -p mywhooshUsername="$MYWHOOSH_USERNAME" -p mywhooshPassword="$MYWHOOSH_PASSWORD" \
             --query properties.outputs.apiUrl.value -o tsv)
           echo "apiUrl=$url" >> "$GITHUB_OUTPUT"
 

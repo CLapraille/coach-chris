@@ -9,3 +9,5 @@ coverage/
 __pycache__/
 # Maquettes : instantanés de données réelles, non versionnés (D11)
 docs/maquettes/*.html
+# Plans et saison importés : données personnelles, jamais versionnées (D153, D154)
+/data/

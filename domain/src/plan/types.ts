@@ -29,6 +29,8 @@ export interface PlannedSession {
   completedAtUtc?: string;
   /** Sport tel que la source le nomme (Campus : road, trail, trailV2, ppg), utile aux écritures. */
   sourceSport?: string;
+  /** Jour prévu par la source, AAAA-MM-JJ (plan Claude) ; Campus ne donne que la semaine. */
+  day?: string;
   /** Référence volatile vers Campus : à relire avant toute écriture. */
   campusRef?: { weekId: string; sessionIndex: number };
 }

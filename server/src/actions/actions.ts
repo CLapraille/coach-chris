@@ -1,6 +1,8 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   annotationChanges,
+  claudeGarminWorkout,
+  claudeWhooshWorkout,
   campusRacingNote,
   FEEL_LABEL,
   garminWorkout,
@@ -17,8 +19,9 @@ import {
   type PlannedSession,
   type WeekSession,
 } from '@coach-chris/domain';
-import type { McpCaller, SourceName } from '../mcp/client.ts';
+import type { McpCaller, McpName } from '../mcp/client.ts';
 import type { PlanWeek } from '../read/cache.ts';
+import { claudeSessionOf } from '../read/session.ts';
 import { pushId, PUSH_KIND, weekData, type PushDoc } from '../read/week.ts';
 import type { Doc, Store } from '../store/store.ts';
 import * as garmin from '../sync/garmin.ts';
@@ -39,7 +42,7 @@ export class ActionError extends Error {
 
 /** Un appel d'outil d'écriture, figé au moment de l'aperçu. */
 interface Step {
-  source: SourceName;
+  source: McpName;
   tool: string;
   args: Record<string, unknown>;
   /** Reçoit en `workout_id` l'identifiant du workout créé par l'étape précédente. */
@@ -49,6 +52,7 @@ interface Step {
 type After =
   | { kind: 'campus' }
   | { kind: 'push'; sessionKey: string; date: string }
+  | { kind: 'whoosh'; sessionKey: string; date: string; workoutId: number }
   | { kind: 'annotate'; activityId: string; day: string };
 
 /** Contenu signé du jeton d'action : exactement ce que la confirmation exécutera. */
@@ -64,7 +68,7 @@ interface Signed {
 export interface ActionDeps {
   store: Store;
   sync: Sync;
-  mcp: Partial<Record<SourceName, McpCaller>>;
+  mcp: Partial<Record<McpName, McpCaller>>;
   clock: Clock;
 }
 
@@ -122,7 +126,9 @@ export class Actions {
         ? await this.completePreview(req.sessionKey)
         : req.type === 'garmin.push'
           ? await this.pushPreview(req.sessionKey)
-          : await this.annotatePreview(req.activityId, req.changes);
+          : req.type === 'mywhoosh.upload'
+            ? await this.whooshPreview(req.sessionKey)
+            : await this.annotatePreview(req.activityId, req.changes);
     const exp = Date.parse(this.deps.clock.now()) + TTL_MS;
     const signed: Signed = { id: randomUUID(), exp, type: req.type, ...built.signed };
     const body = b64(JSON.stringify(signed));
@@ -147,7 +153,9 @@ export class Actions {
         const mcp = this.source(step.source);
         const args = step.useWorkoutId ? { ...step.args, workout_id: workoutId } : step.args;
         const res = await mcp.call(step.tool, args, { write: true });
-        if (step.source === 'garmin') {
+        if (step.source === 'mywhoosh') {
+          // Le serveur MyWhoosh signale ses échecs en erreur d'outil (ToolError) : une réponse suffit.
+        } else if (step.source === 'garmin') {
           const failure = garmin.writeFailure(res);
           if (failure) throw new Error(failure);
           if (step.tool === 'upload_workout') {
@@ -301,7 +309,8 @@ export class Actions {
   }
 
   private async pushPreview(sessionKey: string) {
-    const { session, planned, details } = await this.session(sessionKey);
+    const { session, planned, details, plan } = await this.session(sessionKey);
+    if (planned.source === 'claude') return this.claudePushPreview(sessionKey, session, planned, plan!);
     if (session.sport !== 'run') throw new ActionError('Seules les courses s’envoient sur la montre (D126)');
     if (session.status !== 'todo' || session.match) throw new ActionError('Séance déjà faite');
     const today = this.deps.clock.today();
@@ -361,6 +370,136 @@ export class Actions {
     };
   }
 
+  /**
+   * Séance du plan Claude vers Garmin (D160) : course (étapes « montre » du plan, sinon plafond FC facile),
+   * renforcement et rameur, dans le sport choisi pour le jour. Même protocole que D126 : workout « CC · »
+   * planifié au jour placé, un renvoi remplace l'ancien.
+   */
+  private async claudePushPreview(
+    sessionKey: string,
+    session: WeekSession,
+    planned: PlannedSession,
+    plan: PlanWeek,
+  ) {
+    if (session.match) throw new ActionError('Séance déjà faite');
+    const today = this.deps.clock.today();
+    if (!session.day || session.day < today)
+      throw new ActionError('La séance n’a pas de jour à venir dans le calendrier');
+    const c = await claudeSessionOf(this.deps.store, plan, planned);
+    if (!c) throw new ActionError('Séance introuvable', 404);
+    const variant = c.content.variants[0]!;
+    if (variant.sport === 'velo')
+      throw new ActionError('Une séance vélo part dans MyWhoosh, pas sur la montre');
+    const cap = Number(c.athlete.fcFacileCourseMax);
+    // Étapes « montre » du plan pour la séance d'origine ; une variante course reçoit le format facile du plan.
+    const watch =
+      variant.sport === c.raw.sport
+        ? c.raw.montre
+        : variant.sport === 'course' && cap > 0
+          ? [
+              { type: 'warmup', note: 'Échauffement (voir l’app)' },
+              { type: 'run', dureeMin: variant.dureeMin, cible: { fc: [null, cap] } },
+              { type: 'cooldown', dureeMin: 5 },
+            ]
+          : undefined;
+    const workout = this.guard(() => claudeGarminWorkout({ name: variant.titre, variant, watch }));
+    const previous = await this.deps.store.get<PushDoc>('ops', pushId(sessionKey), PUSH_KIND);
+    const steps: Step[] = [
+      { source: 'garmin', tool: 'upload_workout', args: { workout_data: workout } },
+      {
+        source: 'garmin',
+        tool: 'schedule_workout',
+        args: { calendar_date: session.day },
+        useWorkoutId: true,
+      },
+    ];
+    if (previous) {
+      steps.push({
+        source: 'garmin',
+        tool: 'delete_workout',
+        args: { workout_id: Number(previous.workoutId) },
+      });
+    }
+    const segment = (workout.workoutSegments as { workoutSteps: unknown[] }[])[0]!;
+    const fields = [
+      { label: 'Nom', value: workout.workoutName as string },
+      { label: 'Jour', value: longDay(session.day) },
+      { label: 'Sport', value: (workout.sportType as { sportTypeKey: string }).sportTypeKey },
+      { label: 'Étapes', value: `${segment.workoutSteps.length} (échauffement terminé par Tour)` },
+      { label: 'Durée prévue', value: `${variant.dureeMin} min` },
+    ];
+    const warnings = [
+      ...(previous
+        ? [
+            `Remplace l’envoi du ${shortDate(previous.at.slice(0, 10))} : l’ancien workout sera supprimé de Garmin.`,
+          ]
+        : []),
+      ...(variant.sport === 'rameur'
+        ? [
+            'Rameur envoyé en « cardio » : premier envoi à vérifier sur la montre (sport rameur non confirmé).',
+          ]
+        : []),
+      ...(variant.sport === 'renfo'
+        ? ['Exercices en étapes terminées par Tour, charges et répétitions en description.']
+        : []),
+    ];
+    return {
+      target: 'Garmin Connect' as const,
+      fields,
+      warnings,
+      signed: {
+        title: 'Envoyer sur la montre',
+        steps,
+        after: { kind: 'push' as const, sessionKey, date: session.day },
+      },
+    };
+  }
+
+  /** Séance vélo du plan Claude vers MyWhoosh (D160), via le serveur communautaire figé. */
+  private async whooshPreview(sessionKey: string) {
+    const { session, planned, plan } = await this.session(sessionKey);
+    const c = plan && (await claudeSessionOf(this.deps.store, plan, planned));
+    if (!c) throw new ActionError('Seules les séances vélo du plan Claude partent dans MyWhoosh', 409);
+    const variant = c.content.variants[0]!;
+    if (variant.sport !== 'velo') throw new ActionError('Cette séance n’est pas en vélo aujourd’hui', 409);
+    if (session.match) throw new ActionError('Séance déjà faite');
+    const day = session.day ?? c.raw.date;
+    const workout = this.guard(() =>
+      claudeWhooshWorkout({
+        sessionKey,
+        name: variant.titre,
+        description: variant.corps.map((x) => [x.bloc, x.cible].filter(Boolean).join(' · ')).join(' / '),
+        plan: c.raw.mywhoosh,
+      }),
+    );
+    const wSteps = workout.WorkoutStepsArray as { Power: number; EndPower: number }[];
+    const ftp = Number(c.athlete.ftpW);
+    const peak = Math.max(...wSteps.map((s) => Math.max(s.Power, s.EndPower)));
+    const previous = await this.deps.store.get<PushDoc>('ops', `whoosh:${pushId(sessionKey)}`, PUSH_KIND);
+    return {
+      target: 'MyWhoosh' as const,
+      fields: [
+        { label: 'Nom', value: workout.Name as string },
+        { label: 'Pour le', value: longDay(day) },
+        { label: 'Étapes', value: String(workout.StepCount) },
+        { label: 'Durée totale', value: duration(workout.Time as number) },
+        {
+          label: 'Puissance max',
+          value: `${Math.round(peak * 100)} % FTP${ftp > 0 ? ` (≈ ${Math.round(peak * ftp)} W)` : ''}`,
+        },
+      ],
+      warnings: [
+        ...(previous ? ['Met à jour le workout déjà envoyé (même identifiant).'] : []),
+        'Passe par un accès MyWhoosh non officiel (serveur communautaire) : il peut cesser de fonctionner sans prévenir.',
+      ],
+      signed: {
+        title: 'Envoyer dans MyWhoosh',
+        steps: [{ source: 'mywhoosh' as const, tool: 'uploadCustomWorkout', args: { workouts: [workout] } }],
+        after: { kind: 'whoosh' as const, sessionKey, date: day, workoutId: workout.Id as number },
+      },
+    };
+  }
+
   private async annotatePreview(activityId: string, wanted: Annotation) {
     const id = Number(activityId);
     const summary = garmin.activitySummary(
@@ -415,6 +554,7 @@ export class Actions {
     planned: PlannedSession;
     weekStart: string;
     details: ReturnType<PlanWeek['details']['get']>;
+    plan: PlanWeek | undefined;
   }> {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionKey.slice(0, 10)))
       throw new ActionError('Séance introuvable', 404);
@@ -423,12 +563,13 @@ export class Actions {
     const session = view.sessions.find((s) => s.key === sessionKey);
     const planned = plan?.sessions.find((s) => s.key === sessionKey);
     if (!session || !planned) throw new ActionError('Séance introuvable', 404);
-    return { session, planned, weekStart, details: plan?.details.get(planned.index) };
+    return { session, planned, weekStart, details: plan?.details.get(planned.index), plan };
   }
 
-  private source(name: SourceName): McpCaller {
+  private source(name: McpName): McpCaller {
     const mcp = this.deps.mcp[name];
-    if (!mcp) throw new ActionError(`${name === 'garmin' ? 'Garmin' : 'Campus'} non joignable`, 503);
+    const label = { garmin: 'Garmin', campus: 'Campus', mywhoosh: 'MyWhoosh' }[name];
+    if (!mcp) throw new ActionError(`${label} non joignable`, 503);
     return mcp;
   }
 
@@ -482,6 +623,21 @@ export class Actions {
         at: clock.now(),
       } satisfies PushDoc);
       return `Séance envoyée dans le calendrier Garmin pour ${longDay(after.date)}. Elle arrive sur la montre à sa prochaine synchronisation.`;
+    }
+    if (after.kind === 'whoosh') {
+      await store.upsert('ops', {
+        id: `whoosh:${pushId(after.sessionKey)}`,
+        kind: PUSH_KIND,
+        source: 'app',
+        fetchedAt: clock.now(),
+        schemaVersion: 1,
+        sessionKey: after.sessionKey,
+        workoutId: String(after.workoutId),
+        date: after.date,
+        at: clock.now(),
+        target: 'mywhoosh',
+      });
+      return 'Séance ajoutée à tes workouts personnalisés MyWhoosh (préfixe « CC · »). Elle apparaît au prochain lancement de l’app.';
     }
     // Le détail en cache (nom, effort, ressenti) est relu à la prochaine ouverture ; la liste des activités aussi.
     await store.delete('cache', after.activityId, pk('detail', after.day));

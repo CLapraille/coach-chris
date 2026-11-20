@@ -23,12 +23,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('affiche les 4 onglets de la V1 et change d’onglet', async () => {
+it('affiche les 5 onglets et change d’onglet', async () => {
   render(<App />);
   const nav = screen.getByRole('navigation', { name: 'Onglets' });
   expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
     "Aujourd'hui",
     'Calendrier',
+    'Saison',
     'Mobilité',
     'Données',
   ]);

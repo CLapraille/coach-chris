@@ -4,6 +4,9 @@ import {
   canCheck,
   FEEL_VALUES,
   mondayOf,
+  seasonView,
+  comparePlans,
+  summarize,
   type ActionRequest,
   type SourceName,
   type TestResults,
@@ -11,6 +14,11 @@ import {
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
+import { readSeason, readSettings, saveSettings, setWeekSource } from './plan/claude.ts';
+import { planWeek } from './read/cache.ts';
+import { readCheckins, setFoot, setSessionCheckin } from './read/checkin.ts';
+import { addToInbox, listInbox, removeFromInbox } from './read/inbox.ts';
+import { acceptReview, cancelReview, ReviewError, reviewView, reviewWeekFor } from './read/review.ts';
 import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
 import { sessionView } from './read/session.ts';
 import { dataStatus } from './read/status.ts';
@@ -27,6 +35,8 @@ export interface AppDeps {
   garmin?: McpCaller;
   /** Campus, pour les écritures (valider une séance). */
   campus?: McpCaller;
+  /** MyWhoosh, facultatif : envoi des séances vélo du plan Claude (D160). */
+  mywhoosh?: McpCaller;
   clock?: Clock;
   /**
    * Seul compte autorisé (ARCHITECTURE §8). Sur Azure, Easy Auth valide déjà le jeton ; le BFF vérifie en plus
@@ -52,6 +62,7 @@ const testResults = z
 const actionRequest = z.discriminatedUnion('type', [
   z.object({ type: z.literal('campus.complete'), sessionKey: z.string().min(1) }),
   z.object({ type: z.literal('garmin.push'), sessionKey: z.string().min(1) }),
+  z.object({ type: z.literal('mywhoosh.upload'), sessionKey: z.string().min(1) }),
   z.object({
     type: z.literal('garmin.annotate'),
     activityId: z.string().regex(/^\d+$/),
@@ -80,12 +91,12 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   if (!deps) return app;
-  const { store, sync, garmin, campus, clock = parisClock, allowedOid } = deps;
+  const { store, sync, garmin, campus, mywhoosh, clock = parisClock, allowedOid } = deps;
   const actions = new Actions({
     store,
     sync,
     clock,
-    mcp: { ...(garmin && { garmin }), ...(campus && { campus }) },
+    mcp: { ...(garmin && { garmin }), ...(campus && { campus }), ...(mywhoosh && { mywhoosh }) },
   });
 
   if (allowedOid) {
@@ -166,6 +177,165 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/data/status', async () => dataStatus(store, clock.today()));
 
+  // Check-ins (D159) : jamais dans le futur, sauf le choix du sport d'une séance à venir.
+  const score = z.number().int().min(0).max(10);
+  app.get('/api/checkins', async (req, reply) => {
+    const q = z.object({ from: day.optional(), to: day.optional() }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'from et to doivent être des dates AAAA-MM-JJ' });
+    return readCheckins(store, q.data.from, q.data.to);
+  });
+
+  app.put('/api/checkins/:date', async (req, reply) => {
+    const p = z.object({ date: day }).safeParse(req.params);
+    const b = z.object({ foot: score.nullable() }).strict().safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'date ou score invalide (0 à 10)' });
+    if (p.data.date > clock.today()) return reply.code(409).send({ error: 'Pas de check-in dans le futur' });
+    return setFoot(store, p.data.date, b.data.foot, clock.now());
+  });
+
+  app.put('/api/checkins/:date/sessions/:id', async (req, reply) => {
+    const p = z.object({ date: day, id: z.string().regex(/^[\w-]+$/) }).safeParse(req.params);
+    const b = z
+      .object({
+        shin: score.nullable().optional(),
+        rpe: score.nullable().optional(),
+        swap: z.enum(['course', 'velo', 'rameur']).nullable().optional(),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'séance, score ou sport invalide' });
+    const scores = b.data.shin != null || b.data.rpe != null;
+    if (scores && p.data.date > clock.today()) {
+      return reply.code(409).send({ error: 'Tibia et effort se notent une fois la séance faite' });
+    }
+    const { shin, rpe, swap } = b.data;
+    return setSessionCheckin(
+      store,
+      p.data.date,
+      p.data.id,
+      {
+        ...(shin !== undefined && { shin }),
+        ...(rpe !== undefined && { rpe }),
+        ...(swap !== undefined && { swap }),
+      },
+      clock.now(),
+    );
+  });
+
+  // Revue du dimanche (D161) : proposition calculée par règles, appliquée seulement une fois acceptée.
+  app.get('/api/review', async (req, reply) => {
+    const q = z.object({ week: day.optional() }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'week doit être une date AAAA-MM-JJ' });
+    const today = clock.today();
+    const week = q.data.week ? mondayOf(q.data.week) : reviewWeekFor(today, mondayOf(today));
+    return { week, ...(await reviewView(store, week, today)) };
+  });
+
+  app.post('/api/review/:week/accept', async (req, reply) => {
+    const p = z.object({ week: day }).safeParse(req.params);
+    const b = z
+      .object({
+        durations: z.record(z.string(), z.number().int().min(10).max(300)).optional(),
+        flex: z.enum(['velo', 'course']).optional(),
+      })
+      .strict()
+      .safeParse(req.body ?? {});
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'semaine ou retouches invalides' });
+    try {
+      const { durations, flex } = b.data;
+      return await acceptReview(
+        store,
+        mondayOf(p.data.week),
+        clock.today(),
+        { ...(durations && { durations }), ...(flex && { flex }) },
+        clock.now(),
+      );
+    } catch (e) {
+      if (e instanceof ReviewError) return reply.code(409).send({ error: e.message });
+      throw e;
+    }
+  });
+
+  app.delete('/api/review/:week', async (req, reply) => {
+    const p = z.object({ week: day }).safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'semaine invalide' });
+    await cancelReview(store, mondayOf(p.data.week));
+    return { cancelled: mondayOf(p.data.week) };
+  });
+
+  // Plans Campus et Claude côte à côte (D162) ; un seul actif par semaine, choisi ici.
+  app.get('/api/plans/compare', async (req, reply) => {
+    const q = z.object({ week: day.optional() }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'week doit être une date AAAA-MM-JJ' });
+    const week = mondayOf(q.data.week ?? clock.today());
+    const [current, campusPlan, claudePlan] = await Promise.all([
+      planWeek(store, week),
+      planWeek(store, week, 'campus'),
+      planWeek(store, week, 'claude'),
+    ]);
+    return comparePlans(
+      week,
+      current?.source ?? 'campus',
+      campusPlan ? summarize('campus', campusPlan.sessions) : null,
+      claudePlan ? summarize('claude', claudePlan.sessions) : null,
+    );
+  });
+
+  app.put('/api/plans/:week/source', async (req, reply) => {
+    const p = z.object({ week: day }).safeParse(req.params);
+    const b = z
+      .object({ active: z.enum(['campus', 'claude']) })
+      .strict()
+      .safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'semaine ou source invalide' });
+    const week = mondayOf(p.data.week);
+    if (!(await planWeek(store, week, b.data.active))) {
+      return reply.code(409).send({
+        error: `Pas de plan ${b.data.active === 'claude' ? 'Claude' : 'Campus'} pour cette semaine`,
+      });
+    }
+    await setWeekSource(store, week, b.data.active, clock.now());
+    return { week, active: b.data.active };
+  });
+
+  // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).
+  app.get('/api/inbox', async () => listInbox(store));
+
+  app.post('/api/inbox', async (req, reply) => {
+    const b = z
+      .object({
+        url: z.url({ protocol: /^https?$/ }).max(500),
+        note: z.string().trim().min(1).max(500),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'lien http(s) et note requis' });
+    return addToInbox(store, b.data.url, b.data.note, clock.now());
+  });
+
+  app.delete('/api/inbox/:id', async (req, reply) => {
+    const p = z.object({ id: z.uuid() }).safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'identifiant invalide' });
+    await removeFromInbox(store, p.data.id);
+    return { removed: p.data.id };
+  });
+
+  // Saison (D154) : courses importées, compte à rebours et réglage de la séance flexible (D153).
+  app.get('/api/season', async () => {
+    const [file, settings] = await Promise.all([readSeason(store), readSettings(store)]);
+    return seasonView(file, settings, clock.today());
+  });
+
+  app.put('/api/season/settings', async (req, reply) => {
+    const b = z
+      .object({ flexDefault: z.enum(['velo', 'course']) })
+      .strict()
+      .safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'flexDefault doit valoir velo ou course' });
+    await saveSettings(store, b.data, clock.now());
+    return b.data;
+  });
+
   // Cocher ou décocher une routine (D38) : rattrapage jusqu'à J-3, rien dans le futur.
   app.put('/api/mobility/log/:date/:slot', async (req, reply) => {
     const p = z.object({ date: day, slot: z.enum(['morning', 'evening']) }).safeParse(req.params);
@@ -180,8 +350,8 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/mobility', async () => {
     const today = clock.today();
-    const { view } = await weekData(store, mondayOf(today), today);
-    return mobilityView(store, view.sessions, today);
+    const { view, plan } = await weekData(store, mondayOf(today), today);
+    return mobilityView(store, view.sessions, today, plan?.claude);
   });
 
   // Auto-tests (D74) : chaque test est facultatif ; un test refait remplace seulement son propre résultat.

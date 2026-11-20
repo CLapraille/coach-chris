@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useApi } from '../api.ts';
 import { parisDay } from '../format.ts';
 import { Month } from './Month.tsx';
+import { PlanCompare } from './PlanCompare.tsx';
 import { Week } from './Week.tsx';
 import { Loading } from '../Loading.tsx';
 
@@ -97,7 +98,16 @@ function WeekLoader({
       </p>
     );
   return (
-    <Week week={res.data} today={today} walks={walks} onChanged={res.reload} onOpenSession={onOpenSession} />
+    <>
+      <Week
+        week={res.data}
+        today={today}
+        walks={walks}
+        onChanged={res.reload}
+        onOpenSession={onOpenSession}
+      />
+      <PlanCompare week={start} onChanged={res.reload} />
+    </>
   );
 }
 

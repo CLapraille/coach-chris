@@ -5,12 +5,13 @@ import { clock, parisDay, shortDate } from './format.ts';
 import { Calendar } from './calendar/Calendar.tsx';
 import { Data } from './data/Data.tsx';
 import { Mobility } from './mobility/Mobility.tsx';
+import { Season } from './season/Season.tsx';
 import { SessionDetail } from './session/SessionDetail.tsx';
 import { ThemeSwitch } from './theme.tsx';
 import { Today } from './today/Today.tsx';
 import { Loading } from './Loading.tsx';
 
-export const TABS = ["Aujourd'hui", 'Calendrier', 'Mobilité', 'Données'] as const;
+export const TABS = ["Aujourd'hui", 'Calendrier', 'Saison', 'Mobilité', 'Données'] as const;
 type Tab = (typeof TABS)[number];
 
 export function App() {
@@ -51,6 +52,8 @@ export function App() {
             />
           ) : tab === 'Calendrier' ? (
             <Calendar onOpenSession={setSession} />
+          ) : tab === 'Saison' ? (
+            <Season />
           ) : tab === 'Mobilité' ? (
             <Mobility startTesting={openTests} />
           ) : st && status.state === 'ready' ? (

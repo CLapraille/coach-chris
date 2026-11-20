@@ -4,10 +4,12 @@
  */
 import type { Annotation } from './actions/actions.ts';
 import type { CampusBlock } from './plan/campus.ts';
+import type { ClaudeContent, ClaudeRoutine } from './plan/claude.ts';
+import type { SessionCheckin } from './checkin/checkin.ts';
 import type { Match, Activity } from './plan/matching.ts';
 import type { Deviation, DeviationRules, Lap } from './plan/deviation.ts';
 import type { RuleWarning } from './plan/placement.ts';
-import type { PlannedSession } from './plan/types.ts';
+import type { PlannedSession, PlanSource } from './plan/types.ts';
 import type { CapStatus, VolumeCap } from './load/volume.ts';
 import type { ZoneId } from './mobility/library.ts';
 import type { Regularity, Slot } from './mobility/regularity.ts';
@@ -95,6 +97,7 @@ export interface PushRecord {
 export type ActionRequest =
   | { type: 'campus.complete'; sessionKey: string }
   | { type: 'garmin.push'; sessionKey: string }
+  | { type: 'mywhoosh.upload'; sessionKey: string }
   | { type: 'garmin.annotate'; activityId: string; changes: Annotation };
 
 /** Aperçu lisible d'une écriture ; `token` est à renvoyer tel quel pour confirmer (valable 5 min, une fois). */
@@ -102,7 +105,7 @@ export interface ActionPreview {
   token: string;
   expiresAt: string;
   title: string;
-  target: 'Campus Coach' | 'Garmin Connect';
+  target: 'Campus Coach' | 'Garmin Connect' | 'MyWhoosh';
   fields: { label: string; value: string }[];
   warnings: string[];
 }
@@ -115,8 +118,15 @@ export interface ActionResult {
 export interface WeekView {
   start: string;
   days: { day: string; label: string }[];
-  /** `null` quand Campus n'a pas (encore) fourni cette semaine. */
-  plan: { fetchedAt: string; goalWeek?: { index: number; durationInWeeks: number } } | null;
+  /** `null` quand la source active (Campus par défaut, Claude si importé, D153) n'a pas fourni cette semaine. */
+  plan: {
+    source: PlanSource;
+    fetchedAt: string;
+    goalWeek?: { index: number; durationInWeeks: number };
+    /** Plan Claude : nom du bloc et thème de la semaine. */
+    block?: string;
+    focus?: string;
+  } | null;
   sessions: WeekSession[];
   activities: CachedActivity[];
   offPlan: CachedActivity[];
@@ -170,6 +180,10 @@ export interface SessionView {
   rules: DeviationRules;
   /** Renforcement : où en est l'activité « Musculation » créée dans Garmin (D148, D152). */
   garminLog?: GarminLogStatus;
+  /** Séance d'un plan Claude : contenu complet (échauffement, corps, retour au calme, variantes), D156. */
+  claude?: ClaudeContent;
+  /** Check-in de la séance (tibia, effort, sport choisi), D159. */
+  checkin?: SessionCheckin;
 }
 
 /**
@@ -264,6 +278,19 @@ export interface MobilityView {
   regularity: Record<Slot, { d7: Regularity; d28: Regularity }>;
   /** 28 derniers jours, du plus ancien à aujourd'hui. */
   last28: { day: string; morning: boolean; evening: boolean }[];
+  /**
+   * Semaine portée par un plan Claude (D157) : variante de la routine du matin, routine bureau ; la routine
+   * du soir est alors remplacée par la routine bureau et la séance optionnelle du plan.
+   */
+  planWeek?: PlanWeekRoutines;
+}
+
+export interface PlanWeekRoutines {
+  focus?: string;
+  /** Exercices du matin remplacés cette semaine : `replaces` (exercice de base) → `by`. */
+  morning: { replaces: string; by: string }[];
+  morningWhy?: string;
+  office?: ClaudeRoutine;
 }
 
 export interface MobilityToday {
@@ -298,6 +325,8 @@ export interface TodayView {
   evenings: Record<string, RoutineItemView | null>;
   mobility: MobilityToday;
   signals: Signal[];
+  /** Douleur du pied au premier pas (D159) ; `null` si pas encore saisie aujourd'hui. */
+  checkin: { foot: number | null; suggestLowImpact: boolean };
 }
 
 export interface DataStatus {
@@ -360,4 +389,12 @@ export function sessionBlocks(blocks: CampusBlock[]): SessionBlock[] {
       return { name: e.name, kind: 'exercise', seconds };
     }),
   }));
+}
+
+/** Boîte à vidéos (D158) : lien d'exercice repéré (YouTube Short…) et note de l'utilisateur, à intégrer à la bibliothèque. */
+export interface InboxItem {
+  id: string;
+  url: string;
+  note: string;
+  addedAt: string;
 }

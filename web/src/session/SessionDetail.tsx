@@ -3,6 +3,7 @@ import {
   FEEL_VALUES,
   type ActionRequest,
   type ActivityDetail,
+  type ClaudeContent,
   type Annotation,
   type LapView,
   type SessionView,
@@ -10,6 +11,8 @@ import {
   type StepResult,
 } from '@coach-chris/domain';
 import { useState } from 'react';
+import { PlanSourceTag } from '../PlanSource.tsx';
+import { ClaudePlan } from './ClaudePlan.tsx';
 import { ActionDialog } from '../actions/ActionDialog.tsx';
 import { useApi } from '../api.ts';
 import {
@@ -18,6 +21,7 @@ import {
   clock,
   decimal,
   longDate,
+  parisDay,
   sessionShort,
   shortDate,
   stepDuration,
@@ -86,8 +90,12 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
   const [action, setAction] = useState<ActionRequest | null>(null);
   const short = sessionShort(s.name);
   const day = s.match?.day ?? s.day;
-  const badge =
-    s.status === 'done'
+  const fromClaude = !!view.claude;
+  const badge = fromClaude
+    ? s.match
+      ? { cls: 'ok', text: 'Faite · activité Garmin rattachée' }
+      : { cls: '', text: 'À faire' }
+    : s.status === 'done'
       ? { cls: 'ok', text: 'Faite · validée dans Campus' }
       : s.match
         ? { cls: 'warn', text: 'Rattachée à une activité · pas encore validée dans Campus' }
@@ -123,10 +131,19 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
         </div>
         <div className="badges">
           <span className={`badge ${badge.cls}`}>{badge.text}</span>
-          <span className="src campus">Campus</span>
+          <PlanSourceTag source={fromClaude ? 'claude' : 'campus'} />
           {a && <span className="src garmin">Garmin</span>}
         </div>
       </div>
+
+      {view.claude && (
+        <ClaudePlan
+          content={view.claude}
+          checkin={view.checkin}
+          today={parisDay(new Date().toISOString())}
+          onChanged={reload}
+        />
+      )}
 
       <section className="card" aria-label="Prévu vs réalisé">
         <header>
@@ -139,7 +156,7 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
           <p className="empty">
             {view.activityError
               ? `Activité rattachée, mais son détail n'a pas pu être lu : ${view.activityError}`
-              : s.status === 'done'
+              : s.status === 'done' && !fromClaude
                 ? 'Séance validée dans Campus sans activité Garmin : pas de mesure à comparer.'
                 : 'Pas encore faite.'}
             {view.description && ` ${view.description}`}
@@ -181,9 +198,17 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
           <span className="label">Actions</span>
         </header>
         <div className="acts">
-          <CampusAct view={view} onAct={setAction} />
-          {view.garminLog && <GarminLog status={view.garminLog} />}
-          {s.sport === 'run' && s.status === 'todo' && !s.match && <WatchAct view={view} onAct={setAction} />}
+          {view.claude ? (
+            <ClaudeAct view={view} content={view.claude} onAct={setAction} />
+          ) : (
+            <>
+              <CampusAct view={view} onAct={setAction} />
+              {view.garminLog && <GarminLog status={view.garminLog} />}
+              {s.sport === 'run' && s.status === 'todo' && !s.match && (
+                <WatchAct view={view} onAct={setAction} />
+              )}
+            </>
+          )}
           {a && <AnnotateAct activity={a} onAct={setAction} />}
         </div>
       </section>
@@ -701,6 +726,63 @@ function AnnotateAct({ activity: a, onAct }: { activity: ActivityDetail; onAct: 
       </div>
       <button className="btn" type="button" onClick={submit}>
         Annoter dans Garmin
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Séance du plan Claude (D160) : course, renforcement et rameur partent sur la montre, le vélo dans MyWhoosh,
+ * toujours dans le sport choisi pour le jour ; la mobilité reste dans l’app.
+ */
+function ClaudeAct({ view, content, onAct }: { view: SessionView; content: ClaudeContent; onAct: OnAct }) {
+  const s = view.session;
+  const sport = content.variants[0]!.sport;
+  const done = !!s.match;
+  if (sport === 'mobilite')
+    return (
+      <div className="act">
+        <h3>Montre</h3>
+        <p>Séance de mobilité : elle se suit dans l’app, rien à envoyer.</p>
+      </div>
+    );
+  if (sport === 'velo')
+    return (
+      <div className="act">
+        <h3>MyWhoosh</h3>
+        <p>
+          {done
+            ? 'Séance déjà faite.'
+            : 'Ajoute la séance à tes workouts personnalisés MyWhoosh (préfixe « CC · »), puissances en % de ta FTP.'}
+        </p>
+        <button
+          className="btn"
+          type="button"
+          disabled={done}
+          onClick={() => onAct({ type: 'mywhoosh.upload', sessionKey: s.key })}
+        >
+          Envoyer dans MyWhoosh
+        </button>
+      </div>
+    );
+  const text = done
+    ? 'Séance déjà faite.'
+    : s.pushed
+      ? `Envoyée le ${shortDate(s.pushed.at.slice(0, 10))} pour le ${shortDate(s.pushed.date)}. Un nouvel envoi remplace l’ancien.`
+      : s.day
+        ? `Sera planifiée dans le calendrier Garmin pour ${longDate(s.day).toLowerCase()}, échauffement terminé par Tour.`
+        : 'Aucun jour à venir pour cette séance dans le calendrier.';
+  return (
+    <div className="act">
+      <h3>Montre</h3>
+      <p>{text}</p>
+      <button
+        className="btn"
+        type="button"
+        disabled={done || !s.day}
+        onClick={() => onAct({ type: 'garmin.push', sessionKey: s.key })}
+      >
+        {s.pushed ? 'Renvoyer sur la montre' : 'Envoyer sur la montre'}
       </button>
     </div>
   );

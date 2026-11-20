@@ -43,6 +43,7 @@ beforeEach(() => {
   calls.length = 0;
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     calls.push({ url, ...(init && { init }) });
+    if (url === '/api/inbox') return Response.json(init?.method ? {} : []);
     return Response.json(init?.method ? {} : view);
   });
 });
@@ -138,4 +139,44 @@ it('démonstrations : la fiche suit l’exercice choisi', async () => {
   fireEvent.click(await screen.findByRole('button', { name: /C3 Soléaire genou plié/ }));
   expect(screen.getByText('C3 · Soléaire genou plié')).toBeTruthy();
   expect(screen.getByText(/tendon d'Achille/)).toBeTruthy();
+});
+
+it('plan Claude : variante du matin, routine bureau, soir remplacé (D157)', async () => {
+  view.planWeek = {
+    focus: 'Chevilles et pieds',
+    morning: [{ replaces: 'M2 Balancement des bras', by: 'Pompes de cheville au lit' }],
+    morningWhy: 'Prépare le pied avant les premiers pas.',
+    office: {
+      name: 'Routine bureau',
+      dureeMin: 10,
+      steps: [{ name: 'Balle sous le pied', duree: '1 min / pied' }],
+    },
+  };
+  render(<Mobility />);
+  const card = await screen.findByLabelText('Routines du plan');
+  expect(within(card).getByText('Cette semaine · Chevilles et pieds')).toBeTruthy();
+  expect(within(card).getByText('Pompes de cheville au lit')).toBeTruthy();
+  expect(within(card).getByText('Balle sous le pied')).toBeTruthy();
+  expect(screen.getByText('remplacée par le plan Claude')).toBeTruthy();
+  expect(screen.queryByText('Faire les tests', { selector: '.routine button' })).toBeNull();
+});
+
+it('boîte à vidéos : envoie le lien et la note (D158)', async () => {
+  render(<Mobility />);
+  const box = await screen.findByLabelText('Boîte à vidéos');
+  fireEvent.change(within(box).getByLabelText('Lien'), {
+    target: { value: 'https://youtube.com/shorts/abc' },
+  });
+  fireEvent.change(within(box).getByLabelText('Ce que ça travaille'), {
+    target: { value: 'mollet sur marche' },
+  });
+  fireEvent.click(within(box).getByRole('button', { name: 'Ajouter' }));
+  await waitFor(() =>
+    expect(calls.some((c) => c.url === '/api/inbox' && c.init?.method === 'POST')).toBe(true),
+  );
+  const post = calls.find((c) => c.url === '/api/inbox' && c.init?.method === 'POST')!;
+  expect(JSON.parse(String(post.init!.body))).toEqual({
+    url: 'https://youtube.com/shorts/abc',
+    note: 'mollet sur marche',
+  });
 });

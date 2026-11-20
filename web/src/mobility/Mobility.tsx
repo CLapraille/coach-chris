@@ -3,12 +3,14 @@ import {
   EXERCISES,
   exercise,
   type MobilityView,
+  type PlanWeekRoutines,
   type RoutineItemView,
   type Side,
   type Slot,
 } from '@coach-chris/domain';
 import { useEffect, useRef, useState } from 'react';
 import { api, useApi } from '../api.ts';
+import { Inbox } from './Inbox.tsx';
 import { longDate, mmss, shortDate } from '../format.ts';
 import { Figure } from './Figure.tsx';
 import { Guide } from './Guide.tsx';
@@ -112,7 +114,20 @@ function Screen({
             onStart={() => setGuide('morning')}
             onCheck={(v) => check('morning', v)}
           />
-          {view.evening.length ? (
+          {view.planWeek ? (
+            <div className="routine">
+              <div className="rt-head">
+                <div>
+                  <h2>Soir</h2>
+                  <span className="meta">remplacée par le plan Claude</span>
+                </div>
+              </div>
+              <p className="empty">
+                Le soir est déjà pris par tes séances : la routine bureau et la séance optionnelle de la
+                semaine couvrent la mobilité.
+              </p>
+            </div>
+          ) : view.evening.length ? (
             <Routine
               title="Soir"
               meta={`${mmss(total(view.evening))} · bloc jusqu'au ${shortDate(b!.end)}`}
@@ -162,6 +177,7 @@ function Screen({
             </div>
           )}
         </article>
+        {view.planWeek && <PlanWeekCard plan={view.planWeek} />}
 
         <article className="card s5">
           <header>
@@ -269,6 +285,7 @@ function Screen({
           </header>
           <Demos />
         </article>
+        <Inbox />
       </div>
       {guide && (
         <Guide
@@ -486,5 +503,50 @@ function Demos() {
         </figcaption>
       </figure>
     </div>
+  );
+}
+
+/** Routines de la semaine du plan Claude (D157) : variante du matin et routine bureau. */
+function PlanWeekCard({ plan }: { plan: PlanWeekRoutines }) {
+  return (
+    <article className="card s5" aria-label="Routines du plan">
+      <header>
+        <span className="label">Cette semaine{plan.focus ? ` · ${plan.focus}` : ''}</span>
+        <span className="src claude">Plan Claude</span>
+      </header>
+      {plan.morning.length > 0 && (
+        <div className="cl-phase">
+          <h4 className="label">Matin : changements de la semaine</h4>
+          <ul className="cl-items">
+            {plan.morning.map((m) => (
+              <li key={m.replaces}>
+                <span className="cl-name">{m.by}</span>
+                <span className="cl-hint">remplace {m.replaces}</span>
+              </li>
+            ))}
+          </ul>
+          {plan.morningWhy && <p className="cl-hint">{plan.morningWhy}</p>}
+        </div>
+      )}
+      {plan.office && (
+        <details className="cl-phase">
+          <summary>
+            <span className="label">
+              {plan.office.name} · {plan.office.dureeMin} min · lundi → vendredi
+            </span>
+          </summary>
+          {plan.office.quand && <p className="cl-hint">{plan.office.quand}</p>}
+          <ol className="cl-items">
+            {(plan.office.steps ?? []).map((st, i) => (
+              <li key={i}>
+                <span className="cl-name">{st.name}</span>
+                {(st.duree || st.reps) && <span className="cl-q">{st.duree ?? st.reps}</span>}
+                {st.consigne && <span className="cl-hint">{st.consigne}</span>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </article>
   );
 }

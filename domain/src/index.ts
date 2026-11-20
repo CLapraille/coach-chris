@@ -1,6 +1,9 @@
 export * from './calendar.ts';
 export * from './plan/types.ts';
 export * from './plan/campus.ts';
+export * from './plan/claude.ts';
+export * from './season/events.ts';
+export * from './checkin/checkin.ts';
 export * from './plan/matching.ts';
 export * from './plan/placement.ts';
 export * from './plan/deviation.ts';
@@ -12,4 +15,7 @@ export * from './mobility/regularity.ts';
 export * from './wellness/wellness.ts';
 export * from './signals/signals.ts';
 export * from './actions/actions.ts';
+export * from './actions/claudeWorkout.ts';
 export * from './api.ts';
+export * from './review/weekly.ts';
+export * from './plan/compare.ts';

@@ -21,6 +21,14 @@ npm run sync -w server   # synchro complète Garmin + Campus vers Cosmos
 npm test
 ```
 
+Plan rédigé par Claude et saison de courses (D153, D154) — fichiers personnels dans `data/`, jamais versionnés :
+
+```bash
+npm run plan -w server -- import data/plan.json [--shadow]   # plan Claude ; --shadow : gardé à côté de Campus
+npm run plan -w server -- season data/saison.json            # saison (onglet Saison)
+npm run plan -w server -- source 2026-11-23 campus           # rendre une semaine à Campus
+```
+
 Poste avec antivirus qui inspecte le HTTPS (AVG) : `NODE_OPTIONS=--use-system-ca` pour npm et Node, `--system-certs` pour uv.
 
 ## Organisation

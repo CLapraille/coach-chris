@@ -88,7 +88,7 @@ export const TODAY: TodayView = {
   week: {
     start: '2026-10-05',
     days: days.map((day) => ({ day, label: day })),
-    plan: { fetchedAt: '2026-10-08T05:00:00Z' },
+    plan: { source: 'campus', fetchedAt: '2026-10-08T05:00:00Z' },
     sessions: [run2, str2],
     activities: [],
     offPlan: [],
@@ -107,6 +107,7 @@ export const TODAY: TodayView = {
     week: days.map((day) => ({ day, morning: false, evening: false })),
   },
   signals: [],
+  checkin: { foot: null, suggestLowImpact: false },
 };
 
 export const STATUS: DataStatus = {

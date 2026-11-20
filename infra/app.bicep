@@ -22,6 +22,12 @@ param syncCron string = '0 4 * * *'
 @description('Heures (heure de Paris) où le BFF garde une réplique prête, pour éviter ~30 s de démarrage à l’ouverture. Vide = jamais (0 € de plus).')
 param bffWarmHours object = { start: '0 6 * * *', end: '0 23 * * *' }
 
+@description('Compte MyWhoosh (D160) : vide = intégration MyWhoosh désactivée. Fourni par les secrets GitHub.')
+@secure()
+param mywhooshUsername string = ''
+@secure()
+param mywhooshPassword string = ''
+
 // ---------------------------------------------------------------- identité, journaux, stockage
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -116,6 +122,24 @@ var bffEnv = [
   { name: 'CAMPUS_MCP_URL', value: campusUrl }
   { name: 'ALLOWED_OID', value: userObjectId }
 ]
+
+// MyWhoosh (D160) : serveur communautaire lancé en stdio dans l'image du BFF, identifiants en secrets Container Apps.
+var whoosh = !empty(mywhooshUsername) && !empty(mywhooshPassword)
+var whooshSecrets = whoosh
+  ? [
+      { name: 'mywhoosh-username', value: mywhooshUsername }
+      { name: 'mywhoosh-password', value: mywhooshPassword }
+    ]
+  : []
+var whooshEnv = whoosh
+  ? [
+      { name: 'MYWHOOSH_MCP_CMD', value: 'node' }
+      { name: 'MYWHOOSH_MCP_ARGS', value: '/app/mcp/mywhoosh/build/index.js' }
+      { name: 'MYWHOOSH_MCP_ENV', value: 'MYWHOOSH_USERNAME,MYWHOOSH_PASSWORD' }
+      { name: 'MYWHOOSH_USERNAME', secretRef: 'mywhoosh-username' }
+      { name: 'MYWHOOSH_PASSWORD', secretRef: 'mywhoosh-password' }
+    ]
+  : []
 
 // Liste blanche côté MCP (ARCHITECTURE §6) : lectures + écritures confirmées (D123), rien d'autre
 // (pas de nutrition, de poids ni de suppression en masse).
@@ -223,6 +247,7 @@ resource bff 'Microsoft.App/containerApps@2024-03-01' = {
           maxAge: 3600
         }
       }
+      secrets: whooshSecrets
     }
     template: {
       containers: [
@@ -230,7 +255,7 @@ resource bff 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'bff'
           image: '${imageRepo}-bff:${imageTag}'
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
-          env: bffEnv
+          env: concat(bffEnv, whooshEnv)
           probes: [
             {
               type: 'Liveness'
