@@ -10,6 +10,8 @@ import {
   type StepResult,
 } from '@coach-chris/domain';
 import { useState } from 'react';
+import { PlanSourceTag } from '../PlanSource.tsx';
+import { ClaudePlan } from './ClaudePlan.tsx';
 import { ActionDialog } from '../actions/ActionDialog.tsx';
 import { useApi } from '../api.ts';
 import {
@@ -86,8 +88,12 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
   const [action, setAction] = useState<ActionRequest | null>(null);
   const short = sessionShort(s.name);
   const day = s.match?.day ?? s.day;
-  const badge =
-    s.status === 'done'
+  const fromClaude = !!view.claude;
+  const badge = fromClaude
+    ? s.match
+      ? { cls: 'ok', text: 'Faite · activité Garmin rattachée' }
+      : { cls: '', text: 'À faire' }
+    : s.status === 'done'
       ? { cls: 'ok', text: 'Faite · validée dans Campus' }
       : s.match
         ? { cls: 'warn', text: 'Rattachée à une activité · pas encore validée dans Campus' }
@@ -123,10 +129,12 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
         </div>
         <div className="badges">
           <span className={`badge ${badge.cls}`}>{badge.text}</span>
-          <span className="src campus">Campus</span>
+          <PlanSourceTag source={fromClaude ? 'claude' : 'campus'} />
           {a && <span className="src garmin">Garmin</span>}
         </div>
       </div>
+
+      {view.claude && <ClaudePlan content={view.claude} />}
 
       <section className="card" aria-label="Prévu vs réalisé">
         <header>
@@ -139,7 +147,7 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
           <p className="empty">
             {view.activityError
               ? `Activité rattachée, mais son détail n'a pas pu être lu : ${view.activityError}`
-              : s.status === 'done'
+              : s.status === 'done' && !fromClaude
                 ? 'Séance validée dans Campus sans activité Garmin : pas de mesure à comparer.'
                 : 'Pas encore faite.'}
             {view.description && ` ${view.description}`}
@@ -181,9 +189,23 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
           <span className="label">Actions</span>
         </header>
         <div className="acts">
-          <CampusAct view={view} onAct={setAction} />
-          {view.garminLog && <GarminLog status={view.garminLog} />}
-          {s.sport === 'run' && s.status === 'todo' && !s.match && <WatchAct view={view} onAct={setAction} />}
+          {fromClaude ? (
+            <div className="act">
+              <h3>Montre</h3>
+              <p>
+                L’envoi des séances du plan Claude sur la montre et dans MyWhoosh arrive avec l’étape 3. En
+                attendant, l’échauffement et le corps de séance sont ci-dessus.
+              </p>
+            </div>
+          ) : (
+            <>
+              <CampusAct view={view} onAct={setAction} />
+              {view.garminLog && <GarminLog status={view.garminLog} />}
+              {s.sport === 'run' && s.status === 'todo' && !s.match && (
+                <WatchAct view={view} onAct={setAction} />
+              )}
+            </>
+          )}
           {a && <AnnotateAct activity={a} onAct={setAction} />}
         </div>
       </section>

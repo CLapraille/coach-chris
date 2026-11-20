@@ -1,4 +1,5 @@
 import {
+  claudeContent,
   compareSteps,
   DEFAULT_RULES,
   plannedSteps,
@@ -9,6 +10,7 @@ import type { McpCaller } from '../mcp/client.ts';
 import type { Store } from '../store/store.ts';
 import { activityDetail } from '../sync/sync.ts';
 import { garminLogStatus } from '../actions/autolog.ts';
+import { readSettings } from '../plan/claude.ts';
 import { weekData } from './week.ts';
 
 /** Détail de séance (maquette v2). `undefined` si la clé ne correspond à aucune séance connue. */
@@ -36,8 +38,14 @@ export async function sessionView(
     ...(details?.coachAdvice && { coachAdvice: details.coachAdvice }),
   };
   const planned = plan?.sessions.find((x) => x.key === key);
-  const garminLog = planned && (await garminLogStatus(store, planned, session));
-  if (garminLog) out.garminLog = garminLog;
+  const claude = plan?.claude?.week.sessions[session.index];
+  if (claude && planned?.source === 'claude') {
+    out.claude = claudeContent(claude, plan!.claude!.routines, (await readSettings(store)).flexDefault);
+  } else {
+    // Création « Musculation » dans Garmin : déclenchée par la validation Campus (D148), donc Campus seulement.
+    const garminLog = planned && (await garminLogStatus(store, planned, session));
+    if (garminLog) out.garminLog = garminLog;
+  }
   const id = session.match?.activityId;
   if (!id) return out;
   const day = view.activities.find((a) => a.id === id)?.startLocal.slice(0, 10) ?? session.match!.day;

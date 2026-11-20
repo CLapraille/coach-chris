@@ -4,6 +4,7 @@
  */
 import type { Annotation } from './actions/actions.ts';
 import type { CampusBlock } from './plan/campus.ts';
+import type { ClaudeContent, ClaudeRoutine } from './plan/claude.ts';
 import type { Match, Activity } from './plan/matching.ts';
 import type { Deviation, DeviationRules, Lap } from './plan/deviation.ts';
 import type { RuleWarning } from './plan/placement.ts';
@@ -177,6 +178,8 @@ export interface SessionView {
   rules: DeviationRules;
   /** Renforcement : où en est l'activité « Musculation » créée dans Garmin (D148, D152). */
   garminLog?: GarminLogStatus;
+  /** Séance d'un plan Claude : contenu complet (échauffement, corps, retour au calme, variantes), D156. */
+  claude?: ClaudeContent;
 }
 
 /**
@@ -271,6 +274,19 @@ export interface MobilityView {
   regularity: Record<Slot, { d7: Regularity; d28: Regularity }>;
   /** 28 derniers jours, du plus ancien à aujourd'hui. */
   last28: { day: string; morning: boolean; evening: boolean }[];
+  /**
+   * Semaine portée par un plan Claude (D157) : variante de la routine du matin, routine bureau ; la routine
+   * du soir est alors remplacée par la routine bureau et la séance optionnelle du plan.
+   */
+  planWeek?: PlanWeekRoutines;
+}
+
+export interface PlanWeekRoutines {
+  focus?: string;
+  /** Exercices du matin remplacés cette semaine : `replaces` (exercice de base) → `by`. */
+  morning: { replaces: string; by: string }[];
+  morningWhy?: string;
+  office?: ClaudeRoutine;
 }
 
 export interface MobilityToday {
@@ -367,4 +383,12 @@ export function sessionBlocks(blocks: CampusBlock[]): SessionBlock[] {
       return { name: e.name, kind: 'exercise', seconds };
     }),
   }));
+}
+
+/** Boîte à vidéos (D158) : lien d'exercice repéré (YouTube Short…) et note de l'utilisateur, à intégrer à la bibliothèque. */
+export interface InboxItem {
+  id: string;
+  url: string;
+  note: string;
+  addedAt: string;
 }

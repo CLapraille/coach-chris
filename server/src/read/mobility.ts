@@ -13,6 +13,7 @@ import {
   type MobilityBlock,
   type MobilityToday,
   type MobilityView,
+  type PlanWeekRoutines,
   type RoutineItem,
   type RoutineItemView,
   type RoutineLog,
@@ -23,6 +24,7 @@ import {
   type ZoneId,
   type ZoneView,
 } from '@coach-chris/domain';
+import type { ClaudePlanDoc } from '../plan/claude.ts';
 import type { Doc, Store } from '../store/store.ts';
 
 /**
@@ -200,6 +202,7 @@ export async function mobilityView(
   store: Store,
   sessions: WeekSession[],
   today: string,
+  claude?: Pick<ClaudePlanDoc, 'week' | 'routines'>,
 ): Promise<MobilityView> {
   const [logs, st] = await Promise.all([routineLogs(store), state(store, today)]);
   const assessed = new Map(st.zones.map((z) => [z.zone, z]));
@@ -235,5 +238,19 @@ export async function mobilityView(
       const day = addDays(today, i - 27);
       return { day, morning: has(logs, day, 'morning'), evening: has(logs, day, 'evening') };
     }),
+    ...(claude && { planWeek: planRoutines(claude) }),
   };
+}
+
+/** Routines du plan Claude pour la semaine (D157). */
+function planRoutines(c: Pick<ClaudePlanDoc, 'week' | 'routines'>): PlanWeekRoutines {
+  const rm = c.week.routineMatin;
+  const out: PlanWeekRoutines = {
+    morning: Object.entries(rm?.remplace ?? {}).map(([replaces, by]) => ({ replaces, by })),
+  };
+  if (c.week.focus) out.focus = c.week.focus;
+  if (rm?.pourquoi) out.morningWhy = rm.pourquoi;
+  const office = c.routines['routine-bureau'];
+  if (office) out.office = office;
+  return out;
 }

@@ -3350,3 +3350,146 @@ details.coach summary {
     font-size: 34px;
   }
 }
+
+/* Contenu d'une séance du plan Claude (D156) */
+.cl-plan {
+  border-left: 3px solid var(--c, var(--line));
+}
+.cl-why {
+  margin: 0;
+  color: var(--muted);
+  max-width: 70ch;
+}
+.cl-swap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.cl-phases {
+  display: grid;
+  gap: 4px;
+}
+.cl-phase {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  padding-bottom: 6px;
+}
+.cl-phase > summary {
+  cursor: pointer;
+  list-style: none;
+  margin-bottom: 6px;
+}
+.cl-phase > summary::-webkit-details-marker {
+  display: none;
+}
+.cl-phase h4 {
+  margin: 0 0 6px;
+}
+.cl-items {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+ul.cl-items {
+  list-style: disc;
+}
+.cl-items li {
+  min-width: 0;
+}
+.cl-bloc {
+  list-style: none;
+  margin-left: -20px;
+  padding-top: 4px;
+}
+.cl-name {
+  font-weight: 500;
+}
+.cl-q,
+.cl-target {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c, var(--fg));
+  margin-left: 8px;
+}
+.cl-target {
+  background: var(--surface-2);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.cl-hint {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.cl-adapt {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12.5px;
+  display: grid;
+  gap: 3px;
+}
+.cl-note {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-2);
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+
+/* Boîte à vidéos (D158) */
+.ib-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.ib-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ib-form input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+.ib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.ib-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-block: 8px;
+  border-top: 1px solid var(--line);
+}
+.ib-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ib-main a {
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.ib-main span {
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .ib-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

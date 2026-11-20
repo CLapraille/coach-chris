@@ -183,3 +183,52 @@ function addDaysIso(day: string, n: number): string {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+
+/** Une variante prête à afficher : routines résolues (D156). */
+export interface ClaudeContentVariant {
+  sport: ClaudeSport;
+  titre: string;
+  dureeMin: number;
+  warmup?: ClaudeRoutine & { id: string };
+  corps: ClaudeItem[];
+  cooldown?: ClaudeRoutine & { id: string };
+  kinomap?: string;
+}
+
+/** Contenu d'une séance Claude pour le détail de séance (D156). */
+export interface ClaudeContent {
+  role: ClaudeRole;
+  pourquoi?: string;
+  /** Variantes, celle affichée au Calendrier en premier (séance flexible : les autres sports possibles). */
+  variants: ClaudeContentVariant[];
+}
+
+export function claudeContent(
+  s: ClaudeSession,
+  routines: Record<string, ClaudeRoutine>,
+  flexDefault: FlexDefault = 'velo',
+): ClaudeContent {
+  const routine = (id: string | null | undefined) =>
+    id && routines[id] ? { ...routines[id], id } : undefined;
+  const toVariant = (v: ClaudeVariant, sport: ClaudeSport): ClaudeContentVariant => {
+    const out: ClaudeContentVariant = { sport, titre: v.titre, dureeMin: v.dureeMin, corps: v.corps };
+    const w = routine(v.echauffement);
+    const c = routine(v.retourAuCalme);
+    if (w) out.warmup = w;
+    if (c) out.cooldown = c;
+    if (v.kinomap) out.kinomap = v.kinomap;
+    return out;
+  };
+  const first = resolveVariant(s, flexDefault);
+  const others = (
+    [
+      [s.sport, s] as const,
+      ...Object.entries(s.alternatives ?? {}).map(([k, v]) => [k as ClaudeSport, v!] as const),
+    ] as const
+  ).filter(([k]) => k !== first.sport);
+  return {
+    role: s.role,
+    ...(s.pourquoi && { pourquoi: s.pourquoi }),
+    variants: [toVariant(first, first.sport), ...others.map(([k, v]) => toVariant(v, k))],
+  };
+}

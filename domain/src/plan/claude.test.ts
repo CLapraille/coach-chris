@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLAUDE_PLAN_FORMAT,
+  claudeContent,
   fromClaudeWeek,
   planProblems,
   type ClaudePlanFile,
@@ -112,5 +113,29 @@ describe('planProblems', () => {
       'séance « s1-lun-course » en double',
       'séance « s1-lun-course » hors de la semaine 1',
     ]);
+  });
+});
+
+describe('claudeContent', () => {
+  const routines = {
+    ech: { name: 'Échauffement course', dureeMin: 8, steps: [{ name: 'Marche', duree: '3 min' }] },
+  };
+
+  it('résout les routines et met la variante du réglage en premier', () => {
+    const flex = {
+      ...WEEK.sessions[2]!,
+      alternatives: { course: { titre: 'Course facile', dureeMin: 35, echauffement: 'ech', corps: [] } },
+    };
+    const c = claudeContent(flex, routines, 'course');
+    expect(c.variants.map((v) => v.sport)).toEqual(['course', 'velo']);
+    expect(c.variants[0]!.warmup).toMatchObject({ id: 'ech', name: 'Échauffement course' });
+    expect(c.variants[1]!.warmup).toBeUndefined();
+  });
+
+  it('une routine inconnue est ignorée', () => {
+    const c = claudeContent({ ...WEEK.sessions[0]!, retourAuCalme: 'absente' }, routines);
+    expect(c.variants).toHaveLength(1);
+    expect(c.variants[0]!.cooldown).toBeUndefined();
+    expect(c.role).toBe('fixe');
   });
 });

@@ -13,6 +13,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
 import { readSeason, readSettings, saveSettings } from './plan/claude.ts';
+import { addToInbox, listInbox, removeFromInbox } from './read/inbox.ts';
 import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from './read/mobility.ts';
 import { sessionView } from './read/session.ts';
 import { dataStatus } from './read/status.ts';
@@ -168,6 +169,28 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/data/status', async () => dataStatus(store, clock.today()));
 
+  // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).
+  app.get('/api/inbox', async () => listInbox(store));
+
+  app.post('/api/inbox', async (req, reply) => {
+    const b = z
+      .object({
+        url: z.url({ protocol: /^https?$/ }).max(500),
+        note: z.string().trim().min(1).max(500),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: 'lien http(s) et note requis' });
+    return addToInbox(store, b.data.url, b.data.note, clock.now());
+  });
+
+  app.delete('/api/inbox/:id', async (req, reply) => {
+    const p = z.object({ id: z.uuid() }).safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'identifiant invalide' });
+    await removeFromInbox(store, p.data.id);
+    return { removed: p.data.id };
+  });
+
   // Saison (D154) : courses importées, compte à rebours et réglage de la séance flexible (D153).
   app.get('/api/season', async () => {
     const [file, settings] = await Promise.all([readSeason(store), readSettings(store)]);
@@ -198,8 +221,8 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
 
   app.get('/api/mobility', async () => {
     const today = clock.today();
-    const { view } = await weekData(store, mondayOf(today), today);
-    return mobilityView(store, view.sessions, today);
+    const { view, plan } = await weekData(store, mondayOf(today), today);
+    return mobilityView(store, view.sessions, today, plan?.claude);
   });
 
   // Auto-tests (D74) : chaque test est facultatif ; un test refait remplace seulement son propre résultat.
