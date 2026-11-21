@@ -398,3 +398,26 @@ export interface InboxItem {
   note: string;
   addedAt: string;
 }
+
+/** Résultat d'un import de plan Claude (D153), aperçu compris (D164). */
+export interface PlanImportResult {
+  block: string;
+  blockName: string;
+  start: string;
+  end: string;
+  weeks: { weekDate: string; changed: boolean; active: PlanSource; sessions: number }[];
+}
+
+/** Résultat d'un import de saison (D154), aperçu compris (D164). */
+export interface SeasonImportResult {
+  season: string;
+  events: number;
+  /** Événements de la saison enregistrée, remplacée par l'import. */
+  replaces: number;
+}
+
+/** Réponse 422 d'un import refusé : un problème par ligne (D164). */
+export interface ImportRefusal {
+  error: string;
+  problems: string[];
+}

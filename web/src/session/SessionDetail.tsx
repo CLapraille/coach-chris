@@ -732,13 +732,24 @@ function AnnotateAct({ activity: a, onAct }: { activity: ActivityDetail; onAct: 
 }
 
 /**
- * Séance du plan Claude (D160) : course, renforcement et rameur partent sur la montre, le vélo dans MyWhoosh,
- * toujours dans le sport choisi pour le jour ; la mobilité reste dans l’app.
+ * Séance du plan Claude (D160) : course et renforcement partent sur la montre, le vélo dans MyWhoosh,
+ * toujours dans le sport choisi pour le jour ; la mobilité reste dans l’app. Le rameur ne s’envoie pas
+ * (D163) : Garmin n’a pas d’entraînement rameur, l’activité serait enregistrée en cardio.
  */
 function ClaudeAct({ view, content, onAct }: { view: SessionView; content: ClaudeContent; onAct: OnAct }) {
   const s = view.session;
   const sport = content.variants[0]!.sport;
   const done = !!s.match;
+  if (sport === 'rameur')
+    return (
+      <div className="act">
+        <h3>Montre</h3>
+        <p>
+          Rien à envoyer : lance l’activité « Rameur d’intérieur » sur la montre et suis la séance
+          {content.variants[0]!.kinomap ? ' Kinomap indiquée plus haut' : ' décrite plus haut'}.
+        </p>
+      </div>
+    );
   if (sport === 'mobilite')
     return (
       <div className="act">

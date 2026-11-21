@@ -2,8 +2,8 @@ import type { ClaudeContentVariant, ClaudeItem } from '../plan/claude.ts';
 import { APP_PREFIX, WorkoutError } from './actions.ts';
 
 /**
- * Workouts des séances du plan Claude (D160). Garmin : course (étapes « montre » du plan, cible FC), rameur
- * et renforcement ; MyWhoosh : vélo (étapes « mywhoosh » du plan, puissance en fraction de FTP).
+ * Workouts des séances du plan Claude (D160). Garmin : course (étapes « montre » du plan, cible FC) et
+ * renforcement ; pas de rameur (D163 : aucun entraînement rameur côté Garmin, il serait enregistré en cardio) ; MyWhoosh : vélo (étapes « mywhoosh » du plan, puissance en fraction de FTP).
  * Rien n'est inventé : une séance sans structure exploitable est refusée avec une raison lisible.
  */
 
@@ -21,8 +21,6 @@ const STEP = {
 const SPORTS = {
   course: { sportTypeId: 1, sportTypeKey: 'running' },
   renfo: { sportTypeId: 5, sportTypeKey: 'strength_training' },
-  // Pas de sport « rameur » documenté pour les workouts Garmin : cardio, à vérifier au premier envoi.
-  rameur: { sportTypeId: 6, sportTypeKey: 'cardio_training' },
 } as const;
 export type GarminClaudeSport = keyof typeof SPORTS;
 
@@ -77,7 +75,6 @@ export function claudeGarminWorkout(input: {
         ? `${input.variant.warmup.name} (voir l'app), puis Tour`
         : 'Échauffement, puis Tour',
     });
-  const cooldown = (min: number) => step('cooldown', TIME, { endConditionValue: min * 60 });
 
   let workoutSteps: unknown[];
   if (sport === 'course') {
@@ -94,15 +91,6 @@ export function claudeGarminWorkout(input: {
         ...(s.note && { description: s.note }),
       });
     });
-  } else if (sport === 'rameur') {
-    workoutSteps = [
-      warmup(),
-      step('interval', TIME, {
-        endConditionValue: input.variant.dureeMin * 60,
-        description: summary(input.variant.corps),
-      }),
-      cooldown(5),
-    ];
   } else {
     workoutSteps = [warmup(), ...strengthSteps(input.variant.corps, step)];
   }
@@ -111,15 +99,6 @@ export function claudeGarminWorkout(input: {
     sportType: SPORTS[sport],
     workoutSegments: [{ segmentOrder: 1, sportType: SPORTS[sport], workoutSteps }],
   };
-}
-
-/** « 3 × 8 min · FC 125–135 » : le corps de séance en une ligne pour la montre. */
-function summary(corps: ClaudeItem[]): string {
-  return corps
-    .map((c) => [c.bloc ?? c.exo, c.cible].filter(Boolean).join(' · '))
-    .filter(Boolean)
-    .join(' / ')
-    .slice(0, 250);
 }
 
 /**

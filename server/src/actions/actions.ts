@@ -372,7 +372,7 @@ export class Actions {
 
   /**
    * Séance du plan Claude vers Garmin (D160) : course (étapes « montre » du plan, sinon plafond FC facile),
-   * renforcement et rameur, dans le sport choisi pour le jour. Même protocole que D126 : workout « CC · »
+   * et renforcement (pas de rameur, D163), dans le sport choisi pour le jour. Même protocole que D126 : workout « CC · »
    * planifié au jour placé, un renvoi remplace l'ancien.
    */
   private async claudePushPreview(
@@ -432,11 +432,6 @@ export class Actions {
       ...(previous
         ? [
             `Remplace l’envoi du ${shortDate(previous.at.slice(0, 10))} : l’ancien workout sera supprimé de Garmin.`,
-          ]
-        : []),
-      ...(variant.sport === 'rameur'
-        ? [
-            'Rameur envoyé en « cardio » : premier envoi à vérifier sur la montre (sport rameur non confirmé).',
           ]
         : []),
       ...(variant.sport === 'renfo'

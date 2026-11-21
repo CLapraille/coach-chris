@@ -3688,3 +3688,55 @@ ul.cl-items {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ===== Import d'un plan ou d'une saison depuis l'app (D164) ===== */
+.im-pick,
+.im-preview,
+.im-refused {
+  display: grid;
+  gap: 10px;
+}
+.im-pick .btn {
+  justify-self: start;
+  cursor: pointer;
+}
+.im-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.im-ok {
+  margin: 0;
+  color: var(--good);
+}
+.im-weeks {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.im-weeks li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+.im-shadow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+.im-actions {
+  display: flex;
+  gap: 8px;
+}
+.im-refused ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}

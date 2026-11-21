@@ -3,9 +3,12 @@ import { API_BASE, authHeader } from './auth.ts';
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** Corps JSON de la réponse d'erreur (ex. liste des problèmes d'un import refusé, D164). */
+  readonly body: Record<string, unknown>;
+  constructor(status: number, message: string, body: Record<string, unknown> = {}) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -19,8 +22,12 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? `Erreur ${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new ApiError(
+      res.status,
+      typeof body.error === 'string' ? body.error : `Erreur ${res.status}`,
+      body,
+    );
   }
   return (await res.json()) as T;
 }

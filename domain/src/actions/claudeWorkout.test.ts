@@ -63,18 +63,8 @@ describe('claudeGarminWorkout', () => {
     expect(steps[2]!.description).toBe('Pied court · 10 × 5 s');
   });
 
-  it('rameur en cardio ; vélo et mobilité ne partent pas sur la montre', () => {
-    const row = claudeGarminWorkout({
-      name: 'Rameur',
-      variant: {
-        sport: 'rameur',
-        titre: 'Rameur',
-        dureeMin: 35,
-        corps: [{ bloc: '3 × 8 min', cible: 'FC 125–135' }],
-      },
-    });
-    expect(row.sportType).toEqual({ sportTypeId: 6, sportTypeKey: 'cardio_training' });
-    for (const sport of ['velo', 'mobilite'] as const) {
+  it('rameur, vélo et mobilité ne partent pas sur la montre', () => {
+    for (const sport of ['rameur', 'velo', 'mobilite'] as const) {
       expect(() =>
         claudeGarminWorkout({ name: 'x', variant: { sport, titre: 'x', dureeMin: 20, corps: [] } }),
       ).toThrow(WorkoutError);
