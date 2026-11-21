@@ -4,7 +4,7 @@ import { buildApp } from '../app.ts';
 import { planWeek } from '../read/cache.ts';
 import { MemoryStore } from '../store/store.ts';
 import type { Clock, Sync } from '../sync/sync.ts';
-import { ImportError, importPlan, importSeason, setWeekSource } from './claude.ts';
+import { ImportError, importPlan, importSeason, readSeason, setWeekSource } from './claude.ts';
 
 const PLAN = {
   format: 'coach-chris.plan/v1',
@@ -68,7 +68,10 @@ describe('importPlan', () => {
     const r = await importPlan(store, PLAN, { now: NOW });
     expect(r).toEqual({
       block: 'base-s1',
-      weeks: [{ weekDate: '2026-11-23', changed: true, active: 'claude' }],
+      blockName: 'Base · semaine 1',
+      start: '2026-11-23',
+      end: '2026-11-29',
+      weeks: [{ weekDate: '2026-11-23', changed: true, active: 'claude', sessions: 2 }],
     });
     const week = await planWeek(store, '2026-11-23');
     expect(week?.source).toBe('claude');
@@ -138,6 +141,51 @@ describe('importPlan', () => {
   });
 });
 
+describe('import depuis l’app (D164)', () => {
+  const clock: Clock = { today: () => '2026-11-21', now: () => NOW };
+
+  it('aperçu sans écriture, puis import ; côte à côte garde Campus', async () => {
+    const store = new MemoryStore();
+    const app = buildApp({ store, sync: {} as Sync, clock });
+    const dry = await app.inject({
+      method: 'POST',
+      url: '/api/plans/import',
+      payload: { file: PLAN, dryRun: true },
+    });
+    expect(dry.statusCode).toBe(200);
+    expect(dry.json()).toMatchObject({
+      blockName: 'Base · semaine 1',
+      weeks: [{ weekDate: '2026-11-23', changed: true, active: 'claude', sessions: 2 }],
+    });
+    expect(await store.list('plan', '2026-11-23')).toEqual([]);
+
+    const shadow = await app.inject({
+      method: 'POST',
+      url: '/api/plans/import',
+      payload: { file: PLAN, activate: false },
+    });
+    expect(shadow.json().weeks[0].active).toBe('campus');
+    const ok = await app.inject({ method: 'POST', url: '/api/plans/import', payload: { file: PLAN } });
+    expect(ok.json().weeks[0]).toMatchObject({ changed: false, active: 'claude' });
+    expect((await planWeek(store, '2026-11-23'))?.source).toBe('claude');
+    await app.close();
+  });
+
+  it('un plan refusé renvoie 422 avec ses problèmes et n’écrit rien', async () => {
+    const store = new MemoryStore();
+    const app = buildApp({ store, sync: {} as Sync, clock });
+    const bad = structuredClone(PLAN);
+    bad.weeks[0]!.sessions[0]!.retourAuCalme = 'absente';
+    const res = await app.inject({ method: 'POST', url: '/api/plans/import', payload: { file: bad } });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().problems.join('\n')).toMatch(/routine inconnue « absente »/);
+    expect(await store.list('plan', '2026-11-23')).toEqual([]);
+    const empty = await app.inject({ method: 'POST', url: '/api/plans/import', payload: {} });
+    expect(empty.statusCode).toBe(400);
+    await app.close();
+  });
+});
+
 describe('saison', () => {
   const clock: Clock = { today: () => '2026-11-20', now: () => NOW };
   const SEASON = {
@@ -182,6 +230,32 @@ describe('saison', () => {
     expect(body.events.map((e: { id: string }) => e.id)).toEqual(['sylvester', 'boucles']);
     expect(body.nextA).toBe('boucles');
     expect(body.settings).toEqual({ flexDefault: 'velo' });
+    await app.close();
+  });
+
+  it('POST /api/season/import : aperçu, puis remplacement de la saison', async () => {
+    const store = new MemoryStore();
+    const app = buildApp({ store, sync: {} as Sync, clock });
+    const dry = await app.inject({
+      method: 'POST',
+      url: '/api/season/import',
+      payload: { file: SEASON, dryRun: true },
+    });
+    expect(dry.json()).toEqual({ season: '2027', events: 2, replaces: 0 });
+    expect(await readSeason(store)).toBeUndefined();
+    await app.inject({ method: 'POST', url: '/api/season/import', payload: { file: SEASON } });
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/season/import',
+      payload: { file: SEASON, dryRun: true },
+    });
+    expect(again.json().replaces).toBe(2);
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/season/import',
+      payload: { file: { ...SEASON, format: 'v0' } },
+    });
+    expect(bad.statusCode).toBe(422);
     await app.close();
   });
 

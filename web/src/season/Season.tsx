@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api, useApi } from '../api.ts';
 import { Loading } from '../Loading.tsx';
 import { decimal } from '../format.ts';
+import { ImportCard } from './Import.tsx';
 
 const PRIORITY_LABEL = { A: 'Objectif', B: 'Important', C: 'Entraînement' } as const;
 const FLEX_LABEL: Record<FlexDefault, string> = { velo: 'Vélo', course: 'Course' };
@@ -89,14 +90,12 @@ export function Season() {
             <span className="muted text-xs">A objectif · B important · C entraînement</span>
           </header>
           {v.events.length === 0 ? (
-            <p className="empty">
-              Pas encore de saison. Elle s'importe avec{' '}
-              <code>npm run plan -w server -- season saison.json</code>.
-            </p>
+            <p className="empty">Pas encore de saison. Importe le fichier de saison ci-dessous.</p>
           ) : (
             <EventList events={v.events} />
           )}
         </article>
+        <ImportCard onImported={season.reload} />
       </div>
     </section>
   );

@@ -14,7 +14,15 @@ import {
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
-import { readSeason, readSettings, saveSettings, setWeekSource } from './plan/claude.ts';
+import {
+  ImportError,
+  importPlan,
+  importSeason,
+  readSeason,
+  readSettings,
+  saveSettings,
+  setWeekSource,
+} from './plan/claude.ts';
 import { planWeek } from './read/cache.ts';
 import { readCheckins, setFoot, setSessionCheckin } from './read/checkin.ts';
 import { addToInbox, listInbox, removeFromInbox } from './read/inbox.ts';
@@ -296,6 +304,41 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     }
     await setWeekSource(store, week, b.data.active, clock.now());
     return { week, active: b.data.active };
+  });
+
+  // Import depuis l'app (D164) : mêmes validations que la ligne de commande (D153, D154). `dryRun` d'abord
+  // pour l'aperçu, puis le même fichier sans `dryRun` pour écrire ; un fichier refusé n'écrit rien.
+  const importBody = z
+    .object({ file: z.unknown(), dryRun: z.boolean().optional(), activate: z.boolean().optional() })
+    .strict();
+  const IMPORT_LIMIT = 2 * 1024 * 1024;
+  const refused = (e: unknown) => {
+    if (e instanceof ImportError) return { error: 'Fichier refusé', problems: e.problems };
+    throw e;
+  };
+
+  app.post('/api/plans/import', { bodyLimit: IMPORT_LIMIT }, async (req, reply) => {
+    const b = importBody.safeParse(req.body);
+    if (!b.success || b.data.file === undefined) return reply.code(400).send({ error: 'fichier manquant' });
+    try {
+      return await importPlan(store, b.data.file, {
+        now: clock.now(),
+        activate: b.data.activate ?? true,
+        dryRun: b.data.dryRun ?? false,
+      });
+    } catch (e) {
+      return reply.code(422).send(refused(e));
+    }
+  });
+
+  app.post('/api/season/import', { bodyLimit: IMPORT_LIMIT }, async (req, reply) => {
+    const b = importBody.omit({ activate: true }).safeParse(req.body);
+    if (!b.success || b.data.file === undefined) return reply.code(400).send({ error: 'fichier manquant' });
+    try {
+      return await importSeason(store, b.data.file, clock.now(), { dryRun: b.data.dryRun ?? false });
+    } catch (e) {
+      return reply.code(422).send(refused(e));
+    }
   });
 
   // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).

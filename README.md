@@ -29,6 +29,8 @@ npm run plan -w server -- season data/saison.json            # saison (onglet Sa
 npm run plan -w server -- source 2026-11-23 campus           # rendre une semaine à Campus
 ```
 
+Sans PC (téléphone compris) : onglet **Saison › Importer**, même fichier `.json`, aperçu puis confirmation (D164).
+
 Poste avec antivirus qui inspecte le HTTPS (AVG) : `NODE_OPTIONS=--use-system-ca` pour npm et Node, `--system-certs` pour uv.
 
 ## Organisation

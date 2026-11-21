@@ -8,8 +8,10 @@ import {
   type ClaudePlanFile,
   type ClaudeRoutine,
   type ClaudeWeek,
+  type PlanImportResult,
   type PlanSource,
   type SeasonFile,
+  type SeasonImportResult,
   type SeasonSettings,
 } from '@coach-chris/domain';
 import { createHash } from 'node:crypto';
@@ -158,10 +160,7 @@ export type PlanSourceDoc = Doc & { kind: 'source'; weekDate: string; active: Pl
 export const CLAUDE_ID = 'claude';
 export const SOURCE_ID = 'source';
 
-export interface ImportResult {
-  block: string;
-  weeks: { weekDate: string; changed: boolean; active: PlanSource }[];
-}
+export type ImportResult = PlanImportResult;
 
 const hashOf = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 16);
 
@@ -179,12 +178,13 @@ function routinesOf(week: ClaudeWeek, all: Record<string, ClaudeRoutine>): Recor
 /**
  * Importe un plan Claude semaine par semaine. Comme pour Campus (D45), chaque contenu différent est archivé
  * en version, jamais écrasé. `activate` (par défaut) fait de Claude la source active de ces semaines ;
- * sinon le plan est gardé à côté, pour la comparaison avec Campus (étape 5).
+ * sinon le plan est gardé à côté, pour la comparaison avec Campus (étape 5). `dryRun` valide et décrit
+ * ce que ferait l'import sans rien écrire (aperçu de l'import depuis l'app, D164).
  */
 export async function importPlan(
   store: Store,
   raw: unknown,
-  opts: { now: string; activate?: boolean },
+  opts: { now: string; activate?: boolean; dryRun?: boolean },
 ): Promise<ImportResult> {
   const plan = parse(claudePlanSchema, raw) as ClaudePlanFile;
   const problems = planProblems(plan);
@@ -208,15 +208,18 @@ export async function importPlan(
       ...(plan.athlete && { athlete: plan.athlete }),
     };
     const changed = latest?.hash !== hash;
-    if (changed)
-      await store.upsert('plan', { ...base(`claude-v:${opts.now}`), ...content, kind: 'claude-version' });
-    await store.upsert('plan', { ...base(CLAUDE_ID), ...content });
     const current = await store.get<PlanSourceDoc>('plan', SOURCE_ID, weekDate);
     const active: PlanSource = activate ? 'claude' : (current?.active ?? 'campus');
-    if (activate) await store.upsert('plan', { ...base(SOURCE_ID), kind: 'source', weekDate, active });
-    weeks.push({ weekDate, changed, active });
+    if (!opts.dryRun) {
+      if (changed)
+        await store.upsert('plan', { ...base(`claude-v:${opts.now}`), ...content, kind: 'claude-version' });
+      await store.upsert('plan', { ...base(CLAUDE_ID), ...content });
+      if (activate) await store.upsert('plan', { ...base(SOURCE_ID), kind: 'source', weekDate, active });
+    }
+    weeks.push({ weekDate, changed, active, sessions: week.sessions.length });
   }
-  return { block: plan.block.id, weeks };
+  const { id, name, start, end } = plan.block;
+  return { block: id, blockName: name, start, end, weeks };
 }
 
 /** Rend une semaine à Campus (le plan Claude reste stocké). */
@@ -244,10 +247,21 @@ export const SEASON_KIND = 'season';
 export type SeasonDoc = Doc & { kind: typeof SEASON_KIND; file: SeasonFile };
 export type SettingsDoc = Doc & { kind: typeof SEASON_KIND; settings: SeasonSettings };
 
-export async function importSeason(store: Store, raw: unknown, now: string): Promise<{ events: number }> {
+export async function importSeason(
+  store: Store,
+  raw: unknown,
+  now: string,
+  opts: { dryRun?: boolean } = {},
+): Promise<SeasonImportResult> {
   const file = parse(seasonSchema, raw) as SeasonFile;
   const problems = seasonProblems(file);
   if (problems.length) throw new ImportError(problems);
+  const result = {
+    season: file.season,
+    events: file.events.length,
+    replaces: (await readSeason(store))?.events.length ?? 0,
+  };
+  if (opts.dryRun) return result;
   await store.upsert('user', {
     id: 'events',
     source: 'app',
@@ -256,7 +270,7 @@ export async function importSeason(store: Store, raw: unknown, now: string): Pro
     kind: SEASON_KIND,
     file,
   });
-  return { events: file.events.length };
+  return result;
 }
 
 export async function readSeason(store: Store): Promise<SeasonFile | undefined> {
