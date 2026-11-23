@@ -93,3 +93,50 @@ it('change le sport par défaut de la séance flexible', async () => {
   expect(JSON.parse(String(put.init!.body))).toEqual({ flexDefault: 'course' });
   expect(course.getAttribute('aria-checked')).toBe('true');
 });
+
+it('ajoute une course à la main (D165)', async () => {
+  render(<Season />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Ajouter une course' }));
+  const form = screen.getByRole('form', { name: 'Nouvelle course' });
+  fireEvent.change(within(form).getByLabelText('Nom'), { target: { value: 'Trail des Cerfs' } });
+  fireEvent.change(within(form).getByLabelText('Date'), { target: { value: '2027-09-19' } });
+  fireEvent.change(within(form).getByLabelText('Lieu'), { target: { value: 'Saint-Hubert' } });
+  fireEvent.change(within(form).getByLabelText('Kilomètres 1'), { target: { value: '21,5' } });
+  fireEvent.change(within(form).getByLabelText('Dénivelé 1'), { target: { value: '500' } });
+  fireEvent.click(within(form).getByRole('radio', { name: 'B' }));
+  fireEvent.click(within(form).getByRole('button', { name: 'Ajouter la course' }));
+  await waitFor(() => expect(calls.some((c) => c.init?.method === 'POST')).toBe(true));
+  const post = calls.find((c) => c.init?.method === 'POST')!;
+  expect(post.url).toBe('/api/season/events');
+  expect(JSON.parse(String(post.init!.body))).toEqual({
+    name: 'Trail des Cerfs',
+    date: '2027-09-19',
+    dateConfirmed: true,
+    place: 'Saint-Hubert',
+    country: 'Belgique',
+    terrain: 'trail',
+    priority: 'B',
+    options: [{ km: 21.5, dPlus: 500 }],
+    chosen: 0,
+  });
+});
+
+it('modifie et supprime une course, suppression confirmée', async () => {
+  render(<Season />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier Sylvesterlaf' }));
+  const form = screen.getByRole('form', { name: 'Modifier Sylvesterlaf' });
+  expect((within(form).getByLabelText('Nom') as HTMLInputElement).value).toBe('Sylvesterlaf');
+  fireEvent.click(within(form).getByRole('radio', { name: 'A' }));
+  fireEvent.click(within(form).getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(calls.some((c) => c.url === '/api/season/events/sylvester')).toBe(true));
+  expect(
+    JSON.parse(String(calls.find((c) => c.url === '/api/season/events/sylvester')!.init!.body)).priority,
+  ).toBe('A');
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier Sylvesterlaf' }));
+  const again = screen.getByRole('form', { name: 'Modifier Sylvesterlaf' });
+  fireEvent.click(within(again).getByRole('button', { name: 'Supprimer cette course' }));
+  expect(calls.some((c) => c.init?.method === 'DELETE')).toBe(false);
+  fireEvent.click(within(again).getByRole('button', { name: 'Confirmer la suppression' }));
+  await waitFor(() => expect(calls.some((c) => c.init?.method === 'DELETE')).toBe(true));
+});

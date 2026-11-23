@@ -8,6 +8,7 @@ import type {
 } from '@coach-chris/domain';
 import { useState } from 'react';
 import { api } from '../api.ts';
+import { Dose, DoseText } from '../Dose.tsx';
 
 const SPORT: Record<ClaudeSport, string> = {
   course: 'Course',
@@ -135,7 +136,11 @@ function Variant({ v }: { v: ClaudeContentVariant }) {
             <Item key={i} c={c} />
           ))}
         </ul>
-        {v.kinomap && <p className="cl-note">Kinomap · {v.kinomap}</p>}
+        {v.kinomap && (
+          <p className="cl-note">
+            Kinomap · <DoseText text={v.kinomap} />
+          </p>
+        )}
       </div>
       {v.cooldown && <Routine label="Après" r={v.cooldown} />}
     </div>
@@ -146,16 +151,32 @@ function Item({ c }: { c: ClaudeItem }) {
   if (c.bloc)
     return (
       <li className="cl-bloc">
-        <b>{c.bloc}</b>
+        <b>
+          <DoseText text={c.bloc} />
+        </b>
         {c.cible && <span className="cl-target">{c.cible}</span>}
-        {c.consigne && <span className="cl-hint">{c.consigne}</span>}
+        {c.consigne && (
+          <span className="cl-hint">
+            <DoseText text={c.consigne} />
+          </span>
+        )}
       </li>
     );
   return (
     <li>
       <span className="cl-name">{c.exo}</span>
-      {(c.charge || c.reps) && <span className="cl-q">{[c.charge, c.reps].filter(Boolean).join(' · ')}</span>}
-      {c.consigne && <span className="cl-hint">{c.consigne}</span>}
+      {(c.charge || c.reps) && (
+        <span className="cl-q">
+          {c.charge}
+          {c.charge && c.reps && ' · '}
+          {c.reps && <Dose>{c.reps}</Dose>}
+        </span>
+      )}
+      {c.consigne && (
+        <span className="cl-hint">
+          <DoseText text={c.consigne} />
+        </span>
+      )}
     </li>
   );
 }
@@ -172,8 +193,12 @@ function Routine({ label, r }: { label: string; r: ClaudeRoutine }) {
         {(r.steps ?? []).map((st, i) => (
           <li key={i}>
             <span className="cl-name">{st.name}</span>
-            {(st.duree || st.reps) && <span className="cl-q">{st.duree ?? st.reps}</span>}
-            {st.consigne && <span className="cl-hint">{st.consigne}</span>}
+            {(st.duree || st.reps) && <Dose className="cl-q">{st.duree ?? st.reps}</Dose>}
+            {st.consigne && (
+              <span className="cl-hint">
+                <DoseText text={st.consigne} />
+              </span>
+            )}
           </li>
         ))}
       </ol>
@@ -181,7 +206,7 @@ function Routine({ label, r }: { label: string; r: ClaudeRoutine }) {
         <ul className="cl-adapt">
           {r.adaptations.map((a) => (
             <li key={a.si}>
-              <b>{a.si} :</b> {a.alors}
+              <b>{a.si} :</b> <DoseText text={a.alors} />
             </li>
           ))}
         </ul>

@@ -1,5 +1,6 @@
 import { exercise, type RoutineItemView } from '@coach-chris/domain';
 import { useEffect, useRef, useState } from 'react';
+import { Dose } from '../Dose.tsx';
 import { mmss } from '../format.ts';
 import { Figure } from './Figure.tsx';
 
@@ -88,7 +89,7 @@ export function Guide({
         <h2>{step.name}</h2>
         <p>{step.text}</p>
         <div className={`g-timer${left === 0 ? ' over' : ''}`} role="timer" aria-live="off">
-          {left > 0 ? mmss(left) : 'Terminé'}
+          {left > 0 ? <Dose>{mmss(left)}</Dose> : 'Terminé'}
         </div>
         {step.side && <span className="g-side">{step.side}</span>}
       </div>

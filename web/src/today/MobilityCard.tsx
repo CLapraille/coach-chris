@@ -1,6 +1,7 @@
 import type { MobilityToday, RoutineItemView, Slot } from '@coach-chris/domain';
 import { useState } from 'react';
 import { api } from '../api.ts';
+import { Dose } from '../Dose.tsx';
 import { mmss, shortDate } from '../format.ts';
 
 const total = (items: RoutineItemView[]) => items.reduce((s, i) => s + i.durationS * (i.perSide ? 2 : 1), 0);
@@ -124,7 +125,7 @@ function Routine({
               {it.name}
               {it.reason && <small> · {it.reason}</small>}
             </span>
-            <span>{mmss(it.durationS, it.perSide)}</span>
+            <Dose>{mmss(it.durationS, it.perSide)}</Dose>
           </li>
         ))}
         {footer}

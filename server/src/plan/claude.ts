@@ -10,6 +10,7 @@ import {
   type ClaudeWeek,
   type PlanImportResult,
   type PlanSource,
+  type SeasonEvent,
   type SeasonFile,
   type SeasonImportResult,
   type SeasonSettings,
@@ -102,27 +103,27 @@ export const claudePlanSchema = z.object({
     .min(1),
 });
 
+export const seasonEventSchema = z.object({
+  id: z.string().regex(/^[\w-]+$/),
+  name: z.string().min(1),
+  date: day,
+  dateConfirmed: z.boolean(),
+  dateLabel: z.string().optional(),
+  place: z.string(),
+  country: z.string(),
+  url: z.url().optional(),
+  terrain: z.enum(['route', 'trail']),
+  priority: z.enum(['A', 'B', 'C']),
+  options: z.array(z.object({ km: z.number().positive(), dPlus: z.number().nonnegative().optional() })),
+  chosen: z.number().int().nonnegative().optional(),
+  series: z.string().optional(),
+  note: z.string().optional(),
+});
+
 export const seasonSchema = z.object({
   format: z.literal('coach-chris.season/v1'),
   season: z.string().min(1),
-  events: z.array(
-    z.object({
-      id: z.string().regex(/^[\w-]+$/),
-      name: z.string().min(1),
-      date: day,
-      dateConfirmed: z.boolean(),
-      dateLabel: z.string().optional(),
-      place: z.string(),
-      country: z.string(),
-      url: z.url().optional(),
-      terrain: z.enum(['route', 'trail']),
-      priority: z.enum(['A', 'B', 'C']),
-      options: z.array(z.object({ km: z.number().positive(), dPlus: z.number().nonnegative().optional() })),
-      chosen: z.number().int().nonnegative().optional(),
-      series: z.string().optional(),
-      note: z.string().optional(),
-    }),
-  ),
+  events: z.array(seasonEventSchema),
 });
 
 export class ImportError extends Error {
@@ -275,6 +276,63 @@ export async function importSeason(
 
 export async function readSeason(store: Store): Promise<SeasonFile | undefined> {
   return (await store.get<SeasonDoc>('user', 'events', SEASON_KIND))?.file;
+}
+
+/** « Les Boucles Ardennaises », 2027 → « les-boucles-ardennaises-2027 ». */
+function slug(name: string, date: string): string {
+  const base = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40);
+  return `${base || 'course'}-${date.slice(0, 4)}`;
+}
+
+/**
+ * Ajout ou modification d'une course à la main (D165) : même validation qu'un import de saison ; sans saison
+ * enregistrée, une saison est créée à l'année de la course. Sans `id`, un identifiant lisible est créé.
+ */
+export async function saveEvent(store: Store, raw: unknown, now: string, id?: string): Promise<SeasonEvent> {
+  const r = seasonEventSchema.omit({ id: true }).safeParse(raw);
+  if (!r.success) {
+    throw new ImportError(r.error.issues.map((i) => `${i.path.join('.') || '(racine)'} : ${i.message}`));
+  }
+  const current = await readSeason(store);
+  const events = current?.events ?? [];
+  if (id && !events.some((e) => e.id === id)) throw new ImportError([`course « ${id} » introuvable`]);
+  let newId = id ?? slug(r.data.name, r.data.date);
+  for (let n = 2; !id && events.some((e) => e.id === newId); n++)
+    newId = `${slug(r.data.name, r.data.date)}-${n}`;
+  const event = { ...r.data, id: newId } as SeasonEvent;
+  const file: SeasonFile = {
+    format: 'coach-chris.season/v1',
+    season: current?.season ?? r.data.date.slice(0, 4),
+    events: id ? events.map((e) => (e.id === id ? event : e)) : [...events, event],
+  };
+  const problems = seasonProblems(file);
+  if (problems.length) throw new ImportError(problems);
+  await writeSeason(store, file, now);
+  return event;
+}
+
+export async function deleteEvent(store: Store, id: string, now: string): Promise<boolean> {
+  const current = await readSeason(store);
+  if (!current?.events.some((e) => e.id === id)) return false;
+  await writeSeason(store, { ...current, events: current.events.filter((e) => e.id !== id) }, now);
+  return true;
+}
+
+async function writeSeason(store: Store, file: SeasonFile, now: string): Promise<void> {
+  await store.upsert('user', {
+    id: 'events',
+    source: 'app',
+    fetchedAt: now,
+    schemaVersion: SCHEMA,
+    kind: SEASON_KIND,
+    file,
+  });
 }
 
 export async function readSettings(store: Store): Promise<SeasonSettings> {

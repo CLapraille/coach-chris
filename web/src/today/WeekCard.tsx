@@ -9,6 +9,7 @@ import type {
 import { useState } from 'react';
 import { ActionDialog } from '../actions/ActionDialog.tsx';
 import { PlanSourceTag } from '../PlanSource.tsx';
+import { Dose } from '../Dose.tsx';
 import { SPORT_COLOR, longDate, sessionLabel, shortDate, stepDuration, weekdayShort } from '../format.ts';
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -241,7 +242,7 @@ function Block({ block, color }: { block: SessionBlock; color: string }) {
           style={{ flex: s.seconds || 1 }}
         >
           <b>{s.name}</b>
-          <span>{stepDuration(s.seconds)}</span>
+          <Dose>{stepDuration(s.seconds)}</Dose>
         </div>
       ))}
       {block.repeat > 1 && <em>× {block.repeat}</em>}

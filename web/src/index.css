@@ -3740,3 +3740,118 @@ ul.cl-items {
   padding-left: 18px;
   font-size: 13px;
 }
+
+/* Courses de la saison à la main (D165) */
+.sn-head-acts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+.sn-when {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.sn-edit {
+  border-top: 1px solid var(--line);
+  padding-block: 12px;
+}
+.ev-form {
+  display: grid;
+  gap: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+.ev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px 14px;
+  align-items: end;
+}
+.ev-grid .wide {
+  grid-column: span 2;
+}
+.ev-grid label,
+.ev-field,
+.ev-note {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ev-form input:not([type='checkbox']):not([type='radio']) {
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+.ev-grid .ev-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.ev-opts {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.ev-opt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.ev-opt input:not([type='radio']) {
+  width: 72px;
+}
+.ev-problems {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.btn.danger {
+  color: var(--alert);
+  border-color: color-mix(in srgb, var(--alert) 50%, var(--line));
+}
+.ev-del {
+  color: var(--alert);
+}
+@media (max-width: 760px) {
+  .ev-grid .wide {
+    grid-column: auto;
+  }
+  .sn-when {
+    justify-items: start;
+  }
+}
+
+/* Répétitions et durées d'exercice (D166) : une couleur propre, partout dans l'app. */
+:root {
+  --dose: #f1d25e;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --dose: #8a6d00;
+  }
+}
+:root[data-theme='light'] {
+  --dose: #8a6d00;
+}
+.dose {
+  color: var(--dose);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cl-q.dose {
+  color: var(--dose);
+}

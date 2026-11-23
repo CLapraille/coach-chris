@@ -15,11 +15,13 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ActionError, Actions } from './actions/actions.ts';
 import {
+  deleteEvent,
   ImportError,
   importPlan,
   importSeason,
   readSeason,
   readSettings,
+  saveEvent,
   saveSettings,
   setWeekSource,
 } from './plan/claude.ts';
@@ -339,6 +341,35 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     } catch (e) {
       return reply.code(422).send(refused(e));
     }
+  });
+
+  // Courses de la saison à la main (D165) : ajout, modification, suppression, mêmes règles qu'un import.
+  const eventId = z.object({ id: z.string().regex(/^[\w-]+$/) });
+  app.post('/api/season/events', async (req, reply) => {
+    try {
+      return await saveEvent(store, req.body, clock.now());
+    } catch (e) {
+      return reply.code(422).send(refused(e));
+    }
+  });
+
+  app.put('/api/season/events/:id', async (req, reply) => {
+    const p = eventId.safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'identifiant invalide' });
+    try {
+      return await saveEvent(store, req.body, clock.now(), p.data.id);
+    } catch (e) {
+      return reply.code(422).send(refused(e));
+    }
+  });
+
+  app.delete('/api/season/events/:id', async (req, reply) => {
+    const p = eventId.safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'identifiant invalide' });
+    if (!(await deleteEvent(store, p.data.id, clock.now()))) {
+      return reply.code(404).send({ error: 'Course introuvable' });
+    }
+    return { deleted: p.data.id };
   });
 
   // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).

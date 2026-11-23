@@ -26,6 +26,7 @@ import {
   shortDate,
   stepDuration,
 } from '../format.ts';
+import { DoseText } from '../Dose.tsx';
 import { Loading } from '../Loading.tsx';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
@@ -148,7 +149,11 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
       <section className="card" aria-label="Prévu vs réalisé">
         <header>
           <span className="label">Prévu vs réalisé</span>
-          {blocksLabel && <span className="muted text-[12.5px]">{blocksLabel}</span>}
+          {blocksLabel && (
+            <span className="muted text-[12.5px]">
+              <DoseText text={blocksLabel} />
+            </span>
+          )}
         </header>
         {a ? (
           <Summary view={view} activity={a} />

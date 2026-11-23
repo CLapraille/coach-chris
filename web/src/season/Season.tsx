@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api, useApi } from '../api.ts';
 import { Loading } from '../Loading.tsx';
 import { decimal } from '../format.ts';
+import { EventForm } from './EventForm.tsx';
 import { ImportCard } from './Import.tsx';
 
 const PRIORITY_LABEL = { A: 'Objectif', B: 'Important', C: 'Entraînement' } as const;
@@ -34,6 +35,8 @@ function countdown(days: number): string {
 /** Saison de courses (D154) : les événements importés, la prochaine course A et le réglage de la séance flexible. */
 export function Season() {
   const season = useApi<SeasonView>('/season');
+  // Course en cours d'édition (D165) : identifiant, « new » pour une nouvelle, ou aucune.
+  const [editing, setEditing] = useState<string | null>(null);
   if (season.state === 'loading') return <Loading />;
   if (season.state === 'error')
     return (
@@ -87,12 +90,40 @@ export function Season() {
         <article className="card s12" aria-label="Calendrier des courses">
           <header>
             <span className="label">Courses retenues · {v.events.length}</span>
-            <span className="muted text-xs">A objectif · B important · C entraînement</span>
+            <span className="sn-head-acts">
+              <span className="muted text-xs">A objectif · B important · C entraînement</span>
+              {editing !== 'new' && (
+                <button className="btn small" type="button" onClick={() => setEditing('new')}>
+                  Ajouter une course
+                </button>
+              )}
+            </span>
           </header>
+          {editing === 'new' && (
+            <EventForm
+              onCancel={() => setEditing(null)}
+              onDone={() => {
+                setEditing(null);
+                season.reload();
+              }}
+            />
+          )}
           {v.events.length === 0 ? (
-            <p className="empty">Pas encore de saison. Importe le fichier de saison ci-dessous.</p>
+            editing !== 'new' && (
+              <p className="empty">
+                Pas encore de course. Ajoute-les une par une, ou importe le fichier de saison ci-dessous.
+              </p>
+            )
           ) : (
-            <EventList events={v.events} />
+            <EventList
+              events={v.events}
+              editing={editing}
+              onEdit={setEditing}
+              onSaved={() => {
+                setEditing(null);
+                season.reload();
+              }}
+            />
           )}
         </article>
         <ImportCard onImported={season.reload} />
@@ -151,7 +182,17 @@ function Settings({ initial, onSaved }: { initial: FlexDefault; onSaved: () => v
   );
 }
 
-function EventList({ events }: { events: SeasonEventView[] }) {
+function EventList({
+  events,
+  editing,
+  onEdit,
+  onSaved,
+}: {
+  events: SeasonEventView[];
+  editing: string | null;
+  onEdit: (id: string | null) => void;
+  onSaved: () => void;
+}) {
   const byId = new Map(events.map((e) => [e.id, e]));
   const months: { month: string; items: SeasonEventView[] }[] = [];
   for (const e of events) {
@@ -166,48 +207,64 @@ function EventList({ events }: { events: SeasonEventView[] }) {
         <section key={month} aria-label={month}>
           <h4 className="label">{month}</h4>
           <ol>
-            {items.map((e) => (
-              <li key={e.id} className={`sn-ev${e.past ? ' past' : ''}`}>
-                <div className="sn-date">
-                  <span className="num">
-                    {e.dateConfirmed ? dayMonth(e.date) : (e.dateLabel ?? dayMonth(e.date))}
-                  </span>
-                  {!e.dateConfirmed && <span className="faint">à confirmer</span>}
-                </div>
-                <div className="sn-main">
-                  <div className="sn-name">
-                    <span className={`pri pri-${e.priority}`} title={PRIORITY_LABEL[e.priority]}>
-                      {e.priority}
+            {items.map((e) =>
+              editing === e.id ? (
+                <li key={e.id} className="sn-edit">
+                  <EventForm event={e} onCancel={() => onEdit(null)} onDone={onSaved} />
+                </li>
+              ) : (
+                <li key={e.id} className={`sn-ev${e.past ? ' past' : ''}`}>
+                  <div className="sn-date">
+                    <span className="num">
+                      {e.dateConfirmed ? dayMonth(e.date) : (e.dateLabel ?? dayMonth(e.date))}
                     </span>
-                    {e.url ? (
-                      <a href={e.url} target="_blank" rel="noreferrer">
-                        {e.name}
-                      </a>
-                    ) : (
-                      e.name
-                    )}
-                    {e.series && <span className="faint"> · {e.series}</span>}
+                    {!e.dateConfirmed && <span className="faint">à confirmer</span>}
                   </div>
-                  <div className="muted">
-                    {e.place} · {e.country} · {e.terrain === 'trail' ? 'trail' : 'route'}
-                  </div>
-                  {e.note && <div className="faint">{e.note}</div>}
-                  {e.closeTo.length > 0 && !e.past && (
-                    <div className="warn">
-                      ⚠ À moins de 14 jours de {e.closeTo.map((id) => byId.get(id)?.name ?? id).join(', ')}
+                  <div className="sn-main">
+                    <div className="sn-name">
+                      <span className={`pri pri-${e.priority}`} title={PRIORITY_LABEL[e.priority]}>
+                        {e.priority}
+                      </span>
+                      {e.url ? (
+                        <a href={e.url} target="_blank" rel="noreferrer">
+                          {e.name}
+                        </a>
+                      ) : (
+                        e.name
+                      )}
+                      {e.series && <span className="faint"> · {e.series}</span>}
                     </div>
-                  )}
-                </div>
-                <div className="sn-opts">
-                  {e.options.map((o, i) => (
-                    <span key={i} className={`sn-opt${i === e.chosen ? ' on' : ''}`}>
-                      {distance(o)}
-                    </span>
-                  ))}
-                </div>
-                <div className="sn-when muted">{countdown(e.daysUntil)}</div>
-              </li>
-            ))}
+                    <div className="muted">
+                      {e.place} · {e.country} · {e.terrain === 'trail' ? 'trail' : 'route'}
+                    </div>
+                    {e.note && <div className="faint">{e.note}</div>}
+                    {e.closeTo.length > 0 && !e.past && (
+                      <div className="warn">
+                        ⚠ À moins de 14 jours de {e.closeTo.map((id) => byId.get(id)?.name ?? id).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="sn-opts">
+                    {e.options.map((o, i) => (
+                      <span key={i} className={`sn-opt${i === e.chosen ? ' on' : ''}`}>
+                        {distance(o)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="sn-when">
+                    <span className="muted">{countdown(e.daysUntil)}</span>
+                    <button
+                      className="linkbtn"
+                      type="button"
+                      aria-label={`Modifier ${e.name}`}
+                      onClick={() => onEdit(e.id)}
+                    >
+                      Modifier
+                    </button>
+                  </div>
+                </li>
+              ),
+            )}
           </ol>
         </section>
       ))}

@@ -10,6 +10,7 @@ import {
 } from '@coach-chris/domain';
 import { useEffect, useRef, useState } from 'react';
 import { api, useApi } from '../api.ts';
+import { Dose, DoseText } from '../Dose.tsx';
 import { Inbox } from './Inbox.tsx';
 import { longDate, mmss, shortDate } from '../format.ts';
 import { Figure } from './Figure.tsx';
@@ -348,7 +349,13 @@ function Exercises({ items }: { items: RoutineItemView[] }) {
           <span>
             <b>{e.name}</b>
             <small>
-              {e.perSide ? `${mmss(e.durationS)} par côté` : firstSentence(exercise(e.code).instruction)}
+              {e.perSide ? (
+                <>
+                  <Dose>{mmss(e.durationS)}</Dose> par côté
+                </>
+              ) : (
+                <DoseText text={firstSentence(exercise(e.code).instruction)} />
+              )}
             </small>
             {e.reason && (
               <span className="why">
@@ -359,7 +366,7 @@ function Exercises({ items }: { items: RoutineItemView[] }) {
           </span>
           <span className="d">
             {e.slot && <span className="slot">{e.slot === 'day' ? 'du jour' : 'socle'}</span>}
-            {mmss(e.durationS * (e.perSide ? 2 : 1))}
+            <Dose>{mmss(e.durationS * (e.perSide ? 2 : 1))}</Dose>
           </span>
         </li>
       ))}
@@ -490,7 +497,7 @@ function Demos() {
           </b>
           <span className="demo-meta">
             {e.categories.map((c) => CATEGORY[c]).join(' / ')} · {TYPE[e.type]} · niveau {e.level} ·{' '}
-            {mmss(e.durationS)}
+            <Dose>{mmss(e.durationS)}</Dose>
             {e.perSide && ' par côté'}
           </span>
           <span>{e.instruction}</span>
@@ -540,8 +547,12 @@ function PlanWeekCard({ plan }: { plan: PlanWeekRoutines }) {
             {(plan.office.steps ?? []).map((st, i) => (
               <li key={i}>
                 <span className="cl-name">{st.name}</span>
-                {(st.duree || st.reps) && <span className="cl-q">{st.duree ?? st.reps}</span>}
-                {st.consigne && <span className="cl-hint">{st.consigne}</span>}
+                {(st.duree || st.reps) && <Dose className="cl-q">{st.duree ?? st.reps}</Dose>}
+                {st.consigne && (
+                  <span className="cl-hint">
+                    <DoseText text={st.consigne} />
+                  </span>
+                )}
               </li>
             ))}
           </ol>
