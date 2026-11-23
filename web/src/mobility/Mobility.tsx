@@ -1,5 +1,7 @@
 import {
   addDays,
+  demoFor,
+  PLAN_FIGURES,
   EXERCISES,
   exercise,
   type MobilityView,
@@ -11,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { api, useApi } from '../api.ts';
 import { Dose, DoseText } from '../Dose.tsx';
+import { ExerciseDemo, VideoLink } from './ExerciseDemo.tsx';
 import { Inbox } from './Inbox.tsx';
 import { longDate, mmss, shortDate } from '../format.ts';
 import { Figure } from './Figure.tsx';
@@ -469,7 +472,24 @@ const TYPE: Record<string, string> = { static: 'statique', dynamic: 'dynamique',
 
 function Demos() {
   const [code, setCode] = useState('H1');
-  const e = exercise(code);
+  const plan = PLAN_FIGURES.find((x) => x.code === code);
+  if (plan) return <DemosLayout code={code} setCode={setCode} plan={plan} />;
+  return <DemosLayout code={code} setCode={setCode} />;
+}
+
+/** Bibliothèque de démonstrations : exercices de mobilité (D80) et exercices du plan Claude (D167). */
+function DemosLayout({
+  code,
+  setCode,
+  plan,
+}: {
+  code: string;
+  setCode: (c: string) => void;
+  plan?: { code: string; name: string };
+}) {
+  const e = plan ? null : exercise(code);
+  const name = plan?.name ?? e!.name;
+  const video = demoFor(name, code)?.videoUrl;
   return (
     <div className="demo-lib">
       <nav className="demo-list" aria-label="Exercices">
@@ -488,24 +508,35 @@ function Demos() {
             ))}
           </div>
         ))}
+        <div className="demo-grp">
+          <span>Plan Claude</span>
+          {PLAN_FIGURES.map((x) => (
+            <button key={x.code} type="button" aria-pressed={x.code === code} onClick={() => setCode(x.code)}>
+              {x.name}
+            </button>
+          ))}
+        </div>
       </nav>
       <figure className="demo-view">
-        <Figure code={code} label={`Mannequin : ${e.name}`} />
+        <Figure key={code} code={code} label={`Mannequin : ${name}`} />
         <figcaption>
-          <b>
-            {code} · {e.name}
-          </b>
-          <span className="demo-meta">
-            {e.categories.map((c) => CATEGORY[c]).join(' / ')} · {TYPE[e.type]} · niveau {e.level} ·{' '}
-            <Dose>{mmss(e.durationS)}</Dose>
-            {e.perSide && ' par côté'}
-          </span>
-          <span>{e.instruction}</span>
-          {e.precautions && (
-            <span className="demo-warn">
-              <b>Précaution : </b>
-              {e.precautions}
-            </span>
+          <b>{plan ? name : `${code} · ${name}`}</b>
+          {video && <VideoLink url={video} />}
+          {e && (
+            <>
+              <span className="demo-meta">
+                {e.categories.map((c) => CATEGORY[c]).join(' / ')} · {TYPE[e.type]} · niveau {e.level} ·{' '}
+                <Dose>{mmss(e.durationS)}</Dose>
+                {e.perSide && ' par côté'}
+              </span>
+              <span>{e.instruction}</span>
+              {e.precautions && (
+                <span className="demo-warn">
+                  <b>Précaution : </b>
+                  {e.precautions}
+                </span>
+              )}
+            </>
           )}
         </figcaption>
       </figure>
@@ -528,6 +559,7 @@ function PlanWeekCard({ plan }: { plan: PlanWeekRoutines }) {
             {plan.morning.map((m) => (
               <li key={m.replaces}>
                 <span className="cl-name">{m.by}</span>
+                <ExerciseDemo name={m.by} />
                 <span className="cl-hint">remplace {m.replaces}</span>
               </li>
             ))}
@@ -548,6 +580,7 @@ function PlanWeekCard({ plan }: { plan: PlanWeekRoutines }) {
               <li key={i}>
                 <span className="cl-name">{st.name}</span>
                 {(st.duree || st.reps) && <Dose className="cl-q">{st.duree ?? st.reps}</Dose>}
+                <ExerciseDemo name={st.name} />
                 {st.consigne && (
                   <span className="cl-hint">
                     <DoseText text={st.consigne} />

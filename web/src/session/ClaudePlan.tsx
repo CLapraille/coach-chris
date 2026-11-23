@@ -9,6 +9,7 @@ import type {
 import { useState } from 'react';
 import { api } from '../api.ts';
 import { Dose, DoseText } from '../Dose.tsx';
+import { ExerciseDemo } from '../mobility/ExerciseDemo.tsx';
 
 const SPORT: Record<ClaudeSport, string> = {
   course: 'Course',
@@ -172,6 +173,7 @@ function Item({ c }: { c: ClaudeItem }) {
           {c.reps && <Dose>{c.reps}</Dose>}
         </span>
       )}
+      {c.exo && <ExerciseDemo name={c.exo} />}
       {c.consigne && (
         <span className="cl-hint">
           <DoseText text={c.consigne} />
@@ -194,6 +196,7 @@ function Routine({ label, r }: { label: string; r: ClaudeRoutine }) {
           <li key={i}>
             <span className="cl-name">{st.name}</span>
             {(st.duree || st.reps) && <Dose className="cl-q">{st.duree ?? st.reps}</Dose>}
+            <ExerciseDemo name={st.name} />
             {st.consigne && (
               <span className="cl-hint">
                 <DoseText text={st.consigne} />

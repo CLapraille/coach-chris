@@ -273,7 +273,80 @@ const Mannequin = (function () {
       } },
     R1: { hi: ['thN', 'shN', 'thF', 'shF'], T: 3000, H: 1200, decor: wall(134, 12, 60),
       base: mix(SUP, { anchor: { j: 'pelvis', x: 124, y: G - 8 }, thN: 178, shN: 178, ftN: 205, thF: 182, shF: 182, ftF: 210 }),
-      A: { bend: 0 }, B: { bend: 3 } }
+      A: { bend: 0 }, B: { bend: 3 } },
+    // ---------- Renforcement et mobilité du plan Claude (D167)
+    // Fente : statique, arrière ou marchée (pied avant à droite, pied arrière sur la pointe).
+    X1: { hi: ['thN', 'thF'], glow: 'kneeN', T: 1600, H: 400,
+      base: { torso: 180, uaN: 2, faN: 0, uaF: -2, faF: 0, ftN: 90, ftF: 140, ik: { legN: [156, G - 4, 1], legF: [78, G - 6, -1] } },
+      A: { anchor: { j: 'pelvis', x: 116, y: G - 80 } }, B: { anchor: { j: 'pelvis', x: 112, y: G - 52 } } },
+    // Squat poids du corps : hanches en arrière, bras devant pour l'équilibre.
+    X2: { hi: ['thN', 'thF'], glow: 'kneeN', T: 1600, H: 400,
+      base: { ftN: 90, ftF: 90, ik: { legN: [128, G - 4, 1], legF: [124, G - 4, 1] } },
+      A: { anchor: { j: 'pelvis', x: 120, y: G - 80 }, torso: 180, uaN: 20, faN: 20, uaF: 15, faF: 15 },
+      B: { anchor: { j: 'pelvis', x: 98, y: G - 56 }, torso: 145, uaN: 100, faN: 95, uaF: 95, faF: 92 } },
+    // Soulevé de terre roumain sur une jambe : bascule du buste, jambe arrière dans l'alignement.
+    X3: { hi: ['thN', 'thF'], glow: at('pelvis', 'kneeN', .5), T: 1800, H: 500,
+      base: { anchor: { j: 'ankN', x: 124, y: G - 3 }, ftN: 90, ftF: 90, thN: 4, shN: -4, uaN: 0, faN: 0, uaF: 0, faF: 0 },
+      A: { torso: 180, thF: 6, shF: -6 }, B: { torso: 98, thF: -82, shF: -84, ftF: 0, uaN: 0, faN: 0, uaF: 0, faF: 0 } },
+    // Montée mollet sur une marche, genou fléchi (soléaire).
+    X4: { hi: ['shN', 'ftN'], glow: at('kneeN', 'ankN', .7), vb: '-10 -22 260 216',
+      decor: function (svg, el, C, G) { svg.appendChild(el('rect', { x: 126, y: G - 22, width: 80, height: 22, fill: C.surf, stroke: C.line })); },
+      base: { anchor: { j: 'toeN', x: 140, y: G - 25 }, torso: 176, thN: 28, shN: -22, thF: 45, shF: -40, uaN: 15, faN: 35, uaF: 20, faF: 40 },
+      A: { ftN: 60 }, B: { ftN: 115 } },
+    // Montées sur pointes au sol.
+    X5: { hi: ['shN', 'ftN'], glow: 'ankN',
+      base: { anchor: { j: 'toeN', x: 140, y: G - 3 }, torso: 180, uaN: 10, faN: 20, uaF: -10, faF: -20, thF: 0, shF: 0, ftF: 90 },
+      A: { ftN: 90 }, B: { ftN: 52, ftF: 52 } },
+    // Relevés tibial, dos au mur : les pointes de pied montent, talons au sol.
+    X6: { hi: ['shN', 'ftN'], glow: at('kneeN', 'ankN', .6), decor: wall(46, 12),
+      base: { anchor: { j: 'pelvis', x: 68, y: G - 82 }, torso: 186, hd: 186, uaN: 10, faN: 10, uaF: 8, faF: 8,
+        ik: { legN: [112, G - 4, -1], legF: [110, G - 4, -1] } },
+      A: { ftN: 90, ftF: 90 }, B: { ftN: 128, ftF: 128 } },
+    // Pont fessier sur une jambe : l'autre jambe tendue dans le prolongement de la cuisse.
+    X7: { glow: 'pelvis', hi: ['thN'],
+      base: { anchor: { j: 'sho', x: 72, y: G - 8 }, hd: -90, ik: { legN: [162, G - 4, 1] }, ftN: 90, uaN: 86, faN: 88, uaF: 86, faF: 88 },
+      A: { torso: -90, thF: 140, shF: 140, ftF: 230 }, B: { torso: -66, thF: 112, shF: 112, ftF: 202 } },
+    // Planche latérale sur l'avant-bras : le bassin monte puis tient.
+    X8: { hi: ['torso'], glow: 'pelvis', T: 1800, H: 1200,
+      base: { ftN: 170, ftF: 170, uaN: 0, faN: -90, uaF: 120, faF: 120 },
+      A: { anchor: { j: 'pelvis', x: 124, y: G - 10 }, torso: -115, thN: 85, shN: 85, thF: 85, shF: 85 },
+      B: { anchor: { j: 'pelvis', x: 124, y: G - 22 }, torso: -100, thN: 77, shN: 77, thF: 77, shF: 77 } },
+    // Dead bug : bras et jambe opposés s'allongent, bas du dos collé au sol.
+    X9: { hi: ['thN', 'uaF'], glow: 'spine', T: 1700, H: 500,
+      base: mix(SUP, { ftN: 180, ftF: 180 }),
+      A: { thN: 180, shN: 90, thF: 180, shF: 90, uaN: 180, faN: 180, uaF: 180, faF: 180 },
+      B: { thN: 98, shN: 96, ftN: 186, thF: 180, shF: 90, uaN: 180, faN: 180, uaF: -88, faF: -88 } },
+    // Bird dog : à quatre pattes, bras et jambe opposés tendus.
+    X10: { hi: ['thN', 'uaF'], glow: 'spine', T: 1700, H: 600,
+      base: { uaNs: .86, faNs: .86, uaFs: .86, faFs: .86, anchor: { j: 'pelvis', x: 86, y: G - 45 }, torso: 92, shF: -90, ftF: -90, ftN: -90 },
+      A: { thN: 0, shN: -90, ik: { armN: [140, G - 3, -1], armF: [136, G - 3, -1] } },
+      B: { thN: -88, shN: -90, ftN: -180, ik: { armN: [140, G - 3, -1] }, uaF: 95, faF: 95 } },
+    // Glissement nerveux sciatique assis : jambe tendue tête haute, jambe pliée tête basse.
+    X11: { hi: ['thN', 'shN'], glow: at('kneeN', 'ankN', .5), decor: chair,
+      base: mix(SEAT, { thN: 88, ik: { legF: [138, G - 3, 1] } }),
+      A: { shN: 0, ftN: 90, hd: 150 }, B: { shN: 82, ftN: 170, hd: 196 } },
+    // Glissement nerveux sciatique allongé : cuisse tenue à la verticale, la jambe se tend.
+    X12: { hi: ['shN'], glow: at('kneeN', 'ankN', .5),
+      base: mix(SUP, { thF: 90, shF: 90, ftF: 180, thN: 178, ik: { armN: { to: 'kneeN', dy: 8, b: 1 }, armF: { to: 'kneeN', dy: 12, b: 1 } } }),
+      A: { shN: 95, ftN: 185 }, B: { shN: 176, ftN: 262 } },
+    // Marche latérale avec élastique au-dessus des genoux, vue de face.
+    X13: { front: true, hi: ['thN', 'thF'], T: 900, H: 250,
+      over: function (g, J, el, C) { g.appendChild(el('line', { x1: J.kneeF.x, y1: J.kneeF.y - 8, x2: J.kneeN.x, y2: J.kneeN.y - 8, stroke: C.hi, 'stroke-width': 3 })); },
+      base: { torso: 176, uaN: 20, faN: 60, uaF: -20, faF: -60, ftN: 90, ftF: -90, ftNs: .5, ftFs: .5 },
+      K: [{ anchor: { j: 'pelvis', x: 112, y: G - 70 }, ik: { legN: [138, G - 4, 1], legF: [86, G - 4, -1] } },
+          { anchor: { j: 'pelvis', x: 122, y: G - 70 }, ik: { legN: [158, G - 4, 1], legF: [86, G - 4, -1] } },
+          { anchor: { j: 'pelvis', x: 132, y: G - 70 }, ik: { legN: [158, G - 4, 1], legF: [106, G - 4, -1] } }] },
+    // Montées de genoux sur place.
+    X14: { hi: ['thN', 'thF'], T: 500, H: 80,
+      base: { anchor: { j: 'pelvis', x: 120, y: G - 82 }, torso: 180, ftN: 90, ftF: 90 },
+      K: [{ thN: 88, shN: 0, thF: 0, shF: 0, uaN: -30, faN: -60, uaF: 40, faF: 100 },
+          { thN: 0, shN: 0, thF: 0, shF: 0, uaN: 0, faN: 30, uaF: 0, faF: 30 },
+          { thN: 0, shN: 0, thF: 88, shF: 0, uaN: 40, faN: 100, uaF: -30, faF: -60 },
+          { thN: 0, shN: 0, thF: 0, shF: 0, uaN: 0, faN: 30, uaF: 0, faF: 30 }] },
+    // Respiration ventrale, allongé genoux pliés : le ventre monte et descend.
+    X15: { hi: ['torso'], glow: 'spine', T: 3000, H: 1000,
+      base: mix(SUP, { ftN: 90, ftF: 90, ik: { legN: [168, G - 4, 1], legF: [164, G - 4, 1], armN: { to: 'pelvis', dx: -20, dy: -10, b: 1 } }, uaF: 88, faF: 88 }),
+      A: { bend: 0 }, B: { bend: -9 } }
   };
   return {
     mount: function (svg, code) { if (EX[code]) { mount(svg, EX[code]); return true; } return false; },

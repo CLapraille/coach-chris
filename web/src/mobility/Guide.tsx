@@ -1,6 +1,7 @@
-import { exercise, type RoutineItemView } from '@coach-chris/domain';
+import { demoFor, exercise, type RoutineItemView } from '@coach-chris/domain';
 import { useEffect, useRef, useState } from 'react';
 import { Dose } from '../Dose.tsx';
+import { VideoLink } from './ExerciseDemo.tsx';
 import { mmss } from '../format.ts';
 import { Figure } from './Figure.tsx';
 
@@ -46,6 +47,7 @@ export function Guide({
   const [paused, setPaused] = useState(false);
   const next = useRef<HTMLButtonElement>(null);
   const step = seq[idx]!;
+  const video = demoFor(step.name, step.code)?.videoUrl;
   const last = idx === seq.length - 1;
 
   useEffect(() => {
@@ -87,6 +89,7 @@ export function Guide({
         </span>
         <Figure key={`${idx}`} code={step.code} label={`Démonstration : ${step.name}`} className="g-fig" />
         <h2>{step.name}</h2>
+        {video && <VideoLink url={video} />}
         <p>{step.text}</p>
         <div className={`g-timer${left === 0 ? ' over' : ''}`} role="timer" aria-live="off">
           {left > 0 ? <Dose>{mmss(left)}</Dose> : 'Terminé'}

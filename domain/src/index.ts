@@ -19,3 +19,4 @@ export * from './actions/claudeWorkout.ts';
 export * from './api.ts';
 export * from './review/weekly.ts';
 export * from './plan/compare.ts';
+export * from './mobility/demos.ts';

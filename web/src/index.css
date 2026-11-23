@@ -3410,7 +3410,8 @@ ul.cl-items {
 .cl-target {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--c, var(--fg));
+  /* Charges et cibles en gris : la couleur des doses (D166) reste réservée aux répétitions et durées. */
+  color: var(--muted);
   margin-left: 8px;
 }
 .cl-target {
@@ -3854,4 +3855,44 @@ ul.cl-items {
 }
 .cl-q.dose {
   color: var(--dose);
+}
+
+/* Démonstrations des exercices (D167) */
+.demo-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--mobility);
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--mobility) 45%, transparent);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.demo-btn:focus-visible {
+  outline: 2px solid var(--focus);
+}
+.demo-pop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 6px 0 4px;
+}
+.demo-fig {
+  width: 220px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 240 / 200;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.demo-video {
+  font-size: 12.5px;
+  color: var(--mobility);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.demo-video:hover {
+  text-decoration: underline;
 }
