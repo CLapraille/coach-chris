@@ -9,6 +9,7 @@ import {
   FitError,
   garminWorkout,
   parisOffsetS,
+  whooshId,
   mondayOf,
   sessionBlocks,
   sessionShort,
@@ -56,7 +57,7 @@ interface Step {
 type After =
   | { kind: 'campus' }
   | { kind: 'push'; sessionKey: string; date: string }
-  | { kind: 'whoosh'; sessionKey: string; date: string; workoutId: number }
+  | { kind: 'whoosh'; sessionKey: string; date: string; workoutId: number; name: string }
   | { kind: 'annotate'; activityId: string; day: string }
   | { kind: 'whooshImport'; rideId: string; day: string; startUtc?: string };
 
@@ -81,6 +82,16 @@ interface WhooshRide {
   heartrate?: unknown;
   activityFileId?: unknown;
 }
+
+/**
+ * Emplacement MyWhoosh réutilisé (D174) : chaque workout personnalisé créé consomme un « slot credit » MyWhoosh,
+ * sa modification non. Toutes les séances CoachChris partent donc sous un même identifiant, qui remplace la
+ * précédente. Document unique `whoosh-slot` (partition du même nom) du conteneur `ops`.
+ */
+const WHOOSH_SLOT = 'whoosh-slot';
+type WhooshSlotDoc = Doc & { workoutId: number; sessionKey: string; date: string; name: string };
+/** Identifiant de l'emplacement quand aucun envoi n'a encore été fait. */
+const WHOOSH_SLOT_DEFAULT = whooshId('coach-chris:mywhoosh-slot');
 
 /** Imports déjà faits : partition `whoosh-import` du conteneur `ops`, un document par sortie. */
 export const WHOOSH_IMPORT_KIND = 'whoosh-import';
@@ -516,7 +527,16 @@ export class Actions {
     const wSteps = workout.WorkoutStepsArray as { Power: number; EndPower: number }[];
     const ftp = Number(c.athlete.ftpW);
     const peak = Math.max(...wSteps.map((s) => Math.max(s.Power, s.EndPower)));
-    const previous = await this.deps.store.get<PushDoc>('ops', `whoosh:${pushId(sessionKey)}`, PUSH_KIND);
+    // Emplacement réutilisé (D174) : même identifiant pour toutes les séances, date dans le nom.
+    const slot = await this.whooshSlot();
+    workout.Id = slot.workoutId;
+    workout.Name = `${workout.Name as string} · ${shortDate(day)}`;
+    const replacing =
+      slot.sessionKey === sessionKey
+        ? 'Met à jour la séance déjà envoyée (aucun slot credit consommé).'
+        : slot.sessionKey
+          ? `Remplace ${slot.name ? `« ${slot.name} »` : 'la séance CoachChris précédente'} dans MyWhoosh : CoachChris n’utilise qu’un emplacement (aucun slot credit consommé).`
+          : 'Crée l’emplacement CoachChris dans MyWhoosh (un slot credit, une seule fois) ; les séances suivantes le remplaceront.';
     return {
       target: 'MyWhoosh' as const,
       fields: [
@@ -530,15 +550,37 @@ export class Actions {
         },
       ],
       warnings: [
-        ...(previous ? ['Met à jour le workout déjà envoyé (même identifiant).'] : []),
+        replacing,
         'Passe par un accès MyWhoosh non officiel (serveur communautaire) : il peut cesser de fonctionner sans prévenir.',
       ],
       signed: {
         title: 'Envoyer dans MyWhoosh',
         steps: [{ source: 'mywhoosh' as const, tool: 'uploadCoachWorkout', args: { workouts: [workout] } }],
-        after: { kind: 'whoosh' as const, sessionKey, date: day, workoutId: workout.Id as number },
+        after: {
+          kind: 'whoosh' as const,
+          sessionKey,
+          date: day,
+          workoutId: slot.workoutId,
+          name: workout.Name as string,
+        },
       },
     };
+  }
+
+  /**
+   * Emplacement MyWhoosh (D174). Sans document d'emplacement, on reprend le workout du dernier envoi fait avant
+   * D174 : il occupe déjà un slot credit, autant le réutiliser plutôt que d'en consommer un autre.
+   */
+  private async whooshSlot(): Promise<{ workoutId: number; sessionKey?: string; name?: string }> {
+    const { store } = this.deps;
+    const slot = await store.get<WhooshSlotDoc>('ops', WHOOSH_SLOT, WHOOSH_SLOT);
+    if (slot) return { workoutId: slot.workoutId, sessionKey: slot.sessionKey, name: slot.name };
+    const sent = (await store.list<PushDoc & { target?: string }>('ops', PUSH_KIND))
+      .filter((d) => d.target === 'mywhoosh' && Number.isFinite(Number(d.workoutId)))
+      .sort((a, b) => b.at.localeCompare(a.at))[0];
+    return sent
+      ? { workoutId: Number(sent.workoutId), sessionKey: sent.sessionKey }
+      : { workoutId: WHOOSH_SLOT_DEFAULT };
   }
 
   /**
@@ -795,7 +837,23 @@ export class Actions {
         at: clock.now(),
         target: 'mywhoosh',
       });
-      return 'Séance ajoutée à tes workouts personnalisés MyWhoosh (préfixe « CC · »). Elle apparaît au prochain lancement de l’app.';
+      await store.upsert('ops', {
+        id: WHOOSH_SLOT,
+        kind: WHOOSH_SLOT,
+        source: 'app',
+        fetchedAt: clock.now(),
+        schemaVersion: 1,
+        workoutId: after.workoutId,
+        sessionKey: after.sessionKey,
+        date: after.date,
+        name: after.name,
+      } satisfies WhooshSlotDoc);
+      // La séance remplacée n'est plus dans MyWhoosh : on retire sa trace d'envoi.
+      const others = (await store.list<PushDoc & { target?: string }>('ops', PUSH_KIND)).filter(
+        (d) => d.target === 'mywhoosh' && d.sessionKey !== after.sessionKey,
+      );
+      for (const d of others) await store.delete('ops', d.id, PUSH_KIND);
+      return `« ${after.name} » est dans tes workouts personnalisés MyWhoosh. Elle apparaît au prochain lancement de l’app.`;
     }
     if (after.kind === 'whooshImport') {
       const duplicate = (workoutId as { duplicate?: boolean } | undefined)?.duplicate === true;

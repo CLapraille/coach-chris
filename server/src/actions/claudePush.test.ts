@@ -129,7 +129,50 @@ it('vélo du plan Claude vers MyWhoosh ; refusé sur la montre (D160)', async ()
   const r = await t.confirm(p.token);
   expect(r.ok).toBe(true);
   const w = (t.mywhoosh.calls[0]!.args.workouts as { Name: string; StepCount: number }[])[0]!;
-  expect([w.Name, w.StepCount]).toEqual(['CC · Vélo endurance', 2]);
+  expect([w.Name, w.StepCount]).toEqual(['CC · Vélo endurance · 25/11', 2]);
+  await t.app.close();
+});
+
+it('MyWhoosh : un seul emplacement réutilisé, repris du dernier envoi (D174)', async () => {
+  const t = await setup();
+  const key = '2026-11-23#1#s1-mer-flex';
+  // Envoi fait avant D174 pour une autre séance : son workout occupe déjà un slot credit.
+  await t.store.upsert('ops', {
+    id: 'whoosh:ancienne',
+    kind: 'push',
+    source: 'app',
+    fetchedAt: NOW,
+    schemaVersion: 1,
+    sessionKey: '2026-11-16#1#ancienne',
+    workoutId: '123456789012',
+    date: '2026-11-18',
+    at: '2026-11-17T10:00:00.000Z',
+    target: 'mywhoosh',
+  });
+  const first = (await t.act('mywhoosh.upload', key)).json();
+  expect(first.warnings[0]).toMatch(/Remplace la séance CoachChris précédente.*aucun slot credit/);
+  expect((await t.confirm(first.token)).ok).toBe(true);
+  const sent = (t.mywhoosh.calls[0]!.args.workouts as { Id: number }[])[0]!;
+  expect(sent.Id).toBe(123456789012);
+  // La trace de l'ancienne séance disparaît ; l'emplacement est enregistré.
+  expect(await t.store.get('ops', 'whoosh:ancienne', 'push')).toBeUndefined();
+  expect(await t.store.get('ops', 'whoosh-slot', 'whoosh-slot')).toMatchObject({
+    workoutId: 123456789012,
+    sessionKey: key,
+    name: 'CC · Vélo endurance · 25/11',
+  });
+  // Renvoi de la même séance : mise à jour du même emplacement.
+  const again = (await t.act('mywhoosh.upload', key)).json();
+  expect(again.warnings[0]).toMatch(/Met à jour la séance déjà envoyée/);
+  await t.confirm(again.token);
+  expect((t.mywhoosh.calls[1]!.args.workouts as { Id: number }[])[0]!.Id).toBe(123456789012);
+  await t.app.close();
+});
+
+it('MyWhoosh : premier envoi sans historique, emplacement créé une seule fois (D174)', async () => {
+  const t = await setup();
+  const p = (await t.act('mywhoosh.upload', '2026-11-23#1#s1-mer-flex')).json();
+  expect(p.warnings[0]).toMatch(/Crée l’emplacement CoachChris.*une seule fois/);
   await t.app.close();
 });
 
