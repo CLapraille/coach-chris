@@ -170,7 +170,7 @@ export function whooshId(sessionKey: string): number {
 }
 
 /**
- * Workout MyWhoosh (outil `uploadCustomWorkout` du serveur communautaire, D160) depuis le champ `mywhoosh`
+ * Workout MyWhoosh (outil maison `uploadCoachWorkout`, D160, D173) depuis le champ `mywhoosh`
  * d'une séance vélo : temps en secondes, puissance en fraction de FTP, répétitions dépliées avec un même IntervalId.
  */
 export function claudeWhooshWorkout(input: {

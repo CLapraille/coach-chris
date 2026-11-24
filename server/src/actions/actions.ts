@@ -535,7 +535,7 @@ export class Actions {
       ],
       signed: {
         title: 'Envoyer dans MyWhoosh',
-        steps: [{ source: 'mywhoosh' as const, tool: 'uploadCustomWorkout', args: { workouts: [workout] } }],
+        steps: [{ source: 'mywhoosh' as const, tool: 'uploadCoachWorkout', args: { workouts: [workout] } }],
         after: { kind: 'whoosh' as const, sessionKey, date: day, workoutId: workout.Id as number },
       },
     };
