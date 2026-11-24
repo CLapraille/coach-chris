@@ -73,6 +73,7 @@ const actionRequest = z.discriminatedUnion('type', [
   z.object({ type: z.literal('campus.complete'), sessionKey: z.string().min(1) }),
   z.object({ type: z.literal('garmin.push'), sessionKey: z.string().min(1) }),
   z.object({ type: z.literal('mywhoosh.upload'), sessionKey: z.string().min(1) }),
+  z.object({ type: z.literal('mywhoosh.import') }),
   z.object({
     type: z.literal('garmin.annotate'),
     activityId: z.string().regex(/^\d+$/),

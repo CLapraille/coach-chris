@@ -16,6 +16,7 @@ export * from './wellness/wellness.ts';
 export * from './signals/signals.ts';
 export * from './actions/actions.ts';
 export * from './actions/claudeWorkout.ts';
+export * from './actions/fit.ts';
 export * from './api.ts';
 export * from './review/weekly.ts';
 export * from './plan/compare.ts';

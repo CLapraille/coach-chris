@@ -62,3 +62,28 @@ it('« Actualiser maintenant » synchronise la source puis relit l’état', asy
   await waitFor(() => expect(onChanged).toHaveBeenCalled());
   expect(calls[0]).toMatchObject({ url: '/api/sync?source=garmin', init: { method: 'POST' } });
 });
+
+it('MyWhoosh → Garmin : aperçu de la dernière sortie puis confirmation (D169)', async () => {
+  const onChanged = vi.fn();
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    calls.push({ url, ...(init && { init }) });
+    if (url.endsWith('/actions/preview'))
+      return Response.json({
+        token: 't',
+        expiresAt: '2026-10-08T10:05:00Z',
+        title: 'Importer la sortie MyWhoosh dans Garmin',
+        target: 'Garmin Connect',
+        fields: [{ label: 'Sortie', value: 'Kluisbergen' }],
+        warnings: [],
+      });
+    return Response.json({ ok: true, message: 'Sortie importée.' });
+  });
+  render(<Data status={STATUS} onChanged={onChanged} />);
+  const card = screen.getByLabelText('MyWhoosh vers Garmin');
+  fireEvent.click(within(card).getByRole('button', { name: 'Importer la dernière sortie' }));
+  expect(await screen.findByText('Kluisbergen')).toBeTruthy();
+  expect(JSON.parse(String(calls[0]!.init!.body))).toEqual({ type: 'mywhoosh.import' });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+  await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  expect(calls.at(-1)!.url).toMatch(/\/api\/actions\/confirm$/);
+});

@@ -98,6 +98,8 @@ export type ActionRequest =
   | { type: 'campus.complete'; sessionKey: string }
   | { type: 'garmin.push'; sessionKey: string }
   | { type: 'mywhoosh.upload'; sessionKey: string }
+  /** Dernière sortie MyWhoosh pas encore importée : téléchargée, corrigée et envoyée à Garmin (D169). */
+  | { type: 'mywhoosh.import' }
   | { type: 'garmin.annotate'; activityId: string; changes: Annotation };
 
 /** Aperçu lisible d'une écriture ; `token` est à renvoyer tel quel pour confirmer (valable 5 min, une fois). */

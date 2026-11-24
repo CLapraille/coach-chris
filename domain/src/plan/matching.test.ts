@@ -73,11 +73,43 @@ describe('matchWeek, règles', () => {
     const { matches, offPlan } = matchWeek([renfo], [gym('g', '2026-11-23 19:30:00', 72)]);
     expect(matches[0]).toMatchObject({ activityId: 'g', day: '2026-11-23', confidence: 'probable' });
     expect(offPlan).toEqual([]);
-    // Deux activités ce jour-là, ou aucune le jour prévu : rien n'est deviné.
+    // Deux activités ce jour-là, ou la plus proche à deux jours : rien n'est deviné.
     expect(
       matchWeek([renfo], [gym('g', '2026-11-23 07:00:00', 72), gym('h', '2026-11-23 19:30:00', 10)]).matches,
     ).toEqual([]);
-    expect(matchWeek([renfo], [gym('g', '2026-11-24 19:30:00', 72)]).matches).toEqual([]);
+    expect(matchWeek([renfo], [gym('g', '2026-11-25 19:30:00', 72)]).matches).toEqual([]);
+  });
+
+  it('plan Claude : séance faite la veille ou le lendemain, et jamais au-delà d’un jour (D170)', () => {
+    const renfo = (key: string, day: string) => ({
+      ...c2!,
+      key,
+      sport: 'strength' as const,
+      durationMin: 40,
+      day,
+    });
+    const gym = (id: string, startLocal: string, min: number) =>
+      run(id, startLocal, min, 'strength_training');
+    // Prévue mardi, faite lundi (durée hors tolérance) : rattachée, au jour réel.
+    const early = matchWeek([renfo('cle', '2026-11-24')], [gym('g', '2026-11-23 19:30:00', 75)]);
+    expect(early.matches[0]).toMatchObject({ activityId: 'g', day: '2026-11-23', confidence: 'probable' });
+    expect(early.matches[0]!.reason).toMatch(/la veille/);
+    // Une autre séance de renfo jeudi, même durée : elle ne vole pas l'activité de lundi.
+    const steal = matchWeek(
+      [renfo('jeudi', '2026-11-26'), renfo('lundi', '2026-11-23')],
+      [gym('g', '2026-11-23 19:30:00', 40)],
+    );
+    expect(steal.matches).toEqual([expect.objectContaining({ sessionKey: 'lundi', activityId: 'g' })]);
+    // Séance du jour même servie avant la séance décalée.
+    const both = matchWeek(
+      [renfo('mardi', '2026-11-24'), renfo('lundi', '2026-11-23')],
+      [gym('g', '2026-11-23 19:30:00', 75)],
+    );
+    expect(both.matches).toEqual([expect.objectContaining({ sessionKey: 'lundi', activityId: 'g' })]);
+    // Deux jours d'écart : rien.
+    expect(matchWeek([renfo('cle', '2026-11-25')], [gym('g', '2026-11-23 19:30:00', 40)]).matches).toEqual(
+      [],
+    );
   });
 
   it('ne réutilise pas une activité déjà liée par Campus', () => {

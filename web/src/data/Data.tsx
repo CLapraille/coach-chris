@@ -1,5 +1,6 @@
 import type { DataStatus, SourceName } from '@coach-chris/domain';
 import { useState } from 'react';
+import { ActionDialog } from '../actions/ActionDialog.tsx';
 import { api } from '../api.ts';
 import { GOAL_LABEL, clock, decimal, longDate, parisDay, shortDate } from '../format.ts';
 import { ThemeSwitch } from '../theme.tsx';
@@ -58,6 +59,7 @@ export function Data({ status, onChanged }: { status: DataStatus; onChanged: () 
             onRefreshed={onChanged}
           />
         ))}
+        <WhooshImport onDone={onChanged} />
         <Freshness status={status} />
         <Journal log={status.log} actions={status.actions} />
         <article className="card s5">
@@ -575,6 +577,28 @@ function Journal({ log, actions }: { log: DataStatus['log']; actions: DataStatus
             </tbody>
           </table>
         </div>
+      )}
+    </article>
+  );
+}
+
+/** Import de la dernière sortie MyWhoosh dans Garmin Connect (D169), avec aperçu et confirmation. */
+function WhooshImport({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <article className="card s6" aria-label="MyWhoosh vers Garmin">
+      <header>
+        <span className="label">MyWhoosh → Garmin</span>
+      </header>
+      <p className="empty">
+        Télécharge ta dernière sortie MyWhoosh, corrige son fichier et l’ajoute à Garmin Connect. Rien n’est
+        gardé sur le téléphone ni sur le serveur.
+      </p>
+      <button className="btn" type="button" onClick={() => setOpen(true)}>
+        Importer la dernière sortie
+      </button>
+      {open && (
+        <ActionDialog request={{ type: 'mywhoosh.import' }} onClose={() => setOpen(false)} onDone={onDone} />
       )}
     </article>
   );

@@ -2290,6 +2290,11 @@ details.coach summary {
   font-size: 12.5px;
   color: var(--muted);
 }
+.act-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .kvs {
   display: flex;
   flex-wrap: wrap;

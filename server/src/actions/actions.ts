@@ -5,7 +5,10 @@ import {
   claudeWhooshWorkout,
   campusRacingNote,
   FEEL_LABEL,
+  fixMyWhooshFit,
+  FitError,
   garminWorkout,
+  parisOffsetS,
   mondayOf,
   sessionBlocks,
   sessionShort,
@@ -22,6 +25,7 @@ import {
 import type { McpCaller, McpName } from '../mcp/client.ts';
 import type { PlanWeek } from '../read/cache.ts';
 import { claudeSessionOf } from '../read/session.ts';
+import { activities } from '../read/cache.ts';
 import { pushId, PUSH_KIND, weekData, type PushDoc } from '../read/week.ts';
 import type { Doc, Store } from '../store/store.ts';
 import * as garmin from '../sync/garmin.ts';
@@ -53,7 +57,43 @@ type After =
   | { kind: 'campus' }
   | { kind: 'push'; sessionKey: string; date: string }
   | { kind: 'whoosh'; sessionKey: string; date: string; workoutId: number }
-  | { kind: 'annotate'; activityId: string; day: string };
+  | { kind: 'annotate'; activityId: string; day: string }
+  | { kind: 'whooshImport'; rideId: string; day: string; startUtc?: string };
+
+/** Sortie MyWhoosh à importer dans Garmin (D169) : le fichier est relu à la confirmation, jamais gardé. */
+interface WhooshImport {
+  rideId: string;
+  fileId: string;
+  fileName: string;
+  /** Début annoncé par MyWhoosh : le fichier téléchargé doit lui correspondre. */
+  startUtc?: string;
+}
+
+/** Sortie telle que renvoyée par l'outil maison `listActivities` (champs MyWhoosh non documentés). */
+interface WhooshRide {
+  id?: unknown;
+  title?: unknown;
+  routeName?: unknown;
+  startDatetime?: unknown;
+  rideDuration?: unknown;
+  distance?: unknown;
+  watt?: unknown;
+  heartrate?: unknown;
+  activityFileId?: unknown;
+}
+
+/** Imports déjà faits : partition `whoosh-import` du conteneur `ops`, un document par sortie. */
+export const WHOOSH_IMPORT_KIND = 'whoosh-import';
+/** Seules les sorties récentes sont proposées. */
+const WHOOSH_IMPORT_DAYS = 21;
+/** Écart toléré entre le début annoncé par MyWhoosh et celui d'une activité Garmin pour parler de doublon. */
+const SAME_RIDE_S = 120;
+
+/** « 2026-11-24 08:59:29 » : heure de Paris, au format des activités Garmin en cache. */
+function parisLocal(isoUtc: string): string {
+  const s = Date.parse(isoUtc) / 1000;
+  return new Date((s + parisOffsetS(s)) * 1000).toISOString().slice(0, 19).replace('T', ' ');
+}
 
 /** Contenu signé du jeton d'action : exactement ce que la confirmation exécutera. */
 interface Signed {
@@ -63,6 +103,8 @@ interface Signed {
   title: string;
   steps: Step[];
   after: After;
+  /** Import MyWhoosh → Garmin (D169), exécuté avant les étapes. */
+  whooshImport?: WhooshImport;
 }
 
 export interface ActionDeps {
@@ -128,7 +170,9 @@ export class Actions {
           ? await this.pushPreview(req.sessionKey)
           : req.type === 'mywhoosh.upload'
             ? await this.whooshPreview(req.sessionKey)
-            : await this.annotatePreview(req.activityId, req.changes);
+            : req.type === 'mywhoosh.import'
+              ? await this.whooshImportPreview()
+              : await this.annotatePreview(req.activityId, req.changes);
     const exp = Date.parse(this.deps.clock.now()) + TTL_MS;
     const signed: Signed = { id: randomUUID(), exp, type: req.type, ...built.signed };
     const body = b64(JSON.stringify(signed));
@@ -149,6 +193,8 @@ export class Actions {
     let workoutId: unknown;
     let result: ActionResult;
     try {
+      // Import MyWhoosh (D169) : son issue (doublon ou non) passe à `after` par la même variable.
+      if (plan.whooshImport) workoutId = await this.runWhooshImport(plan.whooshImport, done);
       for (const step of plan.steps) {
         const mcp = this.source(step.source);
         const args = step.useWorkoutId ? { ...step.args, workout_id: workoutId } : step.args;
@@ -495,6 +541,123 @@ export class Actions {
     };
   }
 
+  /**
+   * Import MyWhoosh → Garmin (D169) : la plus récente sortie des 21 derniers jours qui n'a pas encore été
+   * importée. L'aperçu ne télécharge rien ; le fichier est relu, corrigé et envoyé à la confirmation, en mémoire.
+   */
+  private async whooshImportPreview() {
+    const { store, clock } = this.deps;
+    const listed = await this.source('mywhoosh').call<{ rides?: WhooshRide[] }>('listActivities', {
+      limit: 10,
+    });
+    const imported = new Set(
+      (await store.list<Doc & { rideId: string }>('ops', WHOOSH_IMPORT_KIND)).map((d) => d.rideId),
+    );
+    const since = Date.parse(clock.now()) - WHOOSH_IMPORT_DAYS * 86_400_000;
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined);
+    const rides = (listed?.rides ?? []).filter((r) => r.id !== undefined && str(r.activityFileId));
+    const startOf = (r: WhooshRide) => {
+      const s = str(r.startDatetime);
+      return s && Number.isFinite(Date.parse(s)) ? new Date(Date.parse(s)).toISOString() : undefined;
+    };
+    const ride = rides.find((r) => {
+      const start = startOf(r);
+      return !imported.has(String(r.id)) && (!start || Date.parse(start) >= since);
+    });
+    if (!ride) {
+      throw new ActionError(
+        rides.length
+          ? 'Aucune nouvelle sortie MyWhoosh à importer (les plus récentes sont déjà dans Garmin)'
+          : 'Aucune sortie trouvée dans MyWhoosh',
+        409,
+      );
+    }
+    const rideId = String(ride.id);
+    const startUtc = startOf(ride);
+    const local = startUtc ? parisLocal(startUtc) : undefined;
+    const day = local?.slice(0, 10) ?? clock.today();
+    // Doublon visible dans le cache : une activité vélo Garmin qui démarre à la même minute.
+    if (local) {
+      const at = Date.parse(local.replace(' ', 'T') + 'Z');
+      const same = (await activities(store, day, day)).find(
+        (a) =>
+          /ride|cycling|bike|biking/.test(a.type) &&
+          Math.abs(Date.parse(a.startLocal.replace(' ', 'T') + 'Z') - at) <= SAME_RIDE_S * 1000,
+      );
+      if (same) throw new ActionError('Cette sortie est déjà dans Garmin Connect', 409);
+    }
+    const km = num(ride.distance);
+    const distance = km === undefined ? undefined : km > 500 ? km / 1000 : km;
+    const name = str(ride.title) ?? str(ride.routeName) ?? 'Sortie MyWhoosh';
+    return {
+      target: 'Garmin Connect' as const,
+      fields: [
+        { label: 'Sortie', value: name },
+        ...(local ? [{ label: 'Début', value: `${longDay(day)}, ${local.slice(11, 16)}` }] : []),
+        ...(str(ride.rideDuration) ? [{ label: 'Durée', value: str(ride.rideDuration)! }] : []),
+        ...(distance !== undefined
+          ? [{ label: 'Distance', value: `${distance.toFixed(1).replace('.', ',')} km` }]
+          : []),
+        ...(num(ride.watt)
+          ? [{ label: 'Puissance moyenne', value: `${Math.round(num(ride.watt)!)} W` }]
+          : []),
+        ...(num(ride.heartrate)
+          ? [{ label: 'FC moyenne', value: `${Math.round(num(ride.heartrate)!)} bpm` }]
+          : []),
+      ],
+      warnings: [
+        'Le fichier FIT est téléchargé de MyWhoosh, corrigé (horodatages de fin et heure locale) et envoyé à Garmin en mémoire : aucun fichier n’est gardé.',
+        'Passe par un accès MyWhoosh non officiel (serveur communautaire) : il peut cesser de fonctionner sans prévenir.',
+      ],
+      signed: {
+        title: 'Importer la sortie MyWhoosh dans Garmin',
+        steps: [],
+        whooshImport: {
+          rideId,
+          fileId: str(ride.activityFileId)!,
+          fileName: `MyWhoosh-${day}.fit`,
+          ...(startUtc && { startUtc }),
+        },
+        after: { kind: 'whooshImport' as const, rideId, day, ...(startUtc && { startUtc }) },
+      },
+    };
+  }
+
+  /** Télécharge le FIT (MyWhoosh), le corrige et l'envoie (Garmin), sans rien écrire sur disque. */
+  private async runWhooshImport(imp: WhooshImport, done: string[]): Promise<{ duplicate: boolean }> {
+    const dl = await this.source('mywhoosh').call<{ fit?: unknown }>('downloadActivityFile', {
+      fileId: imp.fileId,
+    });
+    if (typeof dl?.fit !== 'string' || !dl.fit)
+      throw new Error('MyWhoosh n’a pas renvoyé le fichier de la sortie');
+    done.push('downloadActivityFile');
+    let fix;
+    try {
+      fix = fixMyWhooshFit(Buffer.from(dl.fit, 'base64'));
+    } catch (e) {
+      if (e instanceof FitError) throw new Error(`Fichier MyWhoosh illisible : ${e.message}`, { cause: e });
+      throw e;
+    }
+    if (imp.startUtc && Math.abs(Date.parse(fix.startUtc) - Date.parse(imp.startUtc)) > 5 * 60_000) {
+      throw new Error('Le fichier téléchargé ne correspond pas à la sortie de l’aperçu');
+    }
+    const res = await this.source('garmin').call<{
+      success?: unknown;
+      duplicate?: unknown;
+      message?: unknown;
+    }>(
+      'upload_activity_fit',
+      { fit_base64: Buffer.from(fix.bytes).toString('base64'), file_name: imp.fileName },
+      { write: true },
+    );
+    if (res?.duplicate === true) return { duplicate: true };
+    const failure = garmin.writeFailure(res);
+    if (failure) throw new Error(failure);
+    done.push('upload_activity_fit');
+    return { duplicate: false };
+  }
+
   private async annotatePreview(activityId: string, wanted: Annotation) {
     const id = Number(activityId);
     const summary = garmin.activitySummary(
@@ -633,6 +796,26 @@ export class Actions {
         target: 'mywhoosh',
       });
       return 'Séance ajoutée à tes workouts personnalisés MyWhoosh (préfixe « CC · »). Elle apparaît au prochain lancement de l’app.';
+    }
+    if (after.kind === 'whooshImport') {
+      const duplicate = (workoutId as { duplicate?: boolean } | undefined)?.duplicate === true;
+      await store.upsert('ops', {
+        id: `${WHOOSH_IMPORT_KIND}:${after.rideId}`,
+        kind: WHOOSH_IMPORT_KIND,
+        source: 'app',
+        fetchedAt: clock.now(),
+        schemaVersion: 1,
+        rideId: after.rideId,
+        day: after.day,
+        ...(after.startUtc && { startUtc: after.startUtc }),
+        duplicate,
+        at: clock.now(),
+      });
+      // Garmin traite l'import en quelques secondes : la synchro le ramène et le rattache à la séance vélo.
+      sync.run('garmin', 'action').catch(() => undefined);
+      return duplicate
+        ? 'Cette sortie était déjà dans Garmin Connect : rien n’a été ajouté.'
+        : `Sortie MyWhoosh du ${longDay(after.day)} importée dans Garmin Connect. Elle apparaît dans l’app à la prochaine synchro.`;
     }
     // Le détail en cache (nom, effort, ressenti) est relu à la prochaine ouverture ; la liste des activités aussi.
     await store.delete('cache', after.activityId, pk('detail', after.day));

@@ -2,12 +2,15 @@
 # Contexte de build : la racine du dépôt (workspaces npm).
 # Serveur MCP communautaire MyWhoosh (D160) : commit figé, relu avant usage (n'appelle que *.mywhoosh.com).
 # Lancé en stdio par le BFF (MYWHOOSH_MCP_CMD) ; absent de la configuration, il n'est jamais démarré.
+# Deux outils maison ajoutés avant le build (D169) : listActivities et downloadActivityFile (FIT en mémoire,
+# téléchargé depuis le lien signé du stockage S3 de MyWhoosh, *.amazonaws.com).
 FROM node:24 AS mywhoosh
 ARG MYWHOOSH_COMMIT=b252b102eac5ab0af1a0032ff56136fb801b4d2a
 WORKDIR /build
 RUN git clone https://github.com/mywhoosh-community/mywhoosh-mcp-server.git . \
-  && git checkout "$MYWHOOSH_COMMIT" \
-  && npm ci --no-audit --no-fund && npm run build && npm prune --omit=dev
+  && git checkout "$MYWHOOSH_COMMIT"
+COPY mcp/mywhoosh/tools/*.ts src/tools/
+RUN npm ci --no-audit --no-fund && npm run build && npm prune --omit=dev
 
 FROM node:24-slim
 
