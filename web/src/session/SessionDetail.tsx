@@ -769,7 +769,7 @@ function ClaudeAct({ view, content, onAct }: { view: SessionView; content: Claud
         <p>
           {done
             ? 'Séance déjà faite.'
-            : 'Ajoute la séance à tes workouts personnalisés MyWhoosh (préfixe « CC · »), puissances en % de ta FTP. Une fois roulée, importe la sortie dans Garmin.'}
+            : 'Met la séance dans tes workouts personnalisés MyWhoosh (préfixe « CC · »), puissances en % de ta FTP. Elle remplace la séance CoachChris précédente : un seul emplacement, un seul slot credit. Une fois roulée, importe la sortie dans Garmin.'}
         </p>
         <div className="act-row">
           <button
