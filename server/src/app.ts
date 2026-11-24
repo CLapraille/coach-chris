@@ -25,6 +25,7 @@ import {
   saveSettings,
   setWeekSource,
 } from './plan/claude.ts';
+import { BRIEF_WEEKS, claudeBriefText } from './read/brief.ts';
 import { planWeek } from './read/cache.ts';
 import { readCheckins, setFoot, setSessionCheckin } from './read/checkin.ts';
 import { addToInbox, listInbox, removeFromInbox } from './read/inbox.ts';
@@ -371,6 +372,17 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
       return reply.code(404).send({ error: 'Course introuvable' });
     }
     return { deleted: p.data.id };
+  });
+
+  // Bilan pour Claude (D171) : texte à coller dans une session Claude pour rédiger le bloc suivant.
+  app.get('/api/brief', async (req, reply) => {
+    const q = z.object({ weeks: z.coerce.number().int().min(1).max(12).optional() }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'weeks doit être un nombre de 1 à 12' });
+    const today = clock.today();
+    return {
+      text: await claudeBriefText(store, today, q.data.weeks ?? BRIEF_WEEKS),
+      generatedAt: clock.now(),
+    };
   });
 
   // Boîte à vidéos (D158) : liens http(s) seulement, note obligatoire (c'est elle qui dit quoi en faire).
