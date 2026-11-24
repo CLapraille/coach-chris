@@ -1,4 +1,11 @@
-import { activitySport, addDays, mondayOf, type DataStatus, type SourceName } from '@coach-chris/domain';
+import {
+  activitySport,
+  addDays,
+  matchWeek,
+  mondayOf,
+  type DataStatus,
+  type SourceName,
+} from '@coach-chris/domain';
 import type { Doc, Store } from '../store/store.ts';
 import type { SyncOrigin, SyncOutcome } from '../sync/sync.ts';
 import { activeGoal, activities, night, planWeek, weighIns } from './cache.ts';
@@ -57,6 +64,14 @@ export async function dataStatus(store: Store, today: string): Promise<DataStatu
   const sports = acts.filter((a) => activitySport(a.type) !== 'other');
   const lastWeight = weights.at(-1);
   const sessions = plan?.sessions.filter((s) => s.status !== 'skipped') ?? [];
+  // Plan Claude : une séance rattachée à une activité de la semaine est faite (D175).
+  const monday = mondayOf(today);
+  const weekActs = acts.filter(
+    (a) => a.startLocal.slice(0, 10) >= monday && a.startLocal.slice(0, 10) <= addDays(monday, 6),
+  );
+  const matched = new Set(matchWeek(sessions, weekActs).matches.map((m) => m.sessionKey));
+  const isDone = (s: (typeof sessions)[number]) =>
+    s.status === 'done' || (s.source === 'claude' && matched.has(s.key));
 
   return {
     sources: { garmin: source('garmin'), campus: source('campus') },
@@ -71,7 +86,7 @@ export async function dataStatus(store: Store, today: string): Promise<DataStatu
             weekIndex: plan.goalWeek.index,
             durationInWeeks: plan.goalWeek.durationInWeeks,
           }),
-          done: sessions.filter((s) => s.status === 'done').length,
+          done: sessions.filter(isDone).length,
           total: sessions.length,
         }
       : null,
