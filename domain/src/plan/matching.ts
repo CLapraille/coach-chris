@@ -47,7 +47,9 @@ const DURATION_TOLERANCE = 0.35;
 /**
  * Rapproche les séances d'une semaine des activités Garmin (D36) :
  * 1. lien de la source (`externalId` Campus) ; 2. séance validée sans lien : activité du même sport le jour de la validation ;
- * 3. séance à faire : activité du même sport, durée à ±35 %, unique sinon incertaine.
+ * 3. séance à faire : activité du même sport, durée à ±35 %, unique sinon incertaine ;
+ * 4. sinon, séance avec un jour prévu (plan Claude) : la seule activité du même sport ce jour-là, quelle que soit
+ *    sa durée (D168 : un renforcement guidé par la montre, étapes terminées par Tour, s'écarte souvent de ±35 %).
  */
 export function matchWeek(sessions: PlannedSession[], activities: Activity[]): WeekMatching {
   const used = new Set<string>();
@@ -101,7 +103,22 @@ export function matchWeek(sessions: PlannedSession[], activities: Activity[]): W
     const best = candidates.sort(
       (x, y) => Math.abs(x.durationS - planned) - Math.abs(y.durationS - planned),
     )[0];
-    if (!best) continue;
+    if (!best) {
+      // 4. Jour prévu : une seule activité du même sport ce jour-là, durée ignorée.
+      const sameDay = s.day ? free(s.sport).filter((a) => activityDay(a) === s.day) : [];
+      if (sameDay.length !== 1) continue;
+      const a = sameDay[0]!;
+      used.add(a.id);
+      matches.push({
+        sessionKey: s.key,
+        activityId: a.id,
+        day: s.day!,
+        method: 'rule',
+        confidence: 'probable',
+        reason: 'Seule activité du même sport le jour prévu (durée différente de la prévision)',
+      });
+      continue;
+    }
     used.add(best.id);
     matches.push({
       sessionKey: s.key,

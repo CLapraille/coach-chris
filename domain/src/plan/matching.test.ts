@@ -66,6 +66,20 @@ describe('matchWeek, règles', () => {
     expect(offPlan.map((a) => a.id)).toEqual(['a']);
   });
 
+  it('plan Claude : seule activité du même sport le jour prévu, même si la durée s’écarte (D168)', () => {
+    const renfo = { ...c2!, key: 'k-renfo', sport: 'strength' as const, durationMin: 40, day: '2026-11-23' };
+    const gym = (id: string, startLocal: string, min: number) =>
+      run(id, startLocal, min, 'strength_training');
+    const { matches, offPlan } = matchWeek([renfo], [gym('g', '2026-11-23 19:30:00', 72)]);
+    expect(matches[0]).toMatchObject({ activityId: 'g', day: '2026-11-23', confidence: 'probable' });
+    expect(offPlan).toEqual([]);
+    // Deux activités ce jour-là, ou aucune le jour prévu : rien n'est deviné.
+    expect(
+      matchWeek([renfo], [gym('g', '2026-11-23 07:00:00', 72), gym('h', '2026-11-23 19:30:00', 10)]).matches,
+    ).toEqual([]);
+    expect(matchWeek([renfo], [gym('g', '2026-11-24 19:30:00', 72)]).matches).toEqual([]);
+  });
+
   it('ne réutilise pas une activité déjà liée par Campus', () => {
     const { matches } = matchWeek([c1!, c2!], [run('24631672339', '2026-10-06 20:58:51', 30)]);
     expect(matches.map((m) => m.sessionKey)).toEqual([c1?.key]);
