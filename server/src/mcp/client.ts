@@ -17,7 +17,8 @@ export const ALLOWED_TOOLS: Record<McpName, ReadonlySet<string>> = {
   // Serveur communautaire mywhoosh-mcp-server (commit figé, D160) : envoi et suppression des workouts « CC · » ;
   // outils maison (D169) : liste des sorties et téléchargement d'un FIT en mémoire.
   mywhoosh: new Set([
-    'uploadCustomWorkout',
+    // Envoi avec SportsModeType (D173) ; remplace uploadCustomWorkout, refusé par l'API depuis le 24/11.
+    'uploadCoachWorkout',
     'deleteCustomWorkout',
     'listActivities',
     'downloadActivityFile',
@@ -76,7 +77,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   'upload_activity_fit',
   'complete_session',
   'save_session',
-  'uploadCustomWorkout',
+  'uploadCoachWorkout',
   'deleteCustomWorkout',
 ]);
 

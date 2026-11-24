@@ -76,7 +76,7 @@ async function setup() {
     upload_workout: () => ({ status: 'success', workout_id: 9001 }),
     schedule_workout: () => ({ status: 'success' }),
   });
-  const mywhoosh = recorder({ uploadCustomWorkout: () => ({ ok: true }) });
+  const mywhoosh = recorder({ uploadCoachWorkout: () => ({ ok: true }) });
   const app = buildApp({
     store,
     sync: {} as Sync,
