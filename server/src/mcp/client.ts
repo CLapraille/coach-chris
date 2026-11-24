@@ -14,8 +14,9 @@ export type McpName = SourceName | 'mywhoosh';
  * Les écritures (WRITE_TOOLS) exigent en plus le drapeau `write`, que seul le module actions passe (D124).
  */
 export const ALLOWED_TOOLS: Record<McpName, ReadonlySet<string>> = {
-  // Serveur communautaire mywhoosh-mcp-server (commit figé, D160) : envoi et suppression des workouts « CC · ».
-  mywhoosh: new Set(['uploadCustomWorkout', 'deleteCustomWorkout']),
+  // Serveur communautaire mywhoosh-mcp-server (commit figé, D160) : envoi et suppression des workouts « CC · » ;
+  // outils maison (D169) : liste des sorties et téléchargement d'un FIT en mémoire.
+  mywhoosh: new Set(['uploadCustomWorkout', 'deleteCustomWorkout', 'listActivities', 'downloadActivityFile']),
   garmin: new Set([
     'get_activities_by_date',
     'get_activity_splits',
@@ -37,6 +38,8 @@ export const ALLOWED_TOOLS: Record<McpName, ReadonlySet<string>> = {
     'set_perceived_effort',
     'set_activity_feel',
     'create_manual_activity',
+    // Outil maison (D169, mcp/garmin/coach_tools.py) : import d'une sortie MyWhoosh.
+    'upload_activity_fit',
   ]),
   campus: new Set([
     'get_active_goal',
@@ -63,6 +66,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   'set_perceived_effort',
   'set_activity_feel',
   'create_manual_activity',
+  'upload_activity_fit',
   'complete_session',
   'save_session',
   'uploadCustomWorkout',

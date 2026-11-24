@@ -769,16 +769,23 @@ function ClaudeAct({ view, content, onAct }: { view: SessionView; content: Claud
         <p>
           {done
             ? 'Séance déjà faite.'
-            : 'Ajoute la séance à tes workouts personnalisés MyWhoosh (préfixe « CC · »), puissances en % de ta FTP.'}
+            : 'Ajoute la séance à tes workouts personnalisés MyWhoosh (préfixe « CC · »), puissances en % de ta FTP. Une fois roulée, importe la sortie dans Garmin.'}
         </p>
-        <button
-          className="btn"
-          type="button"
-          disabled={done}
-          onClick={() => onAct({ type: 'mywhoosh.upload', sessionKey: s.key })}
-        >
-          Envoyer dans MyWhoosh
-        </button>
+        <div className="act-row">
+          <button
+            className="btn"
+            type="button"
+            disabled={done}
+            onClick={() => onAct({ type: 'mywhoosh.upload', sessionKey: s.key })}
+          >
+            Envoyer dans MyWhoosh
+          </button>
+          {!done && (
+            <button className="btn" type="button" onClick={() => onAct({ type: 'mywhoosh.import' })}>
+              Importer la sortie dans Garmin
+            </button>
+          )}
+        </div>
       </div>
     );
   const text = done
