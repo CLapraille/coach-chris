@@ -16,7 +16,14 @@ export type McpName = SourceName | 'mywhoosh';
 export const ALLOWED_TOOLS: Record<McpName, ReadonlySet<string>> = {
   // Serveur communautaire mywhoosh-mcp-server (commit figé, D160) : envoi et suppression des workouts « CC · » ;
   // outils maison (D169) : liste des sorties et téléchargement d'un FIT en mémoire.
-  mywhoosh: new Set(['uploadCustomWorkout', 'deleteCustomWorkout', 'listActivities', 'downloadActivityFile']),
+  mywhoosh: new Set([
+    'uploadCustomWorkout',
+    'deleteCustomWorkout',
+    'listActivities',
+    'downloadActivityFile',
+    // Reconnexion quand la connexion du démarrage a échoué (D172) : n'écrit rien chez MyWhoosh.
+    'login',
+  ]),
   garmin: new Set([
     'get_activities_by_date',
     'get_activity_splits',
