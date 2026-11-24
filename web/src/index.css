@@ -3901,3 +3901,23 @@ ul.cl-items {
 .demo-video:hover {
   text-decoration: underline;
 }
+
+/* ===== Bilan pour Claude (D171) ===== */
+.br-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.br-text {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+}

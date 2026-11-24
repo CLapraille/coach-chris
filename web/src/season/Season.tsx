@@ -4,6 +4,7 @@ import { api, useApi } from '../api.ts';
 import { Loading } from '../Loading.tsx';
 import { decimal } from '../format.ts';
 import { EventForm } from './EventForm.tsx';
+import { BriefCard } from './Brief.tsx';
 import { ImportCard } from './Import.tsx';
 
 const PRIORITY_LABEL = { A: 'Objectif', B: 'Important', C: 'Entraînement' } as const;
@@ -126,6 +127,7 @@ export function Season() {
             />
           )}
         </article>
+        <BriefCard />
         <ImportCard onImported={season.reload} />
       </div>
     </section>

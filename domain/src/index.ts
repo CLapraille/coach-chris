@@ -17,6 +17,7 @@ export * from './signals/signals.ts';
 export * from './actions/actions.ts';
 export * from './actions/claudeWorkout.ts';
 export * from './actions/fit.ts';
+export * from './brief/brief.ts';
 export * from './api.ts';
 export * from './review/weekly.ts';
 export * from './plan/compare.ts';
