@@ -69,3 +69,44 @@ it('le titre d’une séance ouvre son détail', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Course S2-2' }));
   expect(open).toHaveBeenCalledWith('k2');
 });
+
+it('activité hors plan : rattachement à une séance ; séance rattachée à la main : détacher (D177)', async () => {
+  const run = { id: '777', startLocal: '2026-10-07 19:00:00', type: 'treadmill_running', durationS: 2400 };
+  week.activities = [run];
+  week.offPlan = [run];
+  render(<Calendar onOpenSession={() => {}} />);
+  const select = await screen.findByRole('combobox', { name: /Rattacher .* à une séance/ });
+  // Même sport d'abord : la course avant le renforcement.
+  const options = [...select.querySelectorAll('option')].map((o) => o.textContent);
+  expect(options[0]).toBe('Rattacher à une séance…');
+  expect(options[1]).toMatch(/^Course S2-2/);
+  fireEvent.change(select, { target: { value: week.sessions[0]!.key } });
+  await waitFor(() => expect(calls.some((c) => c.url.endsWith('/links'))).toBe(true));
+  expect(calls.find((c) => c.url.endsWith('/links'))).toMatchObject({
+    url: '/api/calendar/week/2026-10-05/links',
+    init: { method: 'PUT', body: JSON.stringify({ sessionKey: week.sessions[0]!.key, activityId: '777' }) },
+  });
+});
+
+it('séance rattachée à la main : bouton Détacher (D177)', async () => {
+  const run = { id: '777', startLocal: '2026-10-07 19:00:00', type: 'running', durationS: 2400 };
+  week.activities = [run];
+  week.sessions[0] = {
+    ...week.sessions[0]!,
+    day: '2026-10-07',
+    fixed: true,
+    match: {
+      day: '2026-10-07',
+      activityId: '777',
+      method: 'manual',
+      confidence: 'sure',
+      reason: 'Rattachée à la main',
+    },
+  };
+  render(<Calendar onOpenSession={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Détacher' }));
+  await waitFor(() => expect(calls.some((c) => c.init?.method === 'DELETE')).toBe(true));
+  expect(calls.find((c) => c.init?.method === 'DELETE')!.url).toBe(
+    `/api/calendar/week/2026-10-05/links/${encodeURIComponent(week.sessions[0]!.key)}`,
+  );
+});

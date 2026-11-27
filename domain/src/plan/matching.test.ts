@@ -112,6 +112,33 @@ describe('matchWeek, règles', () => {
     );
   });
 
+  it('rattachement à la main : prioritaire, au jour de l’activité, et l’activité n’est plus libre (D177)', () => {
+    const renfo = (key: string, day: string) => ({
+      ...c2!,
+      key,
+      sport: 'run' as const,
+      durationMin: 30,
+      day,
+    });
+    const acts = [run('t', '2026-11-26 18:00:00', 31, 'virtual_run')];
+    // Sans lien, la règle donnerait l'activité à la séance de jeudi ; le lien la donne à celle de mercredi.
+    const auto = matchWeek([renfo('jeu', '2026-11-26'), renfo('mer', '2026-11-25')], acts);
+    expect(auto.matches.map((m) => m.sessionKey)).toEqual(['jeu']);
+    const manual = matchWeek([renfo('jeu', '2026-11-26'), renfo('mer', '2026-11-25')], acts, { mer: 't' });
+    expect(manual.matches).toEqual([
+      expect.objectContaining({
+        sessionKey: 'mer',
+        activityId: 't',
+        day: '2026-11-26',
+        method: 'manual',
+        confidence: 'sure',
+      }),
+    ]);
+    expect(manual.offPlan).toEqual([]);
+    // Lien vers une activité inconnue : ignoré.
+    expect(matchWeek([renfo('mer', '2026-11-25')], [], { mer: 'x' }).matches).toEqual([]);
+  });
+
   it('ne réutilise pas une activité déjà liée par Campus', () => {
     const { matches } = matchWeek([c1!, c2!], [run('24631672339', '2026-10-06 20:58:51', 30)]);
     expect(matches.map((m) => m.sessionKey)).toEqual([c1?.key]);
@@ -121,12 +148,14 @@ describe('matchWeek, règles', () => {
     expect(
       [
         'treadmill_running',
+        'virtual_run',
+        'indoor_running',
         'virtual_ride',
         'e_bike_fitness',
         'strength_training',
         'hiking',
         'indoor_rowing',
       ].map(activitySport),
-    ).toEqual(['run', 'bike', 'bike', 'strength', 'walk', 'other']);
+    ).toEqual(['run', 'run', 'run', 'bike', 'bike', 'strength', 'walk', 'other']);
   });
 });

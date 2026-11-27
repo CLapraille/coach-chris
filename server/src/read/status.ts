@@ -9,6 +9,7 @@ import {
 import type { Doc, Store } from '../store/store.ts';
 import type { SyncOrigin, SyncOutcome } from '../sync/sync.ts';
 import { activeGoal, activities, night, planWeek, weighIns } from './cache.ts';
+import { readLinks } from './links.ts';
 
 type LogDoc = Doc & {
   source: SourceName;
@@ -30,7 +31,7 @@ const LOOKBACK_DAYS = 90;
 /** État des sources (D81), fraîcheur des données (D84), journal des synchros (D83) et des écritures (D123). */
 export async function dataStatus(store: Store, today: string): Promise<DataStatus> {
   const windowDays = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i - WINDOW_DAYS + 1));
-  const [states, logs, nights, acts, weights, plan, goal, device, writes] = await Promise.all([
+  const [states, logs, nights, acts, weights, plan, goal, device, writes, links] = await Promise.all([
     store.list<Doc & { lastOkAt?: string }>('ops', 'sync-state'),
     store.list<LogDoc>('ops', 'sync-log'),
     Promise.all(windowDays.map((d) => night(store, d))),
@@ -40,6 +41,7 @@ export async function dataStatus(store: Store, today: string): Promise<DataStatu
     activeGoal(store),
     store.get<Doc & { name: string; lastUpload?: string }>('cache', 'garmin', 'device'),
     store.list<ActionLogDoc>('ops', 'action-log'),
+    readLinks(store, mondayOf(today)),
   ]);
   const sorted = logs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   const source = (name: SourceName): DataStatus['sources'][SourceName] => {
@@ -69,7 +71,7 @@ export async function dataStatus(store: Store, today: string): Promise<DataStatu
   const weekActs = acts.filter(
     (a) => a.startLocal.slice(0, 10) >= monday && a.startLocal.slice(0, 10) <= addDays(monday, 6),
   );
-  const matched = new Set(matchWeek(sessions, weekActs).matches.map((m) => m.sessionKey));
+  const matched = new Set(matchWeek(sessions, weekActs, links).matches.map((m) => m.sessionKey));
   const isDone = (s: (typeof sessions)[number]) =>
     s.status === 'done' || (s.source === 'claude' && matched.has(s.key));
 
