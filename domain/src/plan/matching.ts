@@ -12,7 +12,9 @@ export interface Activity {
 }
 
 const ACTIVITY_SPORTS: [RegExp, Sport][] = [
-  [/running|trail/, 'run'],
+  // « run » couvre running, treadmill_running, indoor_running, track_running et virtual_run (tapis suivi
+  // avec une application comme Kinomap ou Zwift, D176) ; « rowing » n'en contient pas.
+  [/run|trail/, 'run'],
   [/ride|cycling|bike|biking/, 'bike'],
   [/strength/, 'strength'],
   [/walking|hiking/, 'walk'],

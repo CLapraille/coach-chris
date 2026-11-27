@@ -121,12 +121,14 @@ describe('matchWeek, règles', () => {
     expect(
       [
         'treadmill_running',
+        'virtual_run',
+        'indoor_running',
         'virtual_ride',
         'e_bike_fitness',
         'strength_training',
         'hiking',
         'indoor_rowing',
       ].map(activitySport),
-    ).toEqual(['run', 'bike', 'bike', 'strength', 'walk', 'other']);
+    ).toEqual(['run', 'run', 'run', 'bike', 'bike', 'strength', 'walk', 'other']);
   });
 });
