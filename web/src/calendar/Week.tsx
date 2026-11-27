@@ -49,6 +49,15 @@ export function Week({
   const move = (key: string, day: string) =>
     call(`/calendar/week/${week.start}/placement`, { method: 'PUT', body: JSON.stringify({ key, day }) });
   const reset = () => call(`/calendar/week/${week.start}/placement`, { method: 'DELETE' });
+  // Rattachement à la main (D177) : séances pas encore rattachées, même sport d'abord.
+  const linkable = active.filter((s) => !s.match);
+  const link = (sessionKey: string, activityId: string) =>
+    call(`/calendar/week/${week.start}/links`, {
+      method: 'PUT',
+      body: JSON.stringify({ sessionKey, activityId }),
+    });
+  const unlink = (sessionKey: string) =>
+    call(`/calendar/week/${week.start}/links/${encodeURIComponent(sessionKey)}`, { method: 'DELETE' });
   const check = (day: string, slot: Slot, done: boolean) =>
     call(`/mobility/log/${day}/${slot}`, { method: 'PUT', body: JSON.stringify({ done }) });
 
@@ -156,6 +165,7 @@ export function Week({
                       s={s}
                       onOpen={onOpenSession}
                       activity={s.match?.activityId ? byId.get(s.match.activityId) : undefined}
+                      onUnlink={() => void unlink(s.key)}
                     />
                   ) : (
                     <PlanItem
@@ -169,7 +179,12 @@ export function Week({
                   ),
                 )}
                 {extras.map((a) => (
-                  <ExtraItem key={a.id} a={a} />
+                  <ExtraItem
+                    key={a.id}
+                    a={a}
+                    sessions={week.plan ? linkable : []}
+                    onLink={(key) => void link(key, a.id)}
+                  />
                 ))}
                 {walks && walkCount > 0 && (
                   <div className="it walk">
@@ -209,10 +224,12 @@ function DoneItem({
   s,
   activity,
   onOpen,
+  onUnlink,
 }: {
   s: WeekSession;
   activity: CachedActivity | undefined;
   onOpen: (key: string) => void;
+  onUnlink: () => void;
 }) {
   const planned = s.durationMin * 60;
   const ratio = activity && planned ? activity.durationS / planned - 1 : 0;
@@ -234,6 +251,14 @@ function DoneItem({
         </span>
       </div>
       <div className="m">{meta}</div>
+      {s.match?.method === 'manual' && (
+        <div className="it-link">
+          <span className="faint">rattachée à la main</span>
+          <button type="button" className="btn small" onClick={onUnlink}>
+            Détacher
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,17 +314,45 @@ function PlanItem({
   );
 }
 
-function ExtraItem({ a }: { a: CachedActivity }) {
+function ExtraItem({
+  a,
+  sessions,
+  onLink,
+}: {
+  a: CachedActivity;
+  /** Séances de la semaine sans activité, auxquelles on peut la rattacher (D177). */
+  sessions: WeekSession[];
+  onLink: (sessionKey: string) => void;
+}) {
   const sport = activitySport(a.type);
+  const sorted = [...sessions].sort((x, y) => Number(y.sport === sport) - Number(x.sport === sport));
+  const name = a.name ?? SPORT_LABEL[sport];
   return (
     <div className="it extra" style={{ '--c': SPORT_COLOR[sport] } as React.CSSProperties}>
       <div className="t">
-        <span>{a.name ?? SPORT_LABEL[sport]}</span>
+        <span>{name}</span>
         <span className="st todo">hors plan</span>
       </div>
       <div className="m">
         {Math.round(a.durationS / 60)} min{a.avgHr !== undefined && ` · FC ${a.avgHr}`}
       </div>
+      {sorted.length > 0 && (
+        <select
+          className="it-link-select"
+          aria-label={`Rattacher ${name} à une séance`}
+          value=""
+          onChange={(e) => e.target.value && onLink(e.target.value)}
+        >
+          <option value="">Rattacher à une séance…</option>
+          {sorted.map((s) => (
+            <option key={s.key} value={s.key}>
+              {sessionLabel(s)}
+              {s.day ? ` · ${weekdayShort(s.day)}` : ''}
+              {s.sport !== sport ? ` (${SPORT_LABEL[s.sport].toLowerCase()})` : ''}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

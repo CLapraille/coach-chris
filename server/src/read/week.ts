@@ -15,6 +15,7 @@ import {
 } from '@coach-chris/domain';
 import type { Doc, Store } from '../store/store.ts';
 import { activities, night, planWeek, type PlanWeek } from './cache.ts';
+import { readLinks } from './links.ts';
 import { routineLogs } from './mobility.ts';
 
 export interface WeekData {
@@ -53,7 +54,7 @@ export async function weekData(
   withEve = true,
 ): Promise<WeekData> {
   const days = weekDays(start);
-  const [plan, acts, saved, nights, logs, pushes, eve] = await Promise.all([
+  const [plan, acts, saved, nights, logs, pushes, eve, links] = await Promise.all([
     planWeek(store, start),
     activities(store, start, days[6]!),
     store.get<PlacementDoc>('user', start, KIND),
@@ -61,10 +62,11 @@ export async function weekData(
     routineLogs(store),
     store.list<PushDoc>('ops', PUSH_KIND),
     withEve ? eveOf(store, start, today) : undefined,
+    readLinks(store, start),
   ]);
   const pushByKey = new Map(pushes.map((p) => [p.sessionKey, p]));
   const sessions = plan?.sessions ?? [];
-  const { matches, offPlan } = matchWeek(sessions, acts);
+  const { matches, offPlan } = matchWeek(sessions, acts, links);
   const matchByKey = new Map(matches.map((m) => [m.sessionKey, m]));
 
   const done = Object.fromEntries(matches.map((m) => [m.sessionKey, m.day]));

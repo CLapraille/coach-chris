@@ -31,7 +31,7 @@ export interface Match {
   activityId?: string;
   /** Jour où la séance a été faite (ou rattachée). */
   day: string;
-  method: 'campus-link' | 'campus-completion' | 'rule';
+  method: 'campus-link' | 'campus-completion' | 'rule' | 'manual';
   /** sûr : lien donné par la source ; probable : une seule activité plausible ; incertain : à confirmer à la main. */
   confidence: 'sure' | 'probable' | 'uncertain';
   reason: string;
@@ -59,17 +59,40 @@ const dayGap = (a: string, b: string) => Math.round(Math.abs(Date.parse(a) - Dat
  *    à défaut, la plus proche à un jour près, la veille ou le lendemain (D170 : séance avancée ou décalée).
  * Une séance qui a un jour prévu ne prend jamais une activité à plus d'un jour de ce jour (D170).
  */
-export function matchWeek(sessions: PlannedSession[], activities: Activity[]): WeekMatching {
+export function matchWeek(
+  sessions: PlannedSession[],
+  activities: Activity[],
+  /** Rattachements faits à la main (D177), par clé de séance : ils passent avant toutes les règles. */
+  links: Record<string, string> = {},
+): WeekMatching {
   const used = new Set<string>();
   const matches: Match[] = [];
+  const linked = new Set<string>();
   /** Séances à jour prévu restées sans activité après la règle de durée (règle 4). */
   const byDay: PlannedSession[] = [];
   const byId = new Map(activities.map((a) => [a.id, a]));
   const free = (sport: Sport) => activities.filter((a) => !used.has(a.id) && activitySport(a.type) === sport);
 
+  // 0. Rattachements faits à la main (D177) : ils priment sur tout le reste.
+  for (const s of sessions) {
+    const id = links[s.key];
+    const a = id ? byId.get(id) : undefined;
+    if (!a || used.has(a.id)) continue;
+    used.add(a.id);
+    linked.add(s.key);
+    matches.push({
+      sessionKey: s.key,
+      activityId: a.id,
+      day: activityDay(a),
+      method: 'manual',
+      confidence: 'sure',
+      reason: 'Rattachée à la main',
+    });
+  }
+
   // 1. Liens explicites d'abord, pour ne pas les « voler » par une règle.
   for (const s of sessions) {
-    if (!s.externalActivityId) continue;
+    if (!s.externalActivityId || linked.has(s.key)) continue;
     const a = byId.get(s.externalActivityId);
     if (a) used.add(a.id);
     const day = a ? activityDay(a) : s.completedAtUtc ? parisDayOfUtc(s.completedAtUtc) : undefined;
@@ -85,7 +108,7 @@ export function matchWeek(sessions: PlannedSession[], activities: Activity[]): W
   }
 
   for (const s of sessions) {
-    if (s.externalActivityId || s.status === 'skipped') continue;
+    if (s.externalActivityId || s.status === 'skipped' || linked.has(s.key)) continue;
 
     // 2. Validée dans la source sans lien (renforcement « auto ») : le jour de validation fait foi.
     if (s.status === 'done' && s.completedAtUtc) {

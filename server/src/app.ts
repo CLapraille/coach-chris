@@ -34,6 +34,7 @@ import { acceptBlock, BlockError, mobilityView, saveTests, setRoutineLog } from 
 import { sessionView } from './read/session.ts';
 import { dataStatus } from './read/status.ts';
 import { todayView } from './read/today.ts';
+import { removeLink, setLink } from './read/links.ts';
 import { moveInWeek, PlacementError, resetWeek, weekData, weekView } from './read/week.ts';
 import type { McpCaller } from './mcp/client.ts';
 import type { Store } from './store/store.ts';
@@ -179,6 +180,35 @@ export function buildApp(deps?: AppDeps): FastifyInstance {
     const p = z.object({ start: day }).safeParse(req.params);
     if (!p.success) return reply.code(400).send({ error: 'semaine invalide' });
     return resetWeek(store, mondayOf(p.data.start), clock.today());
+  });
+
+  // Rattacher à la main une activité à une séance de la même semaine (D177) ; la réponse est la semaine recalculée.
+  app.put('/api/calendar/week/:start/links', async (req, reply) => {
+    const p = z.object({ start: day }).safeParse(req.params);
+    const b = z
+      .object({ sessionKey: z.string().min(1), activityId: z.string().regex(/^\d+$/) })
+      .strict()
+      .safeParse(req.body);
+    if (!p.success || !b.success) return reply.code(400).send({ error: 'séance ou activité invalide' });
+    const week = mondayOf(p.data.start);
+    const { view } = await weekData(store, week, clock.today());
+    const session = view.sessions.find((s) => s.key === b.data.sessionKey);
+    if (!session || session.status === 'skipped') {
+      return reply.code(409).send({ error: 'Séance introuvable dans cette semaine' });
+    }
+    if (!view.activities.some((a) => a.id === b.data.activityId)) {
+      return reply.code(409).send({ error: 'Activité introuvable dans cette semaine' });
+    }
+    await setLink(store, week, b.data.sessionKey, b.data.activityId, clock.now());
+    return weekView(store, week, clock.today());
+  });
+
+  app.delete('/api/calendar/week/:start/links/:sessionKey', async (req, reply) => {
+    const p = z.object({ start: day, sessionKey: z.string().min(1) }).safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: 'séance invalide' });
+    const week = mondayOf(p.data.start);
+    await removeLink(store, week, p.data.sessionKey, clock.now());
+    return weekView(store, week, clock.today());
   });
 
   app.get('/api/sessions/:key', async (req, reply) => {
