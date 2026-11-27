@@ -93,9 +93,9 @@ export function VolumeCard({
           Le plan prime. Un dépassement est un point d'attention, pas une interdiction. Repère = 1,3 × moyenne
           des 4 semaines complètes précédentes (ratio charge aiguë / chronique)
           {`. Course : 1,3 × ${decimal(run.mean)} min`}. « Sous le repère » ou « au-dessus » compare le prévu
-          de la semaine au repère, échauffement et retour au calme compris. Une séance validée dans Campus
-          sans montre compte pour sa durée prévue. Repère courant en préparation physique, pas une
-          prescription médicale.
+          de la semaine au repère. Course : temps couru, sans la marche d'échauffement ni de retour au calme,
+          comparé au corps de séance prévu. Une séance validée dans Campus sans montre compte pour sa durée
+          prévue. Repère courant en préparation physique, pas une prescription médicale.
         </details>
       ) : (
         <p className="empty">Pas encore 4 semaines d'historique : pas de repère.</p>
