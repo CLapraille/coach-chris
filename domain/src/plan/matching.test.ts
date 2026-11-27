@@ -139,6 +139,13 @@ describe('matchWeek, règles', () => {
     expect(matchWeek([renfo('mer', '2026-11-25')], [], { mer: 'x' }).matches).toEqual([]);
   });
 
+  it('la durée prévue inclut l’échauffement et le retour au calme (D178)', () => {
+    const course = { ...c2!, key: 'facile', durationMin: 30, extraMin: 17, day: '2026-11-26' };
+    // 47 min faites pour 30 + 17 prévues : rattachée par la règle de durée, pas seulement par le jour.
+    const { matches } = matchWeek([course], [run('t', '2026-11-26 18:00:00', 47)]);
+    expect(matches[0]!.reason).toMatch(/±35 % de la durée prévue/);
+  });
+
   it('ne réutilise pas une activité déjà liée par Campus', () => {
     const { matches } = matchWeek([c1!, c2!], [run('24631672339', '2026-10-06 20:58:51', 30)]);
     expect(matches.map((m) => m.sessionKey)).toEqual([c1?.key]);

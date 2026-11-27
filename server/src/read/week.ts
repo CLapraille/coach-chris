@@ -114,6 +114,7 @@ export async function weekData(
         sport: s.sport,
         trainingType: s.trainingType,
         durationMin: s.durationMin,
+        ...(s.extraMin && { extraMin: s.extraMin }),
         // Plan Claude : rien à valider ailleurs, une séance rattachée à une activité est faite (D175).
         status: s.source === 'claude' && m ? 'done' : s.status,
         intense: s.intense,

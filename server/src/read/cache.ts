@@ -120,6 +120,7 @@ export async function planWeek(
           review?.flex ?? settings.flexDefault,
           swapsOf(checkins),
           review?.durations,
+          c.routines,
         ),
         details: new Map(),
         fetchedAt: c.fetchedAt,

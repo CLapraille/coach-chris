@@ -17,6 +17,10 @@ export interface BriefActivity {
   durationS: number;
   distanceM?: number;
   avgHr?: number;
+  /** Course : temps réellement couru, sans la marche (D178). */
+  runningS?: number;
+  /** Course faite à l'intérieur (tapis) : FC en général plus haute (D178). */
+  indoor?: boolean;
 }
 
 export interface BriefSession {
@@ -27,6 +31,8 @@ export interface BriefSession {
   /** Jour prévu par le plan, sinon jour placé par l'app. */
   plannedDay?: string;
   plannedMin: number;
+  /** Échauffement et retour au calme prévus en plus (D178). */
+  extraMin?: number;
   /** Faite : jour réel et activité Garmin rattachée, si elle est en cache. */
   done?: { day: string; activity?: BriefActivity };
   checkin?: SessionCheckin;
@@ -95,6 +101,10 @@ const one = (n: number) => n.toFixed(1).replace('.', ',');
 function activityText(a: BriefActivity): string {
   return [
     `${min(a.durationS)} min`,
+    a.runningS !== undefined && min(a.runningS) < min(a.durationS)
+      ? `dont ${min(a.runningS)} min courues`
+      : null,
+    a.indoor ? 'tapis' : null,
     a.distanceM ? `${one(a.distanceM / 1000)} km` : null,
     a.avgHr ? `FC ${Math.round(a.avgHr)}` : null,
   ]
@@ -103,7 +113,7 @@ function activityText(a: BriefActivity): string {
 }
 
 function sessionLine(s: BriefSession, today: string): string {
-  const planned = `${SPORT[s.sport]}, ${s.role.toLowerCase()}, ${s.plannedDay ? `prévue ${day(s.plannedDay)}, ` : ''}${s.plannedMin} min`;
+  const planned = `${SPORT[s.sport]}, ${s.role.toLowerCase()}, ${s.plannedDay ? `prévue ${day(s.plannedDay)}, ` : ''}${s.plannedMin} min${s.extraMin ? ` + ${s.extraMin} min d'échauffement et retour au calme` : ''}`;
   let state: string;
   if (s.done) {
     state = `FAITE ${day(s.done.day)}${s.done.activity ? ` (${activityText(s.done.activity)})` : ''}`;
@@ -196,7 +206,7 @@ export function claudeBrief(input: BriefInput): string {
   }
 
   if (input.runTrend.length) {
-    out.push('', '## Course à pied, minutes par semaine');
+    out.push('', '## Course à pied, minutes réellement courues par semaine (hors marche)');
     out.push(input.runTrend.map((w) => `${date(w.monday)} : ${w.minutes}`).join(' · '));
   }
 

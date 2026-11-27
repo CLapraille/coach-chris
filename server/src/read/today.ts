@@ -144,10 +144,12 @@ function volume(
   const previous = weeks.slice(0, HISTORY_WEEKS).map(vol);
 
   const counted = sessions.filter((s) => s.status !== 'skipped' && s.sport !== 'walk' && s.sport !== 'other');
+  // Les volumes réels comptent toute l'activité : le prévu inclut l'échauffement et le retour au calme (D178).
+  const full = (s: { durationMin: number; extraMin?: number }) => s.durationMin + (s.extraMin ?? 0);
   const planned = {
-    run: counted.filter((s) => s.sport === 'run').reduce((n, s) => n + s.durationMin, 0),
-    strength: counted.filter((s) => s.sport === 'strength').reduce((n, s) => n + s.durationMin, 0),
-    total: counted.reduce((n, s) => n + s.durationMin, 0),
+    run: counted.filter((s) => s.sport === 'run').reduce((n, s) => n + full(s), 0),
+    strength: counted.filter((s) => s.sport === 'strength').reduce((n, s) => n + full(s), 0),
+    total: counted.reduce((n, s) => n + full(s), 0),
   };
   const capOf = (values: number[], plannedMin: number): CapView | null => {
     const cap = volumeCap(values);

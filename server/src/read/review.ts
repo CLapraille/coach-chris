@@ -1,5 +1,4 @@
 import {
-  activitySport,
   addDays,
   resolveVariant,
   swapsOf,
@@ -19,6 +18,7 @@ import {
 } from '../plan/claude.ts';
 import type { Doc, Store } from '../store/store.ts';
 import { activities } from './cache.ts';
+import { runningMinutes } from './running.ts';
 import { readCheckins } from './checkin.ts';
 import { weekData } from './week.ts';
 
@@ -41,9 +41,6 @@ async function claudeWeek(store: Store, week: string): Promise<ClaudeWeek | unde
   if (src?.active !== 'claude') return undefined;
   return (await store.get<ClaudePlanDoc>('plan', CLAUDE_ID, week))?.week;
 }
-
-const runMinutes = (acts: { type: string; durationS: number }[]) =>
-  Math.round(acts.filter((a) => activitySport(a.type) === 'run').reduce((s, a) => s + a.durationS, 0) / 60);
 
 export async function reviewView(
   store: Store,
@@ -91,18 +88,23 @@ export async function reviewView(
       ...(course !== undefined && v.sport !== 'course' && { courseMin: course }),
     };
   });
-  const previous = [-21, -14, -7].map((d) => {
-    const from = addDays(week, d);
-    const to = addDays(from, 6);
-    return runMinutes(
-      history.filter((a) => a.startLocal.slice(0, 10) >= from && a.startLocal.slice(0, 10) <= to),
-    );
-  });
+  // Temps de course réel, sans la marche d'échauffement et de retour au calme (D178) : il se compare au corps
+  // de séance prévu, la seule durée que la revue ajuste.
+  const previous = await Promise.all(
+    [-21, -14, -7].map((d) => {
+      const from = addDays(week, d);
+      const to = addDays(from, 6);
+      return runningMinutes(
+        store,
+        history.filter((a) => a.startLocal.slice(0, 10) >= from && a.startLocal.slice(0, 10) <= to),
+      );
+    }),
+  );
   const proposal = weeklyReview({
     week,
     sessions,
     checkins,
-    runMinutes: runMinutes(acts),
+    runMinutes: await runningMinutes(store, acts),
     previousRunMinutes: previous,
     next: nextSessions,
   });

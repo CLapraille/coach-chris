@@ -134,12 +134,18 @@ export function fromClaudeWeek(
   swaps: Record<string, ClaudeSport> = {},
   /** Durées retenues à la revue du dimanche (D161), par identifiant de séance. */
   durations: Record<string, number> = {},
+  /** Routines du plan : leur durée s'ajoute au corps de séance pour la durée totale prévue (D178). */
+  routines: Record<string, ClaudeRoutine> = {},
 ): PlannedSession[] {
   return week.sessions.map((s, index) => {
     const resolved = resolveVariant(s, flexDefault, swaps[s.id]);
     const v = durations[s.id] ? { ...resolved, dureeMin: durations[s.id]! } : resolved;
     const sport = SPORTS[v.sport];
     const exercises = v.corps.flatMap((c) => (c.exo ? [c.exo] : []));
+    const extraMin = [v.echauffement, v.retourAuCalme].reduce(
+      (t, id) => t + (id ? (routines[id]?.dureeMin ?? 0) : 0),
+      0,
+    );
     return {
       key: `${week.start}#${index}#${s.id}`,
       source: 'claude',
@@ -150,6 +156,7 @@ export function fromClaudeWeek(
       sport,
       trainingType: ROLE_LABEL[s.role],
       durationMin: v.dureeMin,
+      ...(extraMin > 0 && { extraMin: Math.round(extraMin) }),
       status: 'todo',
       // Phase Base : aucune séance d'intensité au sens des règles de placement (le tempo vélo reste modéré).
       intense: false,

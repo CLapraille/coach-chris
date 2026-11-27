@@ -7,6 +7,7 @@ export * from './checkin/checkin.ts';
 export * from './plan/matching.ts';
 export * from './plan/placement.ts';
 export * from './plan/deviation.ts';
+export * from './plan/runningTime.ts';
 export * from './load/volume.ts';
 export * from './mobility/library.ts';
 export * from './mobility/tests.ts';

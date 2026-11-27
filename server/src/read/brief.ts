@@ -8,12 +8,16 @@ import {
   type BriefInput,
   type BriefSession,
   type BriefWeek,
+  indoorRun,
+  runningSeconds,
+  type ActivityDetail,
   type CachedActivity,
   type PlannedSession,
   type WeekSession,
 } from '@coach-chris/domain';
+import { pk } from '../sync/sync.ts';
 import { readSeason, readSettings } from '../plan/claude.ts';
-import type { Store } from '../store/store.ts';
+import type { Doc, Store } from '../store/store.ts';
 import { activities, night, planWeek } from './cache.ts';
 import { readCheckins } from './checkin.ts';
 import { listInbox } from './inbox.ts';
@@ -25,20 +29,43 @@ export const BRIEF_WEEKS = 4;
 /** Semaines de tendance du volume de course. */
 const TREND_WEEKS = 8;
 
-const brief = (a: CachedActivity): BriefActivity => ({
-  day: a.startLocal.slice(0, 10),
-  type: a.type,
-  durationS: a.durationS,
-  ...(a.name !== undefined && { name: a.name }),
-  ...(a.distanceM !== undefined && { distanceM: a.distanceM }),
-  ...(a.avgHr !== undefined && { avgHr: a.avgHr }),
-});
+/** Temps couru par course (D178), d'après les tours en cache. */
+type Running = Map<string, number>;
+
+const briefOf =
+  (running: Running) =>
+  (a: CachedActivity): BriefActivity => ({
+    day: a.startLocal.slice(0, 10),
+    type: a.type,
+    durationS: a.durationS,
+    ...(a.name !== undefined && { name: a.name }),
+    ...(a.distanceM !== undefined && { distanceM: a.distanceM }),
+    ...(a.avgHr !== undefined && { avgHr: a.avgHr }),
+    ...(running.has(a.id) && { runningS: running.get(a.id)! }),
+    ...(indoorRun(a.type) && { indoor: true }),
+  });
+
+async function runningOf(store: Store, acts: CachedActivity[]): Promise<Running> {
+  const runs = acts.filter((a) => activitySport(a.type) === 'run');
+  const entries = await Promise.all(
+    runs.map(async (a) => {
+      const d = await store.get<Doc & { detail: ActivityDetail }>(
+        'cache',
+        a.id,
+        pk('detail', a.startLocal.slice(0, 10)),
+      );
+      return [a.id, runningSeconds(a, d?.detail.laps)] as const;
+    }),
+  );
+  return new Map(entries);
+}
 
 function session(
   s: WeekSession,
   planned: PlannedSession | undefined,
   byId: Map<string, CachedActivity>,
   checkins: BriefWeek['sessions'][number]['checkin'],
+  brief: (a: CachedActivity) => BriefActivity,
 ): BriefSession {
   const a = s.match?.activityId ? byId.get(s.match.activityId) : undefined;
   const day = planned?.day ?? s.day ?? undefined;
@@ -47,6 +74,7 @@ function session(
     sport: s.sport,
     role: s.trainingType || 'séance',
     plannedMin: s.durationMin,
+    ...(s.extraMin && { extraMin: s.extraMin }),
     ...(day && { plannedDay: day }),
     ...(s.match && { done: { day: s.match.day, ...(a && { activity: brief(a) }) } }),
     ...(checkins && { checkin: checkins }),
@@ -67,6 +95,8 @@ export async function claudeBriefText(store: Store, today: string, weeks = BRIEF
     listInbox(store),
   ]);
   const byId = new Map(acts.map((a) => [a.id, a]));
+  const running = await runningOf(store, acts);
+  const brief = briefOf(running);
   const checkinByDay = new Map(checkins.map((c) => [c.date, c]));
 
   let athlete: Record<string, unknown> | undefined;
@@ -86,7 +116,7 @@ export async function claudeBriefText(store: Store, today: string, weeks = BRIEF
       const sc = id
         ? days.map((d) => checkinByDay.get(d)?.sessions?.[id]).find((c) => c !== undefined)
         : undefined;
-      return session(s, planned, byId, sc);
+      return session(s, planned, byId, sc, brief);
     });
     const weekActs = acts
       .filter((a) => a.startLocal.slice(0, 10) >= monday && a.startLocal.slice(0, 10) <= days[6]!)
@@ -134,6 +164,7 @@ export async function claudeBriefText(store: Store, today: string, weeks = BRIEF
         sport: p.sport,
         role: p.trainingType,
         plannedMin: p.durationMin,
+        ...(p.extraMin && { extraMin: p.extraMin }),
         ...(p.day && { plannedDay: p.day }),
       })),
     });
@@ -143,9 +174,9 @@ export async function claudeBriefText(store: Store, today: string, weeks = BRIEF
     const monday = addDays(trendFrom, 7 * i);
     const end = addDays(monday, 6);
     const s = acts
-      .filter((a) => activitySport(a.type) === 'run')
+      .filter((a) => running.has(a.id))
       .filter((a) => a.startLocal.slice(0, 10) >= monday && a.startLocal.slice(0, 10) <= end)
-      .reduce((sum, a) => sum + a.durationS, 0);
+      .reduce((sum, a) => sum + running.get(a.id)!, 0);
     return { monday, minutes: Math.round(s / 60) };
   });
 

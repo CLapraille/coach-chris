@@ -9,7 +9,15 @@ import {
 import { useState } from 'react';
 import { api } from '../api.ts';
 import { PlanSourceTag } from '../PlanSource.tsx';
-import { SPORT_COLOR, SPORT_LABEL, decimal, sessionLabel, weekdayShort } from '../format.ts';
+import {
+  SPORT_COLOR,
+  SPORT_LABEL,
+  decimal,
+  plannedMinutes,
+  plannedTotalS,
+  sessionLabel,
+  weekdayShort,
+} from '../format.ts';
 
 /** Écart de durée au-delà duquel une séance faite est signalée (D67 : ±10 %). */
 const OVER = 0.1;
@@ -231,7 +239,7 @@ function DoneItem({
   onOpen: (key: string) => void;
   onUnlink: () => void;
 }) {
-  const planned = s.durationMin * 60;
+  const planned = plannedTotalS(s);
   const ratio = activity && planned ? activity.durationS / planned - 1 : 0;
   const isOver = ratio > OVER;
   const meta = activity
@@ -295,7 +303,10 @@ function PlanItem({
         <span className="st todo">à faire</span>
       </div>
       <div className="m">
-        {s.durationMin} min · {s.trainingType}
+        <span title={s.extraMin ? 'Corps de séance + échauffement et retour au calme' : undefined}>
+          {plannedMinutes(s)}
+        </span>{' '}
+        · {s.trainingType}
       </div>
       {draggable && days.length > 1 && (
         <select
@@ -403,7 +414,7 @@ function Summary({ week }: { week: WeekView }) {
       .filter((a) => activitySport(a.type) === sport)
       .reduce((n, a) => n + Math.round(a.durationS / 60), 0);
   const planned = (sport: string) =>
-    sessions.filter((s) => s.sport === sport).reduce((n, s) => n + s.durationMin, 0);
+    sessions.filter((s) => s.sport === sport).reduce((n, s) => n + plannedTotalS(s) / 60, 0);
   const strength = sessions.filter((s) => s.sport === 'strength');
   const bikeOff = week.offPlan.filter((a) => activitySport(a.type) === 'bike');
   return (

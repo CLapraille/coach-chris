@@ -16,7 +16,10 @@ export interface PlannedSession {
   displayName: string;
   sport: Sport;
   trainingType: string;
+  /** Corps de séance, en minutes (ce que la montre déroule et ce que la revue ajuste). */
   durationMin: number;
+  /** Échauffement et retour au calme prévus en plus du corps de séance (plan Claude, D178). */
+  extraMin?: number;
   status: SessionStatus;
   /** Séance d'intensité (fractionné, compétition, test). */
   intense: boolean;

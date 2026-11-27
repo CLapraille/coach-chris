@@ -129,7 +129,8 @@ export function matchWeek(
     }
 
     // 3. Règle : même sport, durée proche.
-    const planned = s.durationMin * 60;
+    // L'activité contient l'échauffement et le retour au calme : on la compare à la durée totale prévue (D178).
+    const planned = (s.durationMin + (s.extraMin ?? 0)) * 60;
     const near = (a: Activity) => !s.day || dayGap(s.day, activityDay(a)) <= DAY_TOLERANCE;
     const candidates = free(s.sport).filter(
       (a) => near(a) && planned > 0 && Math.abs(a.durationS - planned) / planned <= DURATION_TOLERANCE,
