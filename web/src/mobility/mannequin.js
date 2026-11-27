@@ -98,6 +98,7 @@ const Mannequin = (function () {
     if (ex.over) ex.over(g, J, el, C, t);
     [].concat(ex.glow || []).forEach(function (p) { p = pt(J, p); g.appendChild(el('circle', { cx: p.x, cy: p.y, r: 9, fill: C.hi, opacity: .28 })); });
   }
+  function reducedMotion() { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
   function ease(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
   function frameAt(ex, K, c) {
     var T = ex.T || 2600, H = ex.H == null ? 900 : ex.H, n = K.length, i = Math.floor(c / (T + H)) % n, l = c % (T + H), t = l < T ? ease(l / T) : 1;
@@ -112,12 +113,14 @@ const Mannequin = (function () {
     if (ex.decor) ex.decor(svg, el, C, G);
     svg.appendChild(el('g', { class: 'fig' }));
   }
-  function mount(svg, ex) {
+  // mode : 'auto' (fixe si l'appareil demande moins d'animations), 'play' (toujours animé, à la demande de
+  // l'utilisateur, D181) ou 'still' (pose d'arrivée, fixe).
+  function mount(svg, ex, mode) {
     setup(svg, ex);
     var K = ex.custom ? [{ anchor: { j: 'pelvis', x: 0, y: 0 } }, { anchor: { j: 'pelvis', x: 0, y: 0 } }] : prep(ex);
     function paint(f) { draw(svg, ex.custom ? null : solve(f.P, ex), ex, f.t); }
-    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) { paint({ P: K[1], t: 1 }); return; }
+    var still = mode === 'still' || (mode !== 'play' && reducedMotion());
+    if (still) { paint({ P: K[1], t: 1 }); return; }
     var start = performance.now();
     paint(frameAt(ex, K, 0));
     function frame(now) {
@@ -349,7 +352,8 @@ const Mannequin = (function () {
       A: { bend: 0 }, B: { bend: -9 } }
   };
   return {
-    mount: function (svg, code) { if (EX[code]) { mount(svg, EX[code]); return true; } return false; },
+    mount: function (svg, code, mode) { if (EX[code]) { mount(svg, EX[code], mode); return true; } return false; },
+    reducedMotion: reducedMotion,
     has: function (c) { return !!EX[c]; },
     codes: Object.keys(EX),
     still: function (svg, code, i) { // pose fixe (vérification)
