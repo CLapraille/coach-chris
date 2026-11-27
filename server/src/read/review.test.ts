@@ -121,6 +121,34 @@ it('dimanche : proposition verte, acceptée, puis appliquée à la semaine suiva
   await app.close();
 });
 
+it('revue : seul le temps couru compte, pas la marche d’échauffement ni de retour au calme (D178)', async () => {
+  const { app, store } = await setup();
+  // Course du dimanche (46 min) : 6 min de marche d'échauffement et 5 min de retour au calme en tours lents.
+  await store.upsert('cache', {
+    id: '2',
+    pk: pk('detail', '2026-11-29'),
+    source: 'garmin',
+    fetchedAt: NOW,
+    schemaVersion: 1,
+    detail: {
+      id: '2',
+      startLocal: '2026-11-29 18:00:00',
+      type: 'running',
+      durationS: 2760,
+      zones: [],
+      laps: [
+        { n: 1, durationS: 360, movingS: 350, avgCadence: 110 },
+        { n: 2, durationS: 2100, movingS: 2100, avgCadence: 164 },
+        { n: 3, durationS: 300, movingS: 280, avgCadence: 95 },
+      ],
+    },
+  });
+  const res = (await app.inject({ method: 'GET', url: '/api/review' })).json();
+  // 31 min (sans détail : toute la durée) + 35 min courues = 66 min, au lieu de 77.
+  expect(res.proposal.volume.actual).toBe(66);
+  await app.close();
+});
+
 it('semaine Campus : pas de revue', async () => {
   const app = buildApp({
     store: new MemoryStore(),

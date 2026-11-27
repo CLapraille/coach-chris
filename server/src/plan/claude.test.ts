@@ -79,6 +79,11 @@ describe('importPlan', () => {
       ['Course facile', 'run', '2026-11-23'],
       ['Vélo endurance', 'bike', '2026-11-26'],
     ]);
+    // Échauffement (8 min) et retour au calme (9 min) en plus du corps de séance (D178).
+    expect(week?.sessions.map((s) => [s.durationMin, s.extraMin])).toEqual([
+      [30, 17],
+      [45, undefined],
+    ]);
     expect(Object.keys(week!.claude!.routines).sort()).toEqual([
       'ech-course',
       'rac-course',

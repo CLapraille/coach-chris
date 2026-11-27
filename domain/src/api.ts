@@ -71,6 +71,8 @@ export interface WeekSession {
   sport: PlannedSession['sport'];
   trainingType: string;
   durationMin: number;
+  /** Échauffement et retour au calme prévus en plus (plan Claude, D178). */
+  extraMin?: number;
   status: PlannedSession['status'];
   intense: boolean;
   legs: boolean;

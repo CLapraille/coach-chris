@@ -10,7 +10,15 @@ import { useState } from 'react';
 import { ActionDialog } from '../actions/ActionDialog.tsx';
 import { PlanSourceTag } from '../PlanSource.tsx';
 import { Dose } from '../Dose.tsx';
-import { SPORT_COLOR, longDate, sessionLabel, shortDate, stepDuration, weekdayShort } from '../format.ts';
+import {
+  SPORT_COLOR,
+  longDate,
+  sessionLabel,
+  shortDate,
+  stepDuration,
+  weekdayShort,
+  plannedMinutes,
+} from '../format.ts';
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
@@ -130,7 +138,7 @@ function SessionLine({
       <button type="button" className="wk-open" onClick={() => onOpen(s.key)}>
         {sessionLabel(s)}
       </button>{' '}
-      · {s.durationMin} min
+      · {plannedMinutes(s)}
       {isNext && (
         <span className="wk-tag">
           prochaine<span className="wide-only"> séance</span>

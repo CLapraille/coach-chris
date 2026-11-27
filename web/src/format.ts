@@ -94,3 +94,12 @@ export const READINESS_LABEL: Record<string, string> = {
 };
 
 export const LEVEL_LABEL: Record<string, string> = { HIGH: 'haut', MODERATE: 'moyen', LOW: 'bas' };
+
+/** Durée prévue : « 30 min », ou « 30 + 17 min » avec l'échauffement et le retour au calme (D178). */
+export function plannedMinutes(s: { durationMin: number; extraMin?: number }): string {
+  return s.extraMin ? `${s.durationMin} + ${s.extraMin} min` : `${s.durationMin} min`;
+}
+
+/** Durée totale prévue, en secondes : corps de séance, échauffement et retour au calme (D178). */
+export const plannedTotalS = (s: { durationMin: number; extraMin?: number }) =>
+  (s.durationMin + (s.extraMin ?? 0)) * 60;

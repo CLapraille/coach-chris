@@ -25,6 +25,7 @@ import {
   sessionShort,
   shortDate,
   stepDuration,
+  plannedTotalS,
 } from '../format.ts';
 import { DoseText } from '../Dose.tsx';
 import { Loading } from '../Loading.tsx';
@@ -124,7 +125,7 @@ function Detail({ view, onBack, reload }: { view: SessionView; onBack: () => voi
               day && longDate(day),
               a && a.startLocal.slice(11, 16),
               a?.name,
-              `${SPORT_LABEL[s.sport].toLowerCase()} · ${s.durationMin} min prévues`,
+              `${SPORT_LABEL[s.sport].toLowerCase()} · ${s.durationMin} min prévues${s.extraMin ? ` + ${s.extraMin} min d’échauffement et de retour au calme` : ''}`,
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -226,7 +227,8 @@ function Summary({ view, activity: a }: { view: SessionView; activity: ActivityD
   const d = view.deviation;
   const inWorkout = d ? d.steps.flatMap((st) => (st.lap ? [st.lap as LapView] : [])) : a.laps;
   const doneS = d ? inWorkout.reduce((n, l) => n + l.durationS, 0) : a.durationS;
-  const planned = view.session.durationMin * 60;
+  // Sans programme montre (plan Claude), l'activité entière se compare à la durée totale prévue (D178).
+  const planned = d ? view.session.durationMin * 60 : plannedTotalS(view.session);
   const gap = planned ? doneS / planned - 1 : 0;
   const dist = d ? inWorkout.reduce((n, l) => n + (l.distanceM ?? 0), 0) : (a.distanceM ?? 0);
   const afterLaps = d ? a.laps.slice(a.laps.findLastIndex((l) => l.workoutStepIndex !== undefined) + 1) : [];
