@@ -136,6 +136,9 @@ describe('BFF en lecture', () => {
     expect(t.signals.map((s: { id: string }) => s.id)).toEqual(['hrv-weekly-below']);
     // Course de mardi + renfo validé sans montre (30 min prévues).
     expect(t.volume.weeks.at(-1)).toEqual({ start: '2026-10-05', run: 30, bike: 0, strength: 30 });
+    // Prévu de la semaine, et reste à faire : les séances ni faites ni passées (D179).
+    expect(t.volume.planned).toEqual({ run: 86, bike: 0, strength: 60, total: 146 });
+    expect(t.volume.remaining).toEqual({ run: 56, bike: 0, strength: 30 });
     expect(t.mobility).toMatchObject({ testsMissing: true, evening: [{ code: 'C3' }] });
     expect(t.form.stressYesterday).toEqual({ avg: 33, restPercent: 67 });
     expect(t.form.night).toMatchObject({ bodyBattery: { sleepGain: 65, level: 'HIGH' } });

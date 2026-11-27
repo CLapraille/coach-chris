@@ -1,16 +1,31 @@
-import type { CapView, VolumeView, WeekView } from '@coach-chris/domain';
+import type { CapView, PlanSource, VolumeView, WeekView } from '@coach-chris/domain';
+import { PlanSourceTag } from '../PlanSource.tsx';
 import { decimal } from '../format.ts';
 
 /**
- * Volume de la semaine (visuel utilisateur du 09/10) : par ligne, le réalisé (plein), le reste prévu par Campus
- * (clair) et le repère (trait « max », D90). Le vélo n'a ni plan ni repère : rien n'est inventé pour lui.
+ * Volume de la semaine (visuel utilisateur du 09/10) : par ligne, le réalisé (plein), le reste à faire du plan
+ * actif (clair, D179) et le repère (trait « max », D90). Le vélo n'a pas de repère : rien n'est inventé pour lui.
  */
-export function VolumeCard({ volume, routines }: { volume: VolumeView; routines: WeekView['routines'] }) {
+export function VolumeCard({
+  volume,
+  routines,
+  source,
+}: {
+  volume: VolumeView;
+  routines: WeekView['routines'];
+  /** Plan actif de la semaine ; `null` sans plan. */
+  source: PlanSource | null;
+}) {
   const { run } = volume.cap;
   const week = volume.weeks.at(-1) ?? { run: 0, bike: 0, strength: 0 };
-  // Mobilité : routines cochées (matin et soir) sur les 7 jours de la semaine ; leur durée n'est pas enregistrée.
+  // Mobilité : routines cochées sur les 7 jours ; leur durée n'est pas enregistrée. Semaine du plan Claude :
+  // la routine du soir est remplacée (D157), seule celle du matin est prévue.
   const days = Object.values(routines);
-  const mobilityDone = days.reduce((n, d) => n + Number(d.morning) + Number(d.evening), 0);
+  const eveningPlanned = source !== 'claude';
+  const mobilityDone = days.reduce(
+    (n, d) => n + Number(d.morning) + (eveningPlanned ? Number(d.evening) : 0),
+    0,
+  );
   return (
     <article className="card s7 vol-card">
       <header>
@@ -19,7 +34,7 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           <span className="phone-only">Volume (min)</span>
         </span>
         <span>
-          <span className="src garmin">Garmin</span> <span className="src campus">Campus</span>
+          <span className="src garmin">Garmin</span> {source && <PlanSourceTag source={source} />}
         </span>
       </header>
       <div className="vol-rows">
@@ -28,6 +43,7 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           label="Course"
           parts={[{ minutes: week.run, color: 'var(--run)' }]}
           cap={run}
+          remaining={volume.remaining.run}
           plannedColor="color-mix(in srgb, var(--run) 30%, transparent)"
         />
         <Row
@@ -35,6 +51,9 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           label="Vélo"
           parts={[{ minutes: week.bike, color: 'var(--bike)' }]}
           cap={null}
+          {...(volume.planned.bike > 0 && { planned: volume.planned.bike })}
+          remaining={volume.remaining.bike}
+          plannedColor="color-mix(in srgb, var(--bike) 30%, transparent)"
         />
         <Row
           icon={<DumbbellIcon />}
@@ -42,6 +61,7 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           parts={[{ minutes: week.strength, color: 'var(--strength)' }]}
           cap={null}
           planned={volume.planned.strength}
+          remaining={volume.remaining.strength}
           plannedColor="color-mix(in srgb, var(--strength) 30%, transparent)"
         />
         <Row
@@ -49,10 +69,10 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           label="Mobilité"
           parts={[{ minutes: mobilityDone, color: 'var(--mobility)' }]}
           cap={null}
-          planned={days.length * 2}
+          planned={days.length * (eveningPlanned ? 2 : 1)}
           plannedColor="color-mix(in srgb, var(--mobility) 25%, transparent)"
           unit="routines"
-          note="matin et soir"
+          note={eveningPlanned ? 'matin et soir' : 'matin'}
         />
       </div>
       <div className="vol-legend">
@@ -60,7 +80,7 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
           <i className="done" /> réalisé
         </span>
         <span>
-          <i className="plan" /> reste prévu
+          <i className="plan" /> reste à faire
         </span>
         <span>
           <i className="mark" /> repère
@@ -70,11 +90,12 @@ export function VolumeCard({ volume, routines }: { volume: VolumeView; routines:
       {run ? (
         <details className="vol-rule">
           <summary>Règle</summary>
-          Le plan Campus prime. Un dépassement est un point d'attention, pas une interdiction. Repère = 1,3 ×
-          moyenne des 4 semaines complètes précédentes (ratio charge aiguë / chronique)
+          Le plan prime. Un dépassement est un point d'attention, pas une interdiction. Repère = 1,3 × moyenne
+          des 4 semaines complètes précédentes (ratio charge aiguë / chronique)
           {`. Course : 1,3 × ${decimal(run.mean)} min`}. « Sous le repère » ou « au-dessus » compare le prévu
-          de la semaine au repère. Une séance validée dans Campus sans montre compte pour sa durée prévue.
-          Repère courant en préparation physique, pas une prescription médicale.
+          de la semaine au repère, échauffement et retour au calme compris. Une séance validée dans Campus
+          sans montre compte pour sa durée prévue. Repère courant en préparation physique, pas une
+          prescription médicale.
         </details>
       ) : (
         <p className="empty">Pas encore 4 semaines d'historique : pas de repère.</p>
@@ -89,6 +110,7 @@ function Row({
   parts,
   cap,
   planned: plannedOnly,
+  remaining,
   plannedColor,
   unit,
   note,
@@ -97,8 +119,10 @@ function Row({
   label: string;
   parts: { minutes: number; color: string }[];
   cap: CapView | null;
-  /** Prévu sans repère (renforcement, mobilité). */
+  /** Prévu sans repère (vélo, renforcement, mobilité). */
   planned?: number;
+  /** Minutes des séances qui restent à faire (D179) ; sans elle, prévu − réalisé (mobilité). */
+  remaining?: number;
   plannedColor?: string;
   /** Unité autre que les minutes : la ligne affiche « fait / prévu ». */
   unit?: string;
@@ -106,7 +130,8 @@ function Row({
 }) {
   const done = parts.reduce((n, p) => n + p.minutes, 0);
   const plannedMin = cap?.planned ?? plannedOnly;
-  const planned = Math.max(plannedMin ?? 0, done);
+  // Fin de la barre claire : réalisé + reste à faire (D179), ou le prévu pour les lignes sans séances.
+  const planned = remaining !== undefined ? done + remaining : Math.max(plannedMin ?? 0, done);
   const scale = Math.max(planned, cap?.cap ?? 0, 1) * 1.08;
   const pct = (m: number) => `${(100 * m) / scale}%`;
   const doneMin = Math.round(done);
@@ -126,7 +151,7 @@ function Row({
                 (cap ? `, repère ${Math.round(cap.cap)} minutes` : ', pas de repère')
           }
         >
-          {plannedMin !== undefined && planned > done && (
+          {(plannedMin !== undefined || remaining) && planned > done && (
             <i
               className="plan"
               style={{ left: pct(done), width: pct(planned - done), background: plannedColor }}

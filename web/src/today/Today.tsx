@@ -68,7 +68,7 @@ export function Today({
           onChanged={res.reload}
         />
         <GoalCard goal={t.goal} today={t.today} />
-        <VolumeCard volume={t.volume} routines={t.week.routines} />
+        <VolumeCard volume={t.volume} routines={t.week.routines} source={t.week.plan?.source ?? null} />
         <MobilityCard
           mobility={t.mobility}
           today={t.today}
