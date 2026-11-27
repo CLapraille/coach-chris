@@ -3943,3 +3943,10 @@ ul.cl-items {
   background: var(--bg);
   color: var(--fg);
 }
+
+/* ===== Démonstration animée à la demande (D181) ===== */
+.fig-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
