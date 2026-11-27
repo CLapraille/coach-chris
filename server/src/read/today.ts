@@ -27,6 +27,7 @@ import { readCheckin } from './checkin.ts';
 import type { Store } from '../store/store.ts';
 import { activeGoal, activities, night, planWeek, weighIns, type PlanWeek } from './cache.ts';
 import { eveningSlots, mobilityToday } from './mobility.ts';
+import { runningById } from './running.ts';
 import { weekData } from './week.ts';
 
 /** Fenêtre de recherche de la dernière pesée (les pesées ne sont pas quotidiennes). */
@@ -98,7 +99,15 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
       weight: weightTrend(weights),
       readinessYesterday: yesterday?.readiness?.score ?? null,
     },
-    volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday, today),
+    volume: volume(
+      week.sessions,
+      [...history, ...week.activities],
+      campusOnly,
+      monday,
+      today,
+      // Course : temps couru, sans la marche d'échauffement et de retour au calme (D180).
+      await runningById(store, [...history, ...week.activities]),
+    ),
     week,
     evenings: await eveningSlots(store, week.sessions, weekDays(monday), today),
     mobility: await mobilityToday(store, week.sessions, today),
@@ -123,16 +132,17 @@ function withDetails(s: WeekSession, plan: PlanWeek | undefined): NextSession {
  */
 function volume(
   sessions: WeekSession[],
-  acts: { startLocal: string; type: string; durationS: number }[],
+  acts: { id: string; startLocal: string; type: string; durationS: number }[],
   campusOnly: VolumeEntry[],
   monday: string,
   today: string,
+  running: Map<string, number>,
 ): VolumeView {
   const entries: VolumeEntry[] = [
     ...acts.map((a) => ({
       day: a.startLocal.slice(0, 10),
       sport: activitySport(a.type),
-      minutes: Math.round(a.durationS / 60),
+      minutes: Math.round((running.get(a.id) ?? a.durationS) / 60),
     })),
     ...campusOnly,
   ];
@@ -145,8 +155,10 @@ function volume(
   const previous = weeks.slice(0, HISTORY_WEEKS).map(vol);
 
   const counted = sessions.filter((s) => s.status !== 'skipped' && s.sport !== 'walk' && s.sport !== 'other');
-  // Les volumes réels comptent toute l'activité : le prévu inclut l'échauffement et le retour au calme (D178).
-  const full = (s: { durationMin: number; extraMin?: number }) => s.durationMin + (s.extraMin ?? 0);
+  // Course : temps couru d'un côté, corps de séance de l'autre (D180). Vélo et renforcement : l'activité entière,
+  // échauffement et retour au calme compris (D178).
+  const full = (s: { sport: WeekSession['sport']; durationMin: number; extraMin?: number }) =>
+    s.sport === 'run' ? s.durationMin : s.durationMin + (s.extraMin ?? 0);
   const sum = (list: WeekSession[], sport: WeekSession['sport']) =>
     list.filter((s) => s.sport === sport).reduce((n, s) => n + full(s), 0);
   const planned = {
