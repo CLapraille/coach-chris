@@ -98,7 +98,7 @@ export async function todayView(store: Store, today: string): Promise<TodayView>
       weight: weightTrend(weights),
       readinessYesterday: yesterday?.readiness?.score ?? null,
     },
-    volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday),
+    volume: volume(week.sessions, [...history, ...week.activities], campusOnly, monday, today),
     week,
     evenings: await eveningSlots(store, week.sessions, weekDays(monday), today),
     mobility: await mobilityToday(store, week.sessions, today),
@@ -126,6 +126,7 @@ function volume(
   acts: { startLocal: string; type: string; durationS: number }[],
   campusOnly: VolumeEntry[],
   monday: string,
+  today: string,
 ): VolumeView {
   const entries: VolumeEntry[] = [
     ...acts.map((a) => ({
@@ -146,11 +147,18 @@ function volume(
   const counted = sessions.filter((s) => s.status !== 'skipped' && s.sport !== 'walk' && s.sport !== 'other');
   // Les volumes réels comptent toute l'activité : le prévu inclut l'échauffement et le retour au calme (D178).
   const full = (s: { durationMin: number; extraMin?: number }) => s.durationMin + (s.extraMin ?? 0);
+  const sum = (list: WeekSession[], sport: WeekSession['sport']) =>
+    list.filter((s) => s.sport === sport).reduce((n, s) => n + full(s), 0);
   const planned = {
-    run: counted.filter((s) => s.sport === 'run').reduce((n, s) => n + full(s), 0),
-    strength: counted.filter((s) => s.sport === 'strength').reduce((n, s) => n + full(s), 0),
+    run: sum(counted, 'run'),
+    bike: sum(counted, 'bike'),
+    strength: sum(counted, 'strength'),
     total: counted.reduce((n, s) => n + full(s), 0),
   };
+  // Reste à faire (D179) : séances ni faites ni rattachées, placées aujourd'hui ou plus tard. Une séance manquée
+  // un jour passé n'y est plus, et une séance faite plus longue que prévu ne réduit pas le reste des autres.
+  const ahead = counted.filter((s) => s.status !== 'done' && !s.match && s.day !== null && s.day >= today);
+  const remaining = { run: sum(ahead, 'run'), bike: sum(ahead, 'bike'), strength: sum(ahead, 'strength') };
   const capOf = (values: number[], plannedMin: number): CapView | null => {
     const cap = volumeCap(values);
     return cap && { ...cap, planned: plannedMin, status: capStatus(plannedMin, cap) };
@@ -165,6 +173,7 @@ function volume(
       total: capOf(previous.map(total), planned.total),
     },
     planned,
+    remaining,
   };
 }
 

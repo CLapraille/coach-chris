@@ -83,7 +83,8 @@ export const TODAY: TodayView = {
   volume: {
     weeks: [{ start: '2026-10-05', run: 30, bike: 0, strength: 30 }],
     cap: { run: null, total: null },
-    planned: { run: 86, strength: 60, total: 146 },
+    planned: { run: 86, bike: 0, strength: 60, total: 146 },
+    remaining: { run: 56, bike: 0, strength: 30 },
   },
   week: {
     start: '2026-10-05',
